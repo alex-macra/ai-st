@@ -21,6 +21,29 @@ describe('jwtSecretError', () => {
     expect(jwtSecretError({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(32) })).toBeNull();
   });
 
+  it('rejects the published example secret even though it clears the length check', () => {
+    const shipped = 'change-me-to-a-random-32-byte-secret';
+    expect(Buffer.byteLength(shipped, 'utf8')).toBeGreaterThanOrEqual(32);
+    expect(jwtSecretError({ NODE_ENV: 'production', JWT_SECRET: shipped })).toMatch(
+      /published example value/i,
+    );
+  });
+
+  it('rejects any long placeholder that still says change-me', () => {
+    expect(
+      jwtSecretError({ NODE_ENV: 'production', JWT_SECRET: `CHANGE-ME-${'x'.repeat(32)}` }),
+    ).toMatch(/published example value/i);
+  });
+
+  it('rejects the secret the browser tests run with', () => {
+    expect(
+      jwtSecretError({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'synthetic-e2e-secret-not-for-production',
+      }),
+    ).toMatch(/published example value/i);
+  });
+
   it('rejects the development OTP bypass in production', () => {
     expect(
       jwtSecretError({
