@@ -1,0 +1,24 @@
+# Secret-scanning configuration. The default gitleaks rule set is kept in full;
+# this file only records the synthetic values the test harnesses need in
+# plaintext, so a real leak is never hidden behind a broad exemption.
+#
+# Do not add a path-wide exemption here. Allowlist the specific literal value,
+# so that anything else appearing in the same file is still reported.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic secrets committed on purpose for the test harnesses and the sample environment file."
+regexTarget = "match"
+regexes = [
+  # Signing keys for the Playwright and integration harnesses. They exist only
+  # to let a test server boot, are never used against real data, and the API
+  # refuses them when NODE_ENV is production (see api/src/env.ts).
+  '''e2e-integration-test-secret-32-bytes''',
+  '''synthetic-e2e-secret-not-for-production''',
+  # The former placeholder from api/.env.example. That file now ships an empty
+  # value, but the string stays reachable in history and in the guard that
+  # rejects it.
+  '''change-me-to-a-random-32-byte-secret''',
+]
