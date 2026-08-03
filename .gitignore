@@ -41,10 +41,11 @@ private-references/
 generated/
 reports/
 
-# Local research, agent configuration, and internal planning
+# Local notes, scratch, and tool directories. The blanket dot-directory rule
+# keeps local tooling state out of the repository without enumerating it.
+.*/
+!.github/
 _research/
-.claude/
-.codex/
 tasks/
 TASKS.md
 immediateTask.md

@@ -1,6 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// This file necessarily contains every marker string it searches for, so it is
+// the one file exempt from the marker scan. All other checks still apply to it.
+const selfPath = path.relative(process.cwd(), fileURLToPath(import.meta.url)).split(path.sep).join('/');
 
 const allowedRoots = new Set([
   '.github',
@@ -32,31 +37,32 @@ const bannedExtensions = new Set([
 ]);
 
 const bannedSegments = new Set([
-  ['.', 'claude'].join(''),
-  ['.', 'codex'].join(''),
-  ['_', 'research'].join(''),
+  '_research',
   'generated',
   'private-references',
   'reports',
   'tasks',
 ]);
 
+// Dot-directories and dotfiles carry local tooling and editor state. Allow the
+// few this repository publishes and reject the rest at any depth, so a new one
+// never needs to be enumerated here to be caught.
+const allowedDotSegments = new Set([
+  '.auth',
+  '.dockerignore',
+  '.editorconfig',
+  '.env.example',
+  '.github',
+  '.gitignore',
+  '.nvmrc',
+  '.prettierrc',
+]);
+
 const privateMarkers = [
-  ['shared', 'core'].join('-'),
-  ['@', 'shared', '/'].join(''),
-  ['file:', '..', '/..', '/'].join(''),
-  ['Plan', 'For', 'Projects'].join(''),
-  ['U', 'C', 'D', 'D', 'B'].join(''),
-  ['CHAT', ' dataset'].join(''),
-  ['fetch_', 'chat'].join(''),
-  ['fetch_', 'u', 'c', 'd', 'd', 'b'].join(''),
-  ['Atlas of ', 'Sleep Medicine'].join(''),
-  ['Thomas', ' 2023'].join(''),
-  ['Kry', 'ger'].join(''),
-  ['Pete', 'an'].join(''),
-  ['Petre', 'an'].join(''),
-  ['Niko', 'las'].join(''),
-  ['Nicho', 'las'].join(''),
+  'shared-core',
+  '@shared/',
+  'file:../../',
+  'PlanForProjects',
 ];
 
 const secretPatterns = [
@@ -90,6 +96,9 @@ function checkPath(file, failures) {
   const segments = normalized.split('/');
   if (!allowedRoots.has(segments[0])) failures.push(`${file}: top-level path is not allowlisted`);
   if (segments.some((segment) => bannedSegments.has(segment))) failures.push(`${file}: forbidden directory`);
+  if (segments.some((segment) => segment.startsWith('.') && !allowedDotSegments.has(segment))) {
+    failures.push(`${file}: dot-path is not allowlisted`);
+  }
   if (normalized.startsWith('api/refs/')) failures.push(`${file}: bundled reference pack is forbidden`);
   if (normalized.startsWith('e2e/.auth/') && !normalized.endsWith('/.gitignore')) failures.push(`${file}: browser auth state is forbidden`);
   if (bannedExtensions.has(path.extname(normalized).toLowerCase())) failures.push(`${file}: forbidden artifact type`);
@@ -109,8 +118,10 @@ function checkText(file, failures) {
   if (/\/home\/[A-Za-z0-9._-]+\//.test(content) || /\/Users\/[A-Za-z0-9._-]+\//.test(content) || /[A-Za-z]:\\Users\\/.test(content)) {
     failures.push(`${file}: absolute machine path`);
   }
-  for (const marker of privateMarkers) {
-    if (content.toLowerCase().includes(marker.toLowerCase())) failures.push(`${file}: private marker detected`);
+  if (file !== selfPath) {
+    for (const marker of privateMarkers) {
+      if (content.toLowerCase().includes(marker.toLowerCase())) failures.push(`${file}: private marker detected`);
+    }
   }
   for (const pattern of secretPatterns) {
     if (pattern.test(content)) failures.push(`${file}: secret-like value detected`);

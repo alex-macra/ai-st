@@ -7,7 +7,7 @@ lab's own scored AHI/RDI, T90, supine fraction, etc. We extract those
 numerics as a deterministic gold reference that Pass 3 can cross-check
 against the LLM's structured report.
 
-PHI rules (CLAUDE.md):
+PHI rules:
 - This parser MUST NOT return patient name, DOB, ID, weight, height, BMI,
   physician, scorer, clinic name, address, phone, or email. Every method
   here is whitelist-based extraction of clinical numerics, with regex
