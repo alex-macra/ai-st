@@ -1,5 +1,9 @@
 # AI-ST Sleep Study Review Assistant
 
+[![CI](https://github.com/alex-macra/ai-st/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-macra/ai-st/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
+
 AI-ST is an experimental, self-hosted review workspace for sleep-study artifacts. It preprocesses supported files, drafts evidence-linked observations with an LLM, and requires a human reviewer to adjudicate the output before sign-off.
 
 > AI-ST is clinician-assist research software. It is not an autonomous diagnostic system, medical advice, a medical device, or a claim of regulatory or production readiness. Do not use it as the sole basis for diagnosis or treatment.

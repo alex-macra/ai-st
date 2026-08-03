@@ -1,0 +1,76 @@
+name: Bug report
+description: Report incorrect behaviour in AI-ST.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report an undisclosed vulnerability or a sensitive-data exposure
+        here. Follow [SECURITY.md](../blob/main/SECURITY.md) instead.
+
+  - type: checkboxes
+    id: data-policy
+    attributes:
+      label: Data policy
+      description: This repository accepts synthetic material only.
+      options:
+        - label: This report contains no patient data, real identifiers, clinical PDFs or EDFs, generated reports, database copies, production logs, credentials, or private reference material.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what occurred instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps to reproduce, using synthetic fixtures only.
+      placeholder: |
+        1. Start the services with ...
+        2. Upload the synthetic fixture at ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0-alpha.1, or a commit SHA
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected service
+      multiple: true
+      options:
+        - Web interface
+        - API
+        - Preprocessor
+        - Docker Compose stack
+        - Build, tests, or CI
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node and Python versions, and whether you ran on the host or with Docker.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: Redact anything identifying. Output is rendered as code, so no backticks are needed.
+      render: text

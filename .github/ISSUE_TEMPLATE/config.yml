@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/alex-macra/ai-st/security/advisories/new
+    about: Never open a public issue for an unpatched vulnerability, a leaked credential, or a sensitive-data exposure.
+  - name: Safety and intended use
+    url: https://github.com/alex-macra/ai-st/blob/main/SAFETY.md
+    about: Read this before evaluating the application or reporting clinical behaviour.
