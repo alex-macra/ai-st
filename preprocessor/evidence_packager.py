@@ -20,7 +20,6 @@ from candidate_windows import (
     CandidateSet,
     _SPO2_LABELS,
     _FLOW_LABELS,
-    _EFFORT_LABELS,
     _POSITION_LABELS,
     _find_channel,
     headline_flow_events,

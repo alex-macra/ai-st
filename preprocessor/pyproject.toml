@@ -1,0 +1,29 @@
+# Lint configuration for the preprocessor service. This project has no Python
+# packaging metadata on purpose: the service is run with uvicorn from source,
+# not installed as a distribution.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+# Correctness rules only. Import ordering and line wrapping are deliberately
+# left out: the repository is not uniformly auto-formatted, and CONTRIBUTING.md
+# asks changes to avoid unrelated formatting churn.
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",  # long lines are not reformatted repository-wide
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI declares request parameters as call expressions in argument defaults
+# (File(...), Form(...), Depends(...)). That is the framework's documented API,
+# not the mutable-default hazard B008 targets.
+"main.py" = ["B008"]

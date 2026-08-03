@@ -1,6 +1,5 @@
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import type { Request, Response, NextFunction, ErrorRequestHandler, Express } from 'express';
 
 import { casesRouter } from './routes/cases.js';

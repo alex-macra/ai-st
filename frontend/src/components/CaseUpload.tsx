@@ -14,6 +14,13 @@ const COHORT_OPTIONS: RadioOption[] = [
   { value: 'adult',     label: 'Adult' },
 ];
 
+const UPLOAD_STEPS = [
+  'Sending files to server…',
+  'Running signal quality checks…',
+  'Detecting candidate events…',
+  'Building case package…',
+];
+
 export function CaseUpload({ onUploaded }: Props) {
   const [edf, setEdf] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
@@ -27,13 +34,6 @@ export function CaseUpload({ onUploaded }: Props) {
   const optionalFileCount = (pdf ? 1 : 0) + screenshots.length;
 
   const hasAnyFile = edf !== null || pdf !== null || screenshots.length > 0;
-
-  const UPLOAD_STEPS = [
-    'Sending files to server…',
-    'Running signal quality checks…',
-    'Detecting candidate events…',
-    'Building case package…',
-  ];
 
   useEffect(() => {
     if (!uploading) { setUploadStepIdx(0); return; }

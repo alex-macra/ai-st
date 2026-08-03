@@ -498,7 +498,6 @@ export async function runAnalysis(
 
     const pass2Raw = pass2.text;
     const parseOutcome = parsePass2Output(pass2Raw);
-    let structuredReport: StructuredReport;
     const validationWarnings: ValidationWarning[] = [];
     if (!parseOutcome.ok) {
       logger.error({ caseId }, 'pass2_parse_error');
@@ -506,7 +505,7 @@ export async function runAnalysis(
       res.end();
       return;
     }
-    structuredReport = parseOutcome.report;
+    const structuredReport: StructuredReport = parseOutcome.report;
     if (parseOutcome.coerced) {
       logger.warn({ warningCount: parseOutcome.warnings.length, caseId }, 'pass2_output_coerced');
       for (const w of parseOutcome.warnings) {

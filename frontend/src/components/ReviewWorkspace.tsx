@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Play, Square, Sparkles, RefreshCw, FileDown } from 'lucide-react';
-import { Alert, Select, Tabs, Badge, Chip, CASE_STATUS_VARIANT, type Tab as SharedTab } from '../ui';
+import { Alert, Select, Tabs, Badge, CASE_STATUS_VARIANT, type Tab as SharedTab } from '../ui';
 import { FindingCard } from './FindingCard';
 import { SignOffPanel } from './SignOffPanel';
 import { AuditTrail } from './AuditTrail';
@@ -275,6 +275,10 @@ export function ReviewWorkspace({ initialCase, onBack }: Props) {
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
+    // handleFindingDecision is redeclared every render, so listing it would
+    // detach and reattach the shortcut listener on each one. The state it
+    // closes over is covered by the dependencies below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [c.findings, c.status, c.id, focusedIdx]);
 
   useEffect(() => () => { abortRef.current?.abort(); }, []);

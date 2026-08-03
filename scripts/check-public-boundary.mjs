@@ -8,10 +8,14 @@ import { fileURLToPath } from 'node:url';
 const selfPath = path.relative(process.cwd(), fileURLToPath(import.meta.url)).split(path.sep).join('/');
 
 const allowedRoots = new Set([
+  '.dockerignore',
+  '.editorconfig',
   '.github',
   '.gitignore',
   '.nvmrc',
+  '.prettierrc',
   'ARCHITECTURE.md',
+  'CHANGELOG.md',
   'CODE_OF_CONDUCT.md',
   'CONTRIBUTING.md',
   'LICENSE',
@@ -21,8 +25,10 @@ const allowedRoots = new Set([
   'SECURITY.md',
   'THIRD_PARTY_NOTICES.md',
   'api',
+  'docker-compose.yml',
   'docs',
   'e2e',
+  'eslint.config.js',
   'examples',
   'frontend',
   'package-lock.json',

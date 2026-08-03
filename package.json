@@ -8,11 +8,20 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "check:boundary": "node scripts/check-public-boundary.mjs"
+    "check:boundary": "node scripts/check-public-boundary.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.60.0",
-    "@types/node": "^26.1.2"
+    "@types/node": "^26.1.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0"
   }
 }

@@ -347,12 +347,6 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
   res.status(201).json({ caseId, studyHash, name, status: 'draft' });
 }
 
-function sanitizeBasename(filename: string): string {
-  const noExt = filename.replace(/\.[^.]+$/, '');
-  const cleaned = noExt.replace(/[^A-Za-z0-9]+/g, '');
-  return cleaned.length > 0 ? cleaned.slice(0, 40) : 'study';
-}
-
 interface ImageFormat {
   extension: 'png' | 'jpg' | 'webp';
   mimeType: 'image/png' | 'image/jpeg' | 'image/webp';

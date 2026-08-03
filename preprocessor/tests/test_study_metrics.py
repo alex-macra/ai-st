@@ -131,8 +131,10 @@ def test_positional_rei_uses_headline_not_raw_candidates():
     from unittest.mock import patch, MagicMock
 
     coupled = CandidateWindow(100, 120, "provisional_flow_reduction", "Flow", 0.6)
-    uncoupled = CandidateWindow(200, 215, "provisional_flow_reduction", "Flow", 0.5,
-                                notes=[TAG_UNCOUPLED_HYPOPNEA])
+    # Constructed to document what headline_flow_events excludes; deliberately
+    # not passed to _positional_rei below.
+    _uncoupled = CandidateWindow(200, 215, "provisional_flow_reduction", "Flow", 0.5,
+                                 notes=[TAG_UNCOUPLED_HYPOPNEA])
 
     # headline_flow_events filters uncoupled out; pass only headline list
     headline = [coupled]  # uncoupled excluded

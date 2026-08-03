@@ -354,10 +354,7 @@ def _detect_co2_elevation(
 
 
 def _overlaps_intervals(start: float, end: float, intervals: list[tuple[float, float]]) -> bool:
-    for s, e in intervals:
-        if start < e and end > s:
-            return True
-    return False
+    return any(start < e and end > s for s, e in intervals)
 
 
 def _filter_by_spo2_coupling(

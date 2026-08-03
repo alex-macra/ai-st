@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-const baseEventSchema = z.object({
-  type: z.string(),
-});
-
 export const errorEventSchema = z.object({
   type: z.literal('error'),
   code: z.string().optional(),

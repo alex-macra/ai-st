@@ -177,7 +177,7 @@ def _extract_metrics(text: str) -> DominoMetrics:
     # DOMINO writes "AHI / RDI [/h]" and the corresponding cell is "X / Y".
     # The label and value are widely separated by other table cells, so we
     # search for the X / Y shape and pin it to the AHI/RDI label section.
-    if "AHI / RDI" in text:
+    if "AHI / RDI" in text:  # noqa: SIM102 - the section guard reads clearer kept separate from the pattern
         if match := re.search(
             r"(" + _DECIMAL + r")\s*/\s*(" + _DECIMAL + r")(?=\s*\n[^\n]*Flow Limitations)",
             text,

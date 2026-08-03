@@ -23,6 +23,8 @@ Run the focused tests while developing, then the full release checks:
 
 ```bash
 npm run check:boundary
+npm run lint
+preprocessor/.venv/bin/ruff check preprocessor
 npm --prefix api run typecheck
 npm --prefix api test
 npm --prefix api run build
@@ -34,6 +36,18 @@ npm run test:e2e
 ```
 
 Browser tests use a guarded synthetic model adapter and must not require a live model key.
+
+## Formatting
+
+Linting is enforced; formatting is not. `npm run lint` and `ruff check` must
+pass, and both are limited to correctness rules — unused code, unsafe patterns,
+and the rules of hooks.
+
+The repository is not uniformly auto-formatted. A Prettier configuration and an
+`.editorconfig` are provided so new code lands in a consistent style, but do not
+reformat files you are not otherwise changing: a repository-wide rewrite would
+bury behavioral changes in unrelated diff noise and erase the history that makes
+clinical logic reviewable.
 
 ## Pull requests
 

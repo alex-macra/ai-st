@@ -6,7 +6,7 @@ import { lstat, realpath, rm, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getCaseByIdScoped, getCases, getCasesScoped, updateCaseStatusWithAudit, getAuditLog, updateFindingDecisionWithAudit, updateSectionReviewWithAudit, deleteCase, clearCaseAnalysisWithAudit, deleteAllCases, clearAllAnalyses, updateCasePackage, signOffCaseWithAudit, nextCaseUpdatedAt } from '../db.js';
 import type { CaseScope } from '../db.js';
-import { CASE_STATUSES, ALLOWED_MODELS, GPT_MODEL, ENABLE_BULK_CASE_DELETE, CHARTS_DIR, SLICES_DIR, SCREENSHOTS_DIR, MAX_SIGNAL_SLICES_BYTES } from '../constants.js';
+import { CASE_STATUSES, ALLOWED_MODELS, ENABLE_BULK_CASE_DELETE, CHARTS_DIR, SLICES_DIR, SCREENSHOTS_DIR, MAX_SIGNAL_SLICES_BYTES } from '../constants.js';
 import { REPORT_SECTION_KEYS } from '../shared/types.js';
 import type { ReportSectionKey } from '../shared/types.js';
 import { logger, hashIp, errorLogFields } from '../logger.js';

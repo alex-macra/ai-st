@@ -228,7 +228,7 @@ def score(
         "high": [], "medium": [], "low": [], "unknown": []
     }
 
-    for gt_type, tp_pairs in tp_pairs_by_type.items():
+    for _gt_type, tp_pairs in tp_pairs_by_type.items():
         for cand, gt_event in tp_pairs:
             bucket = _quality_bucket(cand.signal_quality)
             bucket_tp[bucket].append((cand, gt_event))
@@ -237,7 +237,7 @@ def score(
         bucket = _quality_bucket(cand.signal_quality)
         bucket_fp[bucket].append((i, cand))
 
-    for gt_type, fn_events in fn_by_type.items():
+    for _gt_type, fn_events in fn_by_type.items():
         for gt_event in fn_events:
             bucket = _fn_quality_bucket(gt_event, candidates)
             bucket_fn[bucket].append(gt_event)

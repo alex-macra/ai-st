@@ -31,7 +31,6 @@ import pyedflib
 
 from edf_parser import ChannelInventory
 from candidate_windows import (
-    CandidateWindow,
     CandidateSet,
     _find_channel,
     _FLOW_LABELS,
@@ -120,7 +119,7 @@ def build_signal_slices(
     output: list[dict[str, Any]] = []
 
     with pyedflib.EdfReader(str(edf_path)) as reader:
-        for idx, event in enumerate(events_to_slice):
+        for event in events_to_slice:
             window_start = max(0.0, event.start_sec - _PRE_PAD_SEC)
             window_end = min(duration_sec, event.end_sec + _POST_PAD_SEC)
 

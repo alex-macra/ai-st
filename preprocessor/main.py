@@ -7,7 +7,7 @@ from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
 from deidentify import deidentify_edf_header
-from edf_parser import parse_edf, extract_demographics, Demographics
+from edf_parser import parse_edf, extract_demographics
 from signal_qc import run_signal_qc
 from candidate_windows import find_candidate_windows
 from evidence_packager import package_evidence

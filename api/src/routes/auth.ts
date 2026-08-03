@@ -111,7 +111,7 @@ export function createAuthRouter() {
 
     try {
       await sendOtp(email, code);
-    } catch (err) {
+    } catch {
       logger.error('otp_send_failed');
       res.status(500).json({ error: 'Failed to send sign-in code. Please try again.' });
       return;
