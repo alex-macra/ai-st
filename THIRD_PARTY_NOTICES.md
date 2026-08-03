@@ -20,6 +20,7 @@ Primary JavaScript runtime dependencies include:
 | Pino | MIT |
 | React and React DOM | MIT |
 | Lucide React | ISC |
+| Inter variable font | OFL-1.1 |
 | Zod | MIT |
 
 Primary Python runtime dependencies include:
