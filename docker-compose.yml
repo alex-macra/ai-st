@@ -1,0 +1,98 @@
+# Evaluation stack for AI-ST. Three services on a private network, with only
+# the web interface and the API published to loopback on the host.
+#
+#   cp api/.env.example api/.env   # then set a real JWT_SECRET
+#   docker compose up --build
+#
+# This mirrors the loopback-by-default posture described in SECURITY.md. It is
+# an evaluation aid, not a hardened production deployment: there is no TLS, no
+# secret manager, and no backup or retention policy here.
+
+name: ai-st
+
+services:
+  preprocessor:
+    build:
+      context: .
+      dockerfile: preprocessor/Dockerfile
+    environment:
+      CHARTS_DIR: /var/lib/ai-st/charts
+      SLICES_DIR: /var/lib/ai-st/slices
+    volumes:
+      - evidence:/var/lib/ai-st
+    ports:
+      - '127.0.0.1:8001:8001'
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    # Operator configuration: OPENAI_API_KEY, JWT_SECRET, SMTP, rate limits.
+    # Absent on a fresh clone, in which case the API refuses to start and says
+    # which variable is missing.
+    env_file:
+      - path: api/.env
+        required: false
+    environment:
+      # Bind all interfaces inside the container. The published port below is
+      # still restricted to host loopback.
+      HOST: 0.0.0.0
+      PORT: 3001
+      NODE_ENV: production
+      # The web service proxies /api, so the API sees exactly one proxy hop.
+      TRUST_PROXY: 1
+      PREPROCESSOR_URL: http://preprocessor:8001
+      # Requests reach the API same-origin through the web service, so no
+      # cross-origin exception is needed.
+      CORS_ORIGINS: ''
+      DB_PATH: /var/lib/ai-st/db/cases.sqlite
+      CHARTS_DIR: /var/lib/ai-st/charts
+      SLICES_DIR: /var/lib/ai-st/slices
+      SCREENSHOTS_DIR: /var/lib/ai-st/screenshots
+    volumes:
+      # Charts and slices are written by the preprocessor and read back by the
+      # API, so both services must see the same filesystem.
+      - evidence:/var/lib/ai-st
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      preprocessor:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-off operator commands (invitations, admin promotion, reference seeding).
+  # Not started by `docker compose up`; run it explicitly:
+  #   docker compose run --rm tools scripts/generateLicenses.ts 1 starter
+  tools:
+    profiles: ['tools']
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: build
+    env_file:
+      - path: api/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      DB_PATH: /var/lib/ai-st/db/cases.sqlite
+    volumes:
+      - evidence:/var/lib/ai-st
+    entrypoint: ['npx', 'tsx']
+    command: ['scripts/generateLicenses.ts', '1', 'starter']
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - '127.0.0.1:5173:5173'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Holds the SQLite database, uploaded screenshots, and generated evidence.
+  # Contents are case data: remove with `docker compose down -v`.
+  evidence:

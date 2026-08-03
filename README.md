@@ -27,7 +27,36 @@ This alpha release is independently buildable from this repository. It includes 
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and data flow, and [SAFETY.md](SAFETY.md) before evaluating the application.
 
+## Run with Docker
+
+The fastest way to evaluate the application. This needs only Docker, not a local
+Node, Python, or C/C++ toolchain.
+
+```bash
+cp api/.env.example api/.env    # then set JWT_SECRET to a real 32-byte value
+docker compose up --build
+```
+
+The web interface is published on `http://127.0.0.1:5173` and proxies `/api` to
+the API container, so the browser sees a single origin. The API refuses to start
+and names the missing variable if `JWT_SECRET` is absent or too short.
+
+Generate a local invitation once the stack is healthy:
+
+```bash
+docker compose run --rm tools scripts/generateLicenses.ts 1 starter
+```
+
+Case data, the SQLite database, and generated evidence live in the `evidence`
+volume. `docker compose down -v` deletes them.
+
+This stack is an evaluation aid, not a hardened deployment: it terminates plain
+HTTP on loopback and has no TLS, secret manager, backup, or retention policy.
+Read [SECURITY.md](SECURITY.md) before exposing it anywhere.
+
 ## Quick start
+
+To run the services directly on the host instead.
 
 Prerequisites:
 
@@ -84,6 +113,8 @@ The accepted file format and validation rules are documented in [docs/reference-
 
 ```bash
 npm run check:boundary
+npm run lint
+preprocessor/.venv/bin/ruff check preprocessor
 npm --prefix api run typecheck
 npm --prefix api test
 npm --prefix api run build

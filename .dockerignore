@@ -1,0 +1,31 @@
+# Keep the build context small and free of local state.
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.vite
+
+# Local runtime output and clinical artifacts must never enter an image.
+data/
+api/data/
+preprocessor/data/
+uploads/
+private-references/
+generated/
+reports/
+test-results/
+playwright-report/
+.logs/
+e2e/.auth/
+
+# Secrets. api/.env is supplied at run time through env_file, not baked in.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+
+.git/
+.github/
