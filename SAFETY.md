@@ -2,7 +2,7 @@
 
 ## Intended use
 
-AI-ST is experimental clinician-assist software for exploring an evidence-linked review workflow. It can organize supported sleep-study artifacts, surface candidate observations, and record a human review decision.
+Somnoscribe is experimental clinician-assist software for exploring an evidence-linked review workflow. It can organize supported sleep-study artifacts, surface candidate observations, and record a human review decision.
 
 It is not intended to:
 

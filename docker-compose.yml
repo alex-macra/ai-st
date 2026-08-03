@@ -1,4 +1,4 @@
-# Evaluation stack for AI-ST. Three services on a private network, with only
+# Evaluation stack for Somnoscribe. Three services on a private network, with only
 # the web interface and the API published to loopback on the host.
 #
 #   cp api/.env.example api/.env   # then set a real JWT_SECRET
@@ -8,7 +8,7 @@
 # an evaluation aid, not a hardened production deployment: there is no TLS, no
 # secret manager, and no backup or retention policy here.
 
-name: ai-st
+name: somnoscribe
 
 services:
   preprocessor:
@@ -16,10 +16,10 @@ services:
       context: .
       dockerfile: preprocessor/Dockerfile
     environment:
-      CHARTS_DIR: /var/lib/ai-st/charts
-      SLICES_DIR: /var/lib/ai-st/slices
+      CHARTS_DIR: /var/lib/somnoscribe/charts
+      SLICES_DIR: /var/lib/somnoscribe/slices
     volumes:
-      - evidence:/var/lib/ai-st
+      - evidence:/var/lib/somnoscribe
     ports:
       - '127.0.0.1:8001:8001'
     restart: unless-stopped
@@ -46,14 +46,14 @@ services:
       # Requests reach the API same-origin through the web service, so no
       # cross-origin exception is needed.
       CORS_ORIGINS: ''
-      DB_PATH: /var/lib/ai-st/db/cases.sqlite
-      CHARTS_DIR: /var/lib/ai-st/charts
-      SLICES_DIR: /var/lib/ai-st/slices
-      SCREENSHOTS_DIR: /var/lib/ai-st/screenshots
+      DB_PATH: /var/lib/somnoscribe/db/cases.sqlite
+      CHARTS_DIR: /var/lib/somnoscribe/charts
+      SLICES_DIR: /var/lib/somnoscribe/slices
+      SCREENSHOTS_DIR: /var/lib/somnoscribe/screenshots
     volumes:
       # Charts and slices are written by the preprocessor and read back by the
       # API, so both services must see the same filesystem.
-      - evidence:/var/lib/ai-st
+      - evidence:/var/lib/somnoscribe
     ports:
       - '127.0.0.1:3001:3001'
     depends_on:
@@ -75,9 +75,9 @@ services:
         required: false
     environment:
       NODE_ENV: production
-      DB_PATH: /var/lib/ai-st/db/cases.sqlite
+      DB_PATH: /var/lib/somnoscribe/db/cases.sqlite
     volumes:
-      - evidence:/var/lib/ai-st
+      - evidence:/var/lib/somnoscribe
     entrypoint: ['npx', 'tsx']
     command: ['scripts/generateLicenses.ts', '1', 'starter']
 

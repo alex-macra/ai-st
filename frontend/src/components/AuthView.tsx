@@ -89,7 +89,7 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
             <Activity size={16} className="text-teal-600 dark:text-teal-400" />
-            <span className="text-sm font-semibold tracking-tight">AI-ST</span>
+            <span className="text-sm font-semibold tracking-tight">Somnoscribe</span>
           </div>
           <DarkModeToggle dark={isDark} onToggle={onToggleDark} />
         </div>
@@ -100,7 +100,7 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
           {mode === 'choice' && (
             <div className="space-y-4">
               <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                AI-ST Sleep Study Review Assistant
+                Somnoscribe Sleep Study Review Assistant
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Sign in to access your cases.

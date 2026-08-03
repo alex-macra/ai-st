@@ -20,6 +20,7 @@ const allowedRoots = new Set([
   '.prettierrc',
   'ARCHITECTURE.md',
   'CHANGELOG.md',
+  'CITATION.cff',
   'CODE_OF_CONDUCT.md',
   'CONTRIBUTING.md',
   'LICENSE',

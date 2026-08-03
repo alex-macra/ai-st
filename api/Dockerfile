@@ -30,10 +30,10 @@ FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3001 \
-    DB_PATH=/var/lib/ai-st/db/cases.sqlite \
-    CHARTS_DIR=/var/lib/ai-st/charts \
-    SLICES_DIR=/var/lib/ai-st/slices \
-    SCREENSHOTS_DIR=/var/lib/ai-st/screenshots
+    DB_PATH=/var/lib/somnoscribe/db/cases.sqlite \
+    CHARTS_DIR=/var/lib/somnoscribe/charts \
+    SLICES_DIR=/var/lib/somnoscribe/slices \
+    SCREENSHOTS_DIR=/var/lib/somnoscribe/screenshots
 
 WORKDIR /app
 
@@ -41,8 +41,8 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY api/package.json ./
 
-RUN mkdir -p /var/lib/ai-st/db /var/lib/ai-st/screenshots \
- && chown -R node:node /var/lib/ai-st /app
+RUN mkdir -p /var/lib/somnoscribe/db /var/lib/somnoscribe/screenshots \
+ && chown -R node:node /var/lib/somnoscribe /app
 USER node
 
 EXPOSE 3001

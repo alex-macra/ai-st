@@ -342,7 +342,7 @@ describe('POST /api/upload', () => {
   });
 
   it('removes its private per-request upload directory after processing', async () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'ai-st-upload-test-'));
+    const root = mkdtempSync(path.join(tmpdir(), 'somnoscribe-upload-test-'));
     const previous = process.env['UPLOAD_TMP_DIR'];
     process.env['UPLOAD_TMP_DIR'] = root;
     const stub = stubPreprocessor(PACKAGE);

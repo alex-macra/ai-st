@@ -7,14 +7,14 @@ function assertApiE2ePath(target: string): void {
   if (
     relative.startsWith('..') ||
     path.isAbsolute(relative) ||
-    !path.basename(target).startsWith('ai-st-api-e2e-')
+    !path.basename(target).startsWith('somnoscribe-api-e2e-')
   ) {
     throw new Error(`Refusing to remove non-E2E path: ${target}`);
   }
 }
 
 export default async function globalTeardown(): Promise<void> {
-  const root = process.env['AI_ST_API_E2E_ROOT'];
+  const root = process.env['SOMNOSCRIBE_API_E2E_ROOT'];
   if (!root) return;
   assertApiE2ePath(root);
   await rm(root, { recursive: true, force: true });

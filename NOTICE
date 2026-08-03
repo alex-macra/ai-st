@@ -1,10 +1,12 @@
-AI-ST Sleep Study Review Assistant
+Somnoscribe Sleep Study Review Assistant
 Copyright 2026 Alex Macra
+
+Licensed under the Apache License, Version 2.0. See LICENSE for the full terms.
 
 This product includes software developed by third parties under their
 respective licenses. See THIRD_PARTY_NOTICES.md and the dependency lockfiles.
 
 SOMNOtouch is a registered trademark of SOMNOmedics GmbH. DOMINO is a mark
-used by SOMNOmedics for its diagnostic software. These names are used only
-to describe interoperability. AI-ST is independent and is not affiliated
+used by SOMNOmedics for its diagnostic software. These names are used only to
+describe interoperability. Somnoscribe is independent and is not affiliated
 with, endorsed by, sponsored by, or supported by SOMNOmedics.

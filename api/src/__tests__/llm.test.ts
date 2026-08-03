@@ -17,7 +17,7 @@ describe('synthetic LLM mode', () => {
     expect(() =>
       syntheticLlmEnabled({
         NODE_ENV: 'production',
-        AI_ST_SYNTHETIC_LLM: 'true',
+        SOMNOSCRIBE_SYNTHETIC_LLM: 'true',
       }),
     ).toThrow(/only be enabled/);
   });

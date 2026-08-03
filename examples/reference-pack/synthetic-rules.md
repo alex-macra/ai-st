@@ -1,6 +1,6 @@
 ---
-ref_id: ai-st-synthetic-example
-source: AI-ST synthetic non-clinical example
+ref_id: somnoscribe-synthetic-example
+source: Somnoscribe synthetic non-clinical example
 cohort: generic
 type: generic
 license: open

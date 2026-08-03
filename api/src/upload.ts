@@ -30,7 +30,7 @@ const uploadDirectories = new WeakMap<Request, string>();
 function requestUploadDirectory(req: Request): string {
   const existing = uploadDirectories.get(req);
   if (existing) return existing;
-  const root = process.env['UPLOAD_TMP_DIR'] ?? path.join(tmpdir(), 'ai-st-uploads');
+  const root = process.env['UPLOAD_TMP_DIR'] ?? path.join(tmpdir(), 'somnoscribe-uploads');
   mkdirSync(root, { recursive: true, mode: 0o700 });
   chmodSync(root, 0o700);
   const directory = mkdtempSync(path.join(root, 'request-'));

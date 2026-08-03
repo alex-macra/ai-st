@@ -41,11 +41,11 @@ test.describe('navigation', () => {
     }
   });
 
-  test('AI-ST logo button navigates to case list from upload', async ({ page }) => {
+  test('Somnoscribe logo button navigates to case list from upload', async ({ page }) => {
     await page.getByRole('button', { name: 'Upload study' }).click();
     await expect(page.getByRole('heading', { name: 'Upload Sleep Study' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'AI-ST' }).click();
+    await page.getByRole('button', { name: 'Somnoscribe' }).click();
     await expect(page.getByText('No cases yet')).toBeVisible();
     await expect(page.getByText('Upload a study to get started.')).toBeVisible();
   });

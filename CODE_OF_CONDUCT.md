@@ -1,6 +1,6 @@
 # Code of conduct
 
-AI-ST contributors are expected to make participation respectful, safe, and productive.
+Somnoscribe contributors are expected to make participation respectful, safe, and productive.
 
 ## Expected behavior
 

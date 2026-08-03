@@ -72,7 +72,7 @@ export default function App() {
             onClick={() => setView('list')}
           >
             <Activity size={16} className="text-teal-600 dark:text-teal-400" />
-            <span className="text-sm font-semibold tracking-tight">AI-ST</span>
+            <span className="text-sm font-semibold tracking-tight">Somnoscribe</span>
           </button>
           <div className="flex items-center gap-1">
             <button

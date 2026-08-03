@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a change to AI-ST.
+description: Propose a change to Somnoscribe.
 labels: ['enhancement']
 body:
   - type: checkboxes
@@ -32,7 +32,7 @@ body:
     attributes:
       label: Safety and review implications
       description: |
-        AI-ST requires a human reviewer to adjudicate model output before
+        Somnoscribe requires a human reviewer to adjudicate model output before
         sign-off, and keeps claims linked to evidence. Explain how this proposal
         preserves that boundary, or why it does not affect it.
     validations:

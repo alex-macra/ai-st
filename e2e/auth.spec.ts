@@ -8,8 +8,8 @@ test.describe('auth screen', () => {
     await page.goto('/');
   });
 
-  test('shows AI-ST branding and choice buttons', async ({ page }) => {
-    await expect(page.getByText('AI-ST Sleep Study Review Assistant')).toBeVisible();
+  test('shows Somnoscribe branding and choice buttons', async ({ page }) => {
+    await expect(page.getByText('Somnoscribe Sleep Study Review Assistant')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Activate with license key' })).toBeVisible();
   });

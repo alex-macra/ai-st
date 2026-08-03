@@ -1,12 +1,12 @@
-# AI-ST Sleep Study Review Assistant
+# Somnoscribe Sleep Study Review Assistant
 
-[![CI](https://github.com/alex-macra/ai-st/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-macra/ai-st/actions/workflows/ci.yml)
+[![CI](https://github.com/alex-macra/somnoscribe/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-macra/somnoscribe/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
 
-AI-ST is an experimental, self-hosted review workspace for sleep-study artifacts. It preprocesses supported files, drafts evidence-linked observations with an LLM, and requires a human reviewer to adjudicate the output before sign-off.
+Somnoscribe is an experimental, self-hosted review workspace for sleep-study artifacts. It preprocesses supported files, drafts evidence-linked observations with an LLM, and requires a human reviewer to adjudicate the output before sign-off.
 
-> AI-ST is clinician-assist research software. It is not an autonomous diagnostic system, medical advice, a medical device, or a claim of regulatory or production readiness. Do not use it as the sole basis for diagnosis or treatment.
+> Somnoscribe is clinician-assist research software. It is not an autonomous diagnostic system, medical advice, a medical device, or a claim of regulatory or production readiness. Do not use it as the sole basis for diagnosis or treatment.
 
 This alpha release is independently buildable from this repository. It includes no patient data, clinical reference pack, licensed institutional material, or external validation dataset.
 
@@ -107,7 +107,9 @@ Start all three services on loopback:
 ./scripts/dev.sh
 ```
 
-Use the generated invitation with `/api/auth/activate` or the activation form. The request field remains `licenseKey` for API compatibility; generated values are local invitations and do not contact a licensing service.
+Use the generated invitation with `/api/auth/activate` or the activation form.
+
+The `license` naming here is historical and has nothing to do with the Apache-2.0 licence of the software itself. These keys are seats, not entitlements: you mint them yourself against your own database, nothing contacts a licensing service, and the `tier` column that defaults to `starter` is inert because no feature reads it. There is no paid tier and no gated functionality. The API request field is still `licenseKey`, and the `licenses` table still carries that name, for compatibility with existing deployments.
 
 ## Configuration
 
@@ -158,7 +160,7 @@ The current local SQLite and filesystem storage are intended for controlled eval
 
 ## Compatibility and trademarks
 
-AI-ST contains parsers intended to interoperate with exports from SOMNOtouch™ RESP devices and DOMINO™ software. Those names are used only to describe compatibility. SOMNOtouch is a registered trademark of SOMNOmedics GmbH, and DOMINO is identified as a vendor mark. This project is independent and is not affiliated with, endorsed by, sponsored by, or supported by SOMNOmedics.
+Somnoscribe contains parsers intended to interoperate with exports from SOMNOtouch™ RESP devices and DOMINO™ software. Those names are used only to describe compatibility. SOMNOtouch is a registered trademark of SOMNOmedics GmbH, and DOMINO is identified as a vendor mark. This project is independent and is not affiliated with, endorsed by, sponsored by, or supported by SOMNOmedics.
 
 ## Contributing and security
 
@@ -167,3 +169,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md
 ## License
 
 Copyright 2026 Alex Macra. Licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+If you redistribute Somnoscribe in source or binary form, Apache-2.0 section 4(d) requires you to carry the [NOTICE](NOTICE) file with it. That file also records the SOMNOmedics trademark position stated above.
+
+To cite this software, use [CITATION.cff](CITATION.cff) or the "Cite this repository" control on the GitHub project page.

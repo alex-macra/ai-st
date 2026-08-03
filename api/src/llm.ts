@@ -6,9 +6,9 @@ let client: OpenAI | undefined;
 type Environment = Record<string, string | undefined>;
 
 export function syntheticLlmEnabled(environment: Environment = process.env): boolean {
-  if (environment['AI_ST_SYNTHETIC_LLM'] !== 'true') return false;
+  if (environment['SOMNOSCRIBE_SYNTHETIC_LLM'] !== 'true') return false;
   if (environment['NODE_ENV'] !== 'test') {
-    throw new Error('AI_ST_SYNTHETIC_LLM may only be enabled when NODE_ENV=test');
+    throw new Error('SOMNOSCRIBE_SYNTHETIC_LLM may only be enabled when NODE_ENV=test');
   }
   return true;
 }

@@ -9,13 +9,13 @@ import path from 'node:path';
 
 const AUTH_PORT = 3091;
 const RATE_LIMIT_PORT = 3092;
-const RUN_ROOT = mkdtempSync(path.join(tmpdir(), 'ai-st-api-e2e-'));
+const RUN_ROOT = mkdtempSync(path.join(tmpdir(), 'somnoscribe-api-e2e-'));
 chmodSync(RUN_ROOT, 0o700);
 const AUTH_DB = path.join(RUN_ROOT, 'auth.sqlite');
 const RATE_LIMIT_DB = path.join(RUN_ROOT, 'rate-limit.sqlite');
-process.env['AI_ST_API_E2E_ROOT'] = RUN_ROOT;
-process.env['AI_ST_API_E2E_AUTH_DB'] = AUTH_DB;
-process.env['AI_ST_API_E2E_RATE_LIMIT_DB'] = RATE_LIMIT_DB;
+process.env['SOMNOSCRIBE_API_E2E_ROOT'] = RUN_ROOT;
+process.env['SOMNOSCRIBE_API_E2E_AUTH_DB'] = AUTH_DB;
+process.env['SOMNOSCRIBE_API_E2E_RATE_LIMIT_DB'] = RATE_LIMIT_DB;
 
 export default defineConfig({
   testDir: './e2e',

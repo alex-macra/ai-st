@@ -12,8 +12,8 @@ const API = 'http://localhost:3001';
 export default async function globalSetup(): Promise<void> {
   await mkdir(path.join(__dirname, '.auth'), { recursive: true });
 
-  const dbPath = process.env['AI_ST_E2E_DB'];
-  if (!dbPath) throw new Error('AI_ST_E2E_DB was not configured');
+  const dbPath = process.env['SOMNOSCRIBE_E2E_DB'];
+  if (!dbPath) throw new Error('SOMNOSCRIBE_E2E_DB was not configured');
 
   const output = execFileSync('npm', ['run', 'license:generate', '--', '1', 'starter'], {
     cwd: path.join(__dirname, '../api'),

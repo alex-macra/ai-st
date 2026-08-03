@@ -19,15 +19,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY preprocessor/ ./
 
 # Evidence output is shared with the API through a volume mounted here.
-ENV CHARTS_DIR=/var/lib/ai-st/charts \
-    SLICES_DIR=/var/lib/ai-st/slices
+ENV CHARTS_DIR=/var/lib/somnoscribe/charts \
+    SLICES_DIR=/var/lib/somnoscribe/slices
 
 # uid 1000 matches the `node` user in the API image. Both services mount the
 # same evidence volume, and whichever container initialises it fixes the
 # ownership for the other, so the two uids have to agree.
 RUN useradd --create-home --uid 1000 preprocessor \
- && mkdir -p /var/lib/ai-st/charts /var/lib/ai-st/slices \
- && chown -R preprocessor:preprocessor /var/lib/ai-st /app
+ && mkdir -p /var/lib/somnoscribe/charts /var/lib/somnoscribe/slices \
+ && chown -R preprocessor:preprocessor /var/lib/somnoscribe /app
 USER preprocessor
 
 EXPOSE 8001

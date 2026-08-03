@@ -1,6 +1,6 @@
 # Third-party notices
 
-AI-ST is licensed under Apache-2.0. Its dependencies remain subject to their own licenses and copyright notices. The lockfiles are the authoritative version inventory; distributions should preserve dependency license files.
+Somnoscribe is licensed under Apache-2.0. Its dependencies remain subject to their own licenses and copyright notices. The lockfiles are the authoritative version inventory; distributions should preserve dependency license files.
 
 Primary JavaScript runtime dependencies include:
 

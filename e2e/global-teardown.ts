@@ -10,7 +10,7 @@ function assertTemporaryPath(target: string): void {
   if (
     relative.startsWith('..') ||
     path.isAbsolute(relative) ||
-    !path.basename(target).startsWith('ai-st-e2e-')
+    !path.basename(target).startsWith('somnoscribe-e2e-')
   ) {
     throw new Error(`Refusing to remove non-E2E path: ${target}`);
   }
@@ -18,7 +18,7 @@ function assertTemporaryPath(target: string): void {
 
 export default async function globalTeardown(): Promise<void> {
   await rm(authStatePath, { force: true });
-  const root = process.env['AI_ST_E2E_ROOT'];
+  const root = process.env['SOMNOSCRIBE_E2E_ROOT'];
   if (!root) return;
   assertTemporaryPath(root);
   await rm(root, { recursive: true, force: true });

@@ -744,7 +744,7 @@ export function PrintableReport({ c, signalSlices }: Props) {
                   Sleep Study Analysis Report
                 </div>
                 <div style={{ fontSize: '8pt', color: '#777', marginTop: '2pt' }}>
-                  AI-ST Sleep Study Review Assistant · Type III HSAT review
+                  Somnoscribe Sleep Study Review Assistant · Type III HSAT review
                 </div>
               </td>
               <td

@@ -7,7 +7,7 @@ import { openDb } from '../db/connection.js';
 const temporaryRoots: string[] = [];
 
 function temporaryRoot(): string {
-  const root = mkdtempSync(path.join(tmpdir(), 'ai-st-db-permissions-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'somnoscribe-db-permissions-'));
   temporaryRoots.push(root);
   return root;
 }

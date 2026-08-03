@@ -13,17 +13,34 @@ While the version stays below `1.0.0`, any release may change interfaces.
 - Docker Compose stack running the web interface, API, and preprocessor, so the
   application can be evaluated without a host Node, Python, or C/C++ toolchain.
 - ESLint and ruff configuration, enforced by a `Lint` job in CI.
-- `.editorconfig` and a Prettier configuration for new code. The repository is
-  not uniformly auto-formatted; see CONTRIBUTING.md.
-- Issue and pull request templates, and this changelog.
+- Prettier and `ruff format`, applied across the repository and enforced in CI
+  by `npm run format:check` and `ruff format --check`.
+- `.editorconfig`, issue and pull request templates, and this changelog.
+- `CITATION.cff`, so the project can be cited from its GitHub page.
+- An explicit `license` field on each package manifest.
 
 ### Changed
 
+- **The project is renamed from AI-ST to Somnoscribe.** This renames the
+  repository, the package names, the Docker image and volume paths
+  (`/var/lib/somnoscribe`), and the `SOMNOSCRIBE_*` environment variables that
+  were previously `AI_ST_*`. GitHub redirects the old repository URL, but any
+  existing deployment must rename its environment variables and either move or
+  re-point its data volume.
 - The public boundary check rejects any dot-path outside a small allowlist,
   replacing the previously enumerated tool directories. The rule also applies to
   nested paths, which the top-level allowlist did not cover.
 - The boundary check's private-marker list no longer carries person, dataset, or
   source names.
+- README states plainly that invitation keys are self-issued seats rather than a
+  commercial licence, and that the inert `tier` column gates nothing.
+
+### Security
+
+- `JWT_SECRET` is rejected in production when it is still a value published in
+  this repository. The previous check only measured length, and the sample value
+  in `api/.env.example` was long enough to pass it while being public knowledge.
+  That sample is now empty.
 
 ### Removed
 
@@ -55,5 +72,5 @@ external validation dataset.
   machine-specific paths, private source markers, non-example email addresses,
   and secret-like values.
 
-[Unreleased]: https://github.com/alex-macra/ai-st/compare/v0.1.0-alpha.1...HEAD
-[0.1.0-alpha.1]: https://github.com/alex-macra/ai-st/releases/tag/v0.1.0-alpha.1
+[Unreleased]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/alex-macra/somnoscribe/releases/tag/v0.1.0-alpha.1

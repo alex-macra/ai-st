@@ -23,8 +23,8 @@ declare global {
 const COOKIE_NAME = 'somno_session';
 const JWT_SECRET = process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production';
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
-const JWT_ISSUER = 'ai-st';
-const JWT_AUDIENCE = 'ai-st-web';
+const JWT_ISSUER = 'somnoscribe';
+const JWT_AUDIENCE = 'somnoscribe-web';
 
 export function signJwt(userId: string): string {
   return jwt.sign({}, JWT_SECRET, {

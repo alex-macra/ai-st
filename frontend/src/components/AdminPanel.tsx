@@ -232,7 +232,7 @@ export function AdminPanel({ user, onBack }: Props) {
         <div className="flex items-center gap-2">
           <Shield size={15} className="text-teal-600 dark:text-teal-400" />
           <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            AI-ST Admin
+            Somnoscribe Admin
           </h1>
         </div>
         <span className="ml-auto text-xs text-slate-400 hidden sm:inline">{user.email}</span>

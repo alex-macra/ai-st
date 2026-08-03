@@ -25,7 +25,7 @@ MAX_PDF_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_SCREENSHOT_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_SCREENSHOTS = 100
 
-app = FastAPI(title="AI-ST Preprocessor", version=PREPROCESSOR_VERSION)
+app = FastAPI(title="Somnoscribe Preprocessor", version=PREPROCESSOR_VERSION)
 
 
 @app.get("/healthz")

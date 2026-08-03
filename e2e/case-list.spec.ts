@@ -22,8 +22,8 @@ test.describe('case list (authenticated)', () => {
     });
   });
 
-  test('shows app header with AI-ST branding', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'AI-ST' })).toBeVisible();
+  test('shows app header with Somnoscribe branding', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Somnoscribe' })).toBeVisible();
   });
 
   test('shows empty state when no cases', async ({ page }) => {

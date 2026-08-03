@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve AI-ST. Contributions must preserve the evidence-first, human-review boundary and the public repository's strict data policy.
+Thank you for helping improve Somnoscribe. Contributions must preserve the evidence-first, human-review boundary and the public repository's strict data policy.
 
 ## Before opening a change
 

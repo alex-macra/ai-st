@@ -48,7 +48,7 @@ license: open
 `;
 
 function makeTmpDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
   writeFileSync(join(dir, 'adult.md'), ADULT_MD);
   writeFileSync(join(dir, 'pediatric.md'), PEDS_MD);
   return dir;
@@ -126,7 +126,7 @@ describe('reference pack loading', () => {
   });
 
   it('rejects an unsupported license value', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
     writeFileSync(
       join(tmpDir, 'invalid.md'),
       ADULT_MD.replace('license: open', 'license: unknown'),
@@ -135,14 +135,14 @@ describe('reference pack loading', () => {
   });
 
   it('rejects duplicate rule IDs before loading', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
     const duplicate = ADULT_MD.replace('`rule-b`', '`rule-a`');
     writeFileSync(join(tmpDir, 'duplicate.md'), duplicate);
     expect(() => seedReferenceDocs(tmpDir)).toThrow(/duplicate rule id/i);
   });
 
   it('rejects symlinked Markdown files', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
     const target = join(tmpDir, 'target.txt');
     writeFileSync(target, ADULT_MD);
     symlinkSync(target, join(tmpDir, 'linked.md'));

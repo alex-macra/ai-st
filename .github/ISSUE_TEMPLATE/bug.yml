@@ -1,5 +1,5 @@
 name: Bug report
-description: Report incorrect behaviour in AI-ST.
+description: Report incorrect behaviour in Somnoscribe.
 labels: ['bug']
 body:
   - type: markdown

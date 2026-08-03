@@ -1,6 +1,6 @@
 # Architecture
 
-AI-ST is a three-service, self-hosted application. Its primary design constraint is that generated content remains a review draft tied to observable evidence, never an autonomous conclusion.
+Somnoscribe is a three-service, self-hosted application. Its primary design constraint is that generated content remains a review draft tied to observable evidence, never an autonomous conclusion.
 
 ## Runtime topology
 
@@ -107,7 +107,7 @@ The API and development preprocessor bind to loopback. `TRUST_PROXY` defaults to
 
 ## Test-only model adapter
 
-The browser smoke journey sets `AI_ST_SYNTHETIC_LLM=true` with `NODE_ENV=test`. The adapter returns deterministic, non-clinical JSON for every analysis pass. Enabling it in any other environment throws during initialization. This path proves activation, upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
+The browser smoke journey sets `SOMNOSCRIBE_SYNTHETIC_LLM=true` with `NODE_ENV=test`. The adapter returns deterministic, non-clinical JSON for every analysis pass. Enabling it in any other environment throws during initialization. This path proves activation, upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
 
 ## Persistence limits
 
