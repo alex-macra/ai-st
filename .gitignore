@@ -1,0 +1,64 @@
+# JavaScript dependencies and build output
+node_modules/
+api/node_modules/
+frontend/node_modules/
+api/dist/
+frontend/dist/
+api/public/
+*.tsbuildinfo
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Clinical and generated artifacts must remain outside the repository
+*.edf
+*.bdf
+*.pdf
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+data/
+api/data/
+preprocessor/data/
+private-references/
+generated/
+reports/
+
+# Local research, agent configuration, and internal planning
+_research/
+.claude/
+.codex/
+tasks/
+TASKS.md
+immediateTask.md
+
+# Test and runtime output
+test-results/
+playwright-report/
+e2e/.auth/*
+!e2e/.auth/.gitignore
+*.log
+.logs/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp

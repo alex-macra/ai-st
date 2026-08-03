@@ -1,0 +1,182 @@
+import { useRef, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { cx } from './utils';
+
+export interface Tab {
+  id: string;
+  label: ReactNode;
+  disabled?: boolean;
+}
+
+export interface TabsProps {
+  tabs: Tab[];
+  active: string;
+  onChange: (id: string) => void;
+  children?: ReactNode;
+  className?: string;
+}
+
+export function Tabs({ tabs, active, onChange, children, className }: TabsProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const handleKey = (event: React.KeyboardEvent<HTMLButtonElement>, tab: Tab) => {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const enabled = tabs.filter((candidate) => !candidate.disabled);
+    const current = enabled.findIndex((candidate) => candidate.id === tab.id);
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? enabled.length - 1
+        : event.key === 'ArrowRight'
+          ? (current + 1) % enabled.length
+          : (current - 1 + enabled.length) % enabled.length;
+    const next = enabled[nextIndex];
+    if (!next) return;
+    onChange(next.id);
+    Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('[data-tab-id]') ?? [])
+      .find((button) => button.dataset['tabId'] === next.id)
+      ?.focus();
+  };
+
+  return (
+    <div className={className}>
+      <div ref={listRef} role="tablist" className="flex items-center gap-1 border-b border-ui-border">
+        {tabs.map((tab) => {
+          const selected = tab.id === active;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              data-tab-id={tab.id}
+              id={`tab-${tab.id}`}
+              aria-selected={selected}
+              aria-controls={`panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
+              disabled={tab.disabled}
+              onClick={() => { if (!tab.disabled) onChange(tab.id); }}
+              onKeyDown={(event) => handleKey(event, tab)}
+              className={cx(
+                'focus-ring -mb-px rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                selected ? 'border-ui-accent text-ui-accent' : 'border-transparent text-ui-text-subtle hover:border-ui-border hover:text-ui-text'
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+      {children && <div id={`panel-${active}`} role="tabpanel" aria-labelledby={`tab-${active}`}>{children}</div>}
+    </div>
+  );
+}
+
+export interface PaginationProps {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  showEdges?: boolean;
+  className?: string;
+}
+
+function pageWindow(page: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
+  const visible = new Set([1, total, Math.max(1, page - 1), page, Math.min(total, page + 1)]);
+  const sorted = [...visible].sort((left, right) => left - right);
+  const result: Array<number | '…'> = [];
+  for (const value of sorted) {
+    const previous = result.at(-1);
+    if (typeof previous === 'number' && value - previous > 1) result.push('…');
+    result.push(value);
+  }
+  return result;
+}
+
+export function Pagination({ page, totalPages, onPageChange, showEdges = false, className }: PaginationProps) {
+  const total = Math.max(1, totalPages);
+  const base = 'focus-ring inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40';
+  return (
+    <nav aria-label="Pagination" className={cx('flex items-center gap-1', className)}>
+      {showEdges && (
+        <button type="button" aria-label="First page" className={base} disabled={page <= 1} onClick={() => onPageChange(1)}>
+          <ChevronsLeft aria-hidden="true" size={15} />
+        </button>
+      )}
+      <button type="button" aria-label="Previous page" className={base} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+        <ChevronLeft aria-hidden="true" size={15} />
+      </button>
+      {pageWindow(page, total).map((entry, index) => entry === '…' ? (
+        <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ui-text-subtle">…</span>
+      ) : (
+        <button
+          key={entry}
+          type="button"
+          aria-label={`Page ${entry}`}
+          aria-current={entry === page ? 'page' : undefined}
+          className={cx(base, entry === page ? 'bg-ui-accent-solid text-ui-accent-fg' : 'text-ui-text-muted hover:bg-ui-bg-muted')}
+          onClick={() => onPageChange(entry)}
+        >
+          {entry}
+        </button>
+      ))}
+      <button type="button" aria-label="Next page" className={base} disabled={page >= total} onClick={() => onPageChange(page + 1)}>
+        <ChevronRight aria-hidden="true" size={15} />
+      </button>
+      {showEdges && (
+        <button type="button" aria-label="Last page" className={base} disabled={page >= total} onClick={() => onPageChange(total)}>
+          <ChevronsRight aria-hidden="true" size={15} />
+        </button>
+      )}
+    </nav>
+  );
+}
+
+export type TimelineDotTone = 'default' | 'success' | 'warning' | 'danger' | 'info';
+
+export interface TimelineEvent {
+  id: string;
+  title: ReactNode;
+  timestamp: string | Date;
+  actor?: string;
+  meta?: ReactNode;
+  tone?: TimelineDotTone;
+}
+
+export interface TimelineProps {
+  events: TimelineEvent[];
+  formatTimestamp?: (timestamp: string | Date) => string;
+  className?: string;
+  emptyLabel?: string;
+}
+
+const timelineTone: Record<TimelineDotTone, string> = {
+  default: 'bg-ui-border',
+  success: 'bg-green-500',
+  warning: 'bg-amber-500',
+  danger: 'bg-red-500',
+  info: 'bg-ui-accent',
+};
+
+export function Timeline({
+  events,
+  formatTimestamp = (timestamp) => new Date(timestamp).toLocaleString(),
+  className,
+  emptyLabel = 'No events yet.',
+}: TimelineProps) {
+  if (events.length === 0) return <p className={cx('text-xs text-ui-text-subtle', className)}>{emptyLabel}</p>;
+  return (
+    <ol className={cx('relative ml-1 space-y-4 border-l border-ui-border pl-4', className)}>
+      {events.map((event) => (
+        <li key={event.id} className="relative text-xs">
+          <span aria-hidden="true" className={cx('absolute -left-[1.27rem] mt-0.5 h-2 w-2 rounded-full', timelineTone[event.tone ?? 'default'])} />
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-ui-text">{event.title}</span>
+            <time className="text-ui-text-subtle" dateTime={typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toISOString()}>{formatTimestamp(event.timestamp)}</time>
+            {event.actor && <span className="text-ui-text-muted">by {event.actor}</span>}
+            {event.meta && <div className="mt-0.5 flex flex-wrap gap-1">{event.meta}</div>}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
