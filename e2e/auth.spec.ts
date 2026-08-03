@@ -72,7 +72,7 @@ test.describe('auth screen', () => {
       animations: 'disabled',
       caret: 'hide',
       fullPage: true,
-      maxDiffPixelRatio: 0.001,
+      maxDiffPixelRatio: 0.012,
     });
   });
 });

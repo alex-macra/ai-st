@@ -2,8 +2,6 @@ import { z } from 'zod';
 import { REPORT_SECTION_KEYS } from './shared/types.js';
 import type { StructuredReport } from './shared/types.js';
 
-const sectionKeyEnum = z.enum(REPORT_SECTION_KEYS);
-
 const numericLoose = z.preprocess((v) => {
   if (v === null || v === undefined || v === '') return undefined;
   if (typeof v === 'number') return v;
@@ -26,6 +24,10 @@ const stringArrayLoose = z.preprocess((v) => {
   if (typeof v === 'string') return [v];
   return [];
 }, z.array(z.string()));
+
+const citationsShape = Object.fromEntries(
+  REPORT_SECTION_KEYS.map((key) => [key, stringArrayLoose])
+) as Record<(typeof REPORT_SECTION_KEYS)[number], typeof stringArrayLoose>;
 
 const stringOptionalLoose = z.preprocess((v) => {
   if (v === null || v === undefined) return undefined;
@@ -88,7 +90,7 @@ export const structuredReportTolerantSchema = z.object({
     wakeMaxHr: numericLoose
   }).passthrough().optional(),
   impression: stringLoose.default(''),
-  citations: z.record(sectionKeyEnum, stringArrayLoose).default({})
+  citations: z.object(citationsShape).partial().default({})
 }).passthrough();
 
 export interface ParseResult {
