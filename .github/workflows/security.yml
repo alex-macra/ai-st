@@ -39,4 +39,4 @@ jobs:
         with:
           fail-on-severity: high
           license-check: true
-          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC-BY-4.0, ISC, MIT, MIT-0, MIT-CMU, MPL-2.0, PSF-2.0, WTFPL, Zlib
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC-BY-4.0, ISC, MIT, MIT-0, MIT-CMU, MPL-2.0, OFL-1.1, PSF-2.0, WTFPL, Zlib
