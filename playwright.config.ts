@@ -34,7 +34,17 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      // The screenshot capture is a documentation tool, not a test.
+      testIgnore: /screenshots\.spec\.ts/,
+    },
+    {
+      name: 'screenshots',
+      testMatch: /screenshots\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
   ],
   webServer: [
     {

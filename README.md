@@ -21,6 +21,25 @@ This alpha release is independently buildable from this repository. It includes 
 - Starts normally without a reference pack and visibly reports that deterministic reference validation is disabled.
 - Provides synthetic unit, integration, and three-service browser tests that make no live model call.
 
+## Screenshots
+
+Captured from the synthetic browser journey, so every value shown is generated
+fixture data rather than a study.
+
+| Upload | Case list |
+| --- | --- |
+| ![Upload form with cohort selection and study file inputs](docs/images/upload.png) | ![Case list showing a signed-off synthetic case](docs/images/case-list.png) |
+
+Review workspace, with the three analysis passes, the reference-pack warning, and an evidence-linked finding awaiting adjudication:
+
+![Review workspace showing analysis passes and a pending finding with its supporting evidence](docs/images/review-workspace.png)
+
+Drafted report sections, each requiring a reviewer decision before sign-off:
+
+![Structured report sections with confirm, reject, uncertain, and edit controls](docs/images/report-sections.png)
+
+Regenerate them with `npm run screenshots`.
+
 ## Services
 
 | Service | Stack | Default address |
