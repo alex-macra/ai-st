@@ -219,14 +219,18 @@ def score(
     )
 
     bucket_tp: dict[str, list[tuple[CandidateWindow, GroundTruthEvent]]] = {
-        "high": [], "medium": [], "low": [], "unknown": []
+        "high": [],
+        "medium": [],
+        "low": [],
+        "unknown": [],
     }
     bucket_fp: dict[str, list[tuple[int, CandidateWindow]]] = {
-        "high": [], "medium": [], "low": [], "unknown": []
+        "high": [],
+        "medium": [],
+        "low": [],
+        "unknown": [],
     }
-    bucket_fn: dict[str, list[GroundTruthEvent]] = {
-        "high": [], "medium": [], "low": [], "unknown": []
-    }
+    bucket_fn: dict[str, list[GroundTruthEvent]] = {"high": [], "medium": [], "low": [], "unknown": []}
 
     for _gt_type, tp_pairs in tp_pairs_by_type.items():
         for cand, gt_event in tp_pairs:
@@ -274,9 +278,7 @@ def score(
             fp_count=fp_count,
         )
 
-    flow_reduction_count = sum(
-        1 for cand in candidates.windows if cand.label == "provisional_flow_reduction"
-    )
+    flow_reduction_count = sum(1 for cand in candidates.windows if cand.label == "provisional_flow_reduction")
     estimated_ahi = flow_reduction_count / (total_sec / 3600.0) if total_sec > 0.0 else 0.0
 
     return ScoreResult(

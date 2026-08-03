@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Upload, FileText, Image, ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
-import { useToast, Button, RadioGroup, Progress, Alert, FileDropZone, type RadioOption } from '../ui';
+import {
+  useToast,
+  Button,
+  RadioGroup,
+  Progress,
+  Alert,
+  FileDropZone,
+  type RadioOption,
+} from '../ui';
 import { uploadCase } from '../api';
 
 interface Props {
@@ -11,7 +19,7 @@ type Cohort = 'adult' | 'pediatric';
 
 const COHORT_OPTIONS: RadioOption[] = [
   { value: 'pediatric', label: 'Pediatric' },
-  { value: 'adult',     label: 'Adult' },
+  { value: 'adult', label: 'Adult' },
 ];
 
 const UPLOAD_STEPS = [
@@ -36,7 +44,10 @@ export function CaseUpload({ onUploaded }: Props) {
   const hasAnyFile = edf !== null || pdf !== null || screenshots.length > 0;
 
   useEffect(() => {
-    if (!uploading) { setUploadStepIdx(0); return; }
+    if (!uploading) {
+      setUploadStepIdx(0);
+      return;
+    }
     const id = setInterval(() => {
       setUploadStepIdx((i) => Math.min(i + 1, UPLOAD_STEPS.length - 1));
     }, 2500);
@@ -48,7 +59,12 @@ export function CaseUpload({ onUploaded }: Props) {
     if (!hasAnyFile) return;
     setUploading(true);
     try {
-      const result = await uploadCase(edf, pdf ?? undefined, screenshots.length > 0 ? screenshots : undefined, cohort);
+      const result = await uploadCase(
+        edf,
+        pdf ?? undefined,
+        screenshots.length > 0 ? screenshots : undefined,
+        cohort,
+      );
       onUploaded(result.caseId);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Upload failed', 'error');
@@ -61,7 +77,9 @@ export function CaseUpload({ onUploaded }: Props) {
     <form onSubmit={handleSubmit} className="card p-6 max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Upload Sleep Study</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Upload an EDF recording to begin. PDF report and screenshots are optional.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Upload an EDF recording to begin. PDF report and screenshots are optional.
+        </p>
       </div>
 
       <fieldset className="space-y-3">
@@ -73,7 +91,9 @@ export function CaseUpload({ onUploaded }: Props) {
           orientation="horizontal"
           options={COHORT_OPTIONS}
         />
-        <p className="text-xs text-slate-500 dark:text-slate-400">This determines which reference data is used for analysis.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          This determines which reference data is used for analysis.
+        </p>
       </fieldset>
 
       <fieldset className="space-y-3">
@@ -84,7 +104,10 @@ export function CaseUpload({ onUploaded }: Props) {
             label="EDF Recording"
             accept=".edf"
             files={edf ? [edf] : []}
-            onSelect={(files) => { const f = files[0]; if (f) setEdf(f); }}
+            onSelect={(files) => {
+              const f = files[0];
+              if (f) setEdf(f);
+            }}
             onClear={() => setEdf(null)}
           />
 
@@ -111,7 +134,10 @@ export function CaseUpload({ onUploaded }: Props) {
                 label="PDF Report"
                 accept=".pdf"
                 files={pdf ? [pdf] : []}
-                onSelect={(files) => { const f = files[0]; if (f) setPdf(f); }}
+                onSelect={(files) => {
+                  const f = files[0];
+                  if (f) setPdf(f);
+                }}
                 onClear={() => setPdf(null)}
               />
 
@@ -155,7 +181,6 @@ export function CaseUpload({ onUploaded }: Props) {
           </p>
         </div>
       )}
-
     </form>
   );
 }

@@ -39,15 +39,23 @@ Browser tests use a guarded synthetic model adapter and must not require a live 
 
 ## Formatting
 
-Linting is enforced; formatting is not. `npm run lint` and `ruff check` must
-pass, and both are limited to correctness rules — unused code, unsafe patterns,
-and the rules of hooks.
+Formatting is automated and enforced in CI. Prettier owns TypeScript, JavaScript,
+CSS, and Markdown; `ruff format` owns Python. Run both before opening a pull
+request:
 
-The repository is not uniformly auto-formatted. A Prettier configuration and an
-`.editorconfig` are provided so new code lands in a consistent style, but do not
-reformat files you are not otherwise changing: a repository-wide rewrite would
-bury behavioral changes in unrelated diff noise and erase the history that makes
-clinical logic reviewable.
+```bash
+npm run format
+cd preprocessor && ruff format . && ruff check --fix .
+```
+
+CI runs the checking form of each (`npm run format:check`, `ruff format --check .`),
+so an unformatted file fails the build. Because the formatters decide layout,
+review comments should be about behaviour rather than style, and you should never
+need to hand-align anything.
+
+Lint is separate and is limited to correctness rules: unused code, unsafe
+patterns, import order, and the rules of hooks. `npm run lint` and `ruff check .`
+must both pass with no warnings.
 
 ## Pull requests
 

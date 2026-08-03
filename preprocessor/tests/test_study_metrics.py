@@ -3,9 +3,10 @@ Tests for the study_metrics aggregate block computed in evidence_packager.
 Locks in: ODI per-hour, candidate-by-type / by-severity counts, and graceful
 behavior when SpO2 metrics cannot be computed.
 """
+
 from candidate_windows import CandidateSet, CandidateWindow
 from edf_parser import ChannelInventory
-from evidence_packager import _compute_study_metrics, _candidate_counts_by_dedupe_key
+from evidence_packager import _candidate_counts_by_dedupe_key, _compute_study_metrics
 
 
 def _empty_inventory(duration_sec: float = 28800.0) -> ChannelInventory:
@@ -20,23 +21,37 @@ class _NoQc:
 def test_study_metrics_basic_counts():
     candidates = CandidateSet(
         windows=[
-            CandidateWindow(0, 5, "provisional_desaturation", "SpO2", 3.0,
-                            dedupe_key="provisional_desaturation_mild"),
-            CandidateWindow(60, 70, "provisional_desaturation", "SpO2", 4.0,
-                            dedupe_key="provisional_desaturation_moderate"),
-            CandidateWindow(100, 120, "provisional_flow_reduction", "Flow", 0.6,
-                            dedupe_key="provisional_flow_reduction_moderate"),
-            CandidateWindow(200, 201, "provisional_positional", "Position", 1.0,
-                            dedupe_key="provisional_positional_mild"),
+            CandidateWindow(
+                0, 5, "provisional_desaturation", "SpO2", 3.0, dedupe_key="provisional_desaturation_mild"
+            ),
+            CandidateWindow(
+                60,
+                70,
+                "provisional_desaturation",
+                "SpO2",
+                4.0,
+                dedupe_key="provisional_desaturation_moderate",
+            ),
+            CandidateWindow(
+                100,
+                120,
+                "provisional_flow_reduction",
+                "Flow",
+                0.6,
+                dedupe_key="provisional_flow_reduction_moderate",
+            ),
+            CandidateWindow(
+                200, 201, "provisional_positional", "Position", 1.0, dedupe_key="provisional_positional_mild"
+            ),
         ],
         channels_used=["SpO2", "Flow", "Position"],
         channels_missing=[],
     )
 
     metrics = _compute_study_metrics(
-        edf_path=None,           # type: ignore[arg-type]  # spo2 path is gated
+        edf_path=None,  # type: ignore[arg-type]  # spo2 path is gated
         inventory=_empty_inventory(duration_sec=7200.0),  # 2h
-        qc=_NoQc(),              # type: ignore[arg-type]
+        qc=_NoQc(),  # type: ignore[arg-type]
         candidates=candidates,
     )
 
@@ -56,9 +71,9 @@ def test_study_metrics_basic_counts():
 def test_study_metrics_zero_duration_does_not_divide_by_zero():
     candidates = CandidateSet(windows=[], channels_used=[], channels_missing=[])
     metrics = _compute_study_metrics(
-        edf_path=None,                        # type: ignore[arg-type]
+        edf_path=None,  # type: ignore[arg-type]
         inventory=_empty_inventory(duration_sec=0.0),
-        qc=_NoQc(),                           # type: ignore[arg-type]
+        qc=_NoQc(),  # type: ignore[arg-type]
         candidates=candidates,
     )
     assert metrics["provisional_odi_per_hour"] == 0.0
@@ -68,9 +83,9 @@ def test_study_metrics_zero_duration_does_not_divide_by_zero():
 def test_study_metrics_omits_spo2_when_edf_path_missing():
     candidates = CandidateSet(windows=[], channels_used=[], channels_missing=[])
     metrics = _compute_study_metrics(
-        edf_path=None,                        # type: ignore[arg-type]
+        edf_path=None,  # type: ignore[arg-type]
         inventory=_empty_inventory(),
-        qc=_NoQc(),                           # type: ignore[arg-type]
+        qc=_NoQc(),  # type: ignore[arg-type]
         candidates=candidates,
     )
     assert "spo2" not in metrics
@@ -83,13 +98,21 @@ def test_flow_stats_coupled_uncoupled_hypopnea_counts():
     """
     from candidate_windows import TAG_UNCOUPLED_HYPOPNEA
 
-    coupled = CandidateWindow(100, 120, "provisional_flow_reduction", "Flow", 0.6,
-                              dedupe_key="provisional_flow_reduction_moderate")
-    uncoupled = CandidateWindow(200, 215, "provisional_flow_reduction", "Flow", 0.5,
-                                dedupe_key="provisional_flow_reduction_moderate",
-                                notes=[TAG_UNCOUPLED_HYPOPNEA])
-    apnea = CandidateWindow(300, 320, "provisional_flow_reduction", "Flow", 0.95,
-                            dedupe_key="provisional_flow_reduction_severe")
+    coupled = CandidateWindow(
+        100, 120, "provisional_flow_reduction", "Flow", 0.6, dedupe_key="provisional_flow_reduction_moderate"
+    )
+    uncoupled = CandidateWindow(
+        200,
+        215,
+        "provisional_flow_reduction",
+        "Flow",
+        0.5,
+        dedupe_key="provisional_flow_reduction_moderate",
+        notes=[TAG_UNCOUPLED_HYPOPNEA],
+    )
+    apnea = CandidateWindow(
+        300, 320, "provisional_flow_reduction", "Flow", 0.95, dedupe_key="provisional_flow_reduction_severe"
+    )
 
     candidates = CandidateSet(
         windows=[coupled, uncoupled, apnea],
@@ -115,7 +138,7 @@ def test_flow_stats_coupled_uncoupled_hypopnea_counts():
     assert fs["coupled_hypopnea_count"] == 1
     assert fs["uncoupled_hypopnea_count"] == 1
     assert fs["apnea_count"] == 1
-    assert fs["count"] == 2                    # headline: coupled + apnea
+    assert fs["count"] == 2  # headline: coupled + apnea
     assert fs["coupled_hypopnea_count"] == fs["hypopnea_count"]
 
 
@@ -126,15 +149,17 @@ def test_positional_rei_uses_headline_not_raw_candidates():
     Regression guard against the pre-8a94202 bug where flow_candidates (full raw set)
     was passed instead.
     """
+    from unittest.mock import MagicMock, patch
+
     from candidate_windows import TAG_UNCOUPLED_HYPOPNEA
     from evidence_packager import _positional_rei
-    from unittest.mock import patch, MagicMock
 
     coupled = CandidateWindow(100, 120, "provisional_flow_reduction", "Flow", 0.6)
     # Constructed to document what headline_flow_events excludes; deliberately
     # not passed to _positional_rei below.
-    _uncoupled = CandidateWindow(200, 215, "provisional_flow_reduction", "Flow", 0.5,
-                                 notes=[TAG_UNCOUPLED_HYPOPNEA])
+    _uncoupled = CandidateWindow(
+        200, 215, "provisional_flow_reduction", "Flow", 0.5, notes=[TAG_UNCOUPLED_HYPOPNEA]
+    )
 
     # headline_flow_events filters uncoupled out; pass only headline list
     headline = [coupled]  # uncoupled excluded
@@ -149,9 +174,17 @@ def test_positional_rei_uses_headline_not_raw_candidates():
     mock_inventory.by_label.return_value = mock_ch
 
     from edf_parser import ChannelInfo
+
     mock_inventory.channels = [
-        ChannelInfo(label="Position", index=0, sample_rate=1.0,
-                    physical_min=0.0, physical_max=4.0, unit="", duration_sec=600.0)
+        ChannelInfo(
+            label="Position",
+            index=0,
+            sample_rate=1.0,
+            physical_min=0.0,
+            physical_max=4.0,
+            unit="",
+            duration_sec=600.0,
+        )
     ]
 
     mock_qc_ch = MagicMock()
@@ -160,6 +193,7 @@ def test_positional_rei_uses_headline_not_raw_candidates():
     mock_qc.for_label.return_value = mock_qc_ch
 
     import numpy as np
+
     # 300s left (code=2), 300s upright (code=1) — code 0=supine per SOMNOtouch spec
     pos_sig = np.concatenate([np.full(300, 2.0), np.full(300, 1.0)])
 
@@ -202,10 +236,12 @@ def test_positional_supine_is_code_zero():
     SOMNOtouch RESP position code 0 = supine (confirmed vs DOMINO output).
     A recording that is mostly code-0 must report high supine_time_pct, not high upright_time_pct.
     """
-    from evidence_packager import _positional_rei
-    from unittest.mock import patch, MagicMock
-    from edf_parser import ChannelInfo
+    from unittest.mock import MagicMock, patch
+
     import numpy as np
+
+    from edf_parser import ChannelInfo
+    from evidence_packager import _positional_rei
 
     # Headline event placed in code-0 region (supine)
     event = CandidateWindow(50, 70, "provisional_flow_reduction", "Flow", 0.7)
@@ -217,8 +253,15 @@ def test_positional_supine_is_code_zero():
     mock_inventory = MagicMock()
     mock_inventory.by_label.return_value = mock_ch
     mock_inventory.channels = [
-        ChannelInfo(label="Position", index=0, sample_rate=1.0,
-                    physical_min=0.0, physical_max=4.0, unit="", duration_sec=600.0)
+        ChannelInfo(
+            label="Position",
+            index=0,
+            sample_rate=1.0,
+            physical_min=0.0,
+            physical_max=4.0,
+            unit="",
+            duration_sec=600.0,
+        )
     ]
 
     mock_qc_ch = MagicMock()
@@ -258,10 +301,12 @@ def test_snore_rms_threshold_filters_noise():
     is not counted as snoring. A channel with a brief high-amplitude burst and
     mostly low-level noise should report only the burst duration.
     """
-    from evidence_packager import _snore_summary
-    from unittest.mock import patch, MagicMock
-    from edf_parser import ChannelInfo
+    from unittest.mock import MagicMock, patch
+
     import numpy as np
+
+    from edf_parser import ChannelInfo
+    from evidence_packager import _snore_summary
 
     sample_rate = 10.0  # 10 Hz
     duration_sec = 600.0
@@ -282,8 +327,15 @@ def test_snore_rms_threshold_filters_noise():
 
     mock_inventory = MagicMock()
     mock_inventory.channels = [
-        ChannelInfo(label="Snore", index=0, sample_rate=sample_rate,
-                    physical_min=0.0, physical_max=100.0, unit="", duration_sec=duration_sec)
+        ChannelInfo(
+            label="Snore",
+            index=0,
+            sample_rate=sample_rate,
+            physical_min=0.0,
+            physical_max=100.0,
+            unit="",
+            duration_sec=duration_sec,
+        )
     ]
     mock_inventory.by_label.return_value = mock_ch
 
@@ -317,11 +369,18 @@ def test_rei_uses_artifact_adjusted_denominator():
     25% artifact yields REI = events / (0.75 × total_hours), not events / total_hours.
     """
     from unittest.mock import MagicMock
+
     from edf_parser import ChannelInfo, ChannelInventory
 
     flow_events = [
-        CandidateWindow(100 + i * 200, 120 + i * 200, "provisional_flow_reduction", "Flow", 0.7,
-                        dedupe_key="provisional_flow_reduction_moderate")
+        CandidateWindow(
+            100 + i * 200,
+            120 + i * 200,
+            "provisional_flow_reduction",
+            "Flow",
+            0.7,
+            dedupe_key="provisional_flow_reduction_moderate",
+        )
         for i in range(4)
     ]
     candidates = CandidateSet(
@@ -333,8 +392,15 @@ def test_rei_uses_artifact_adjusted_denominator():
     inventory = ChannelInventory(
         duration_sec=7200.0,
         channels=[
-            ChannelInfo(index=0, label="Flow", sample_rate=10.0,
-                        physical_min=-100.0, physical_max=100.0, unit="", duration_sec=7200.0)
+            ChannelInfo(
+                index=0,
+                label="Flow",
+                sample_rate=10.0,
+                physical_min=-100.0,
+                physical_max=100.0,
+                unit="",
+                duration_sec=7200.0,
+            )
         ],
     )
 

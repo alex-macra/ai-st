@@ -35,10 +35,7 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
-      const user = await activate(
-        (fd.get('email') as string).trim(),
-        licenseKey.trim()
-      );
+      const user = await activate((fd.get('email') as string).trim(), licenseKey.trim());
       setLicenseKey('');
       onAuth(user);
     } catch (err) {
@@ -111,33 +108,61 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
               <div className="space-y-2 pt-2">
                 <button
                   ref={activateChoiceRef}
-                  onClick={() => { setError(null); setMode('activate'); }}
+                  onClick={() => {
+                    setError(null);
+                    setMode('activate');
+                  }}
                   className="focus-ring w-full rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 px-4 py-3 text-left text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors"
                 >
                   Activate with license key
-                  <span className="block text-xs font-normal text-teal-700 dark:text-teal-300 mt-0.5">First time? Enter your license key to create an account.</span>
+                  <span className="block text-xs font-normal text-teal-700 dark:text-teal-300 mt-0.5">
+                    First time? Enter your license key to create an account.
+                  </span>
                 </button>
                 <button
                   ref={loginChoiceRef}
-                  onClick={() => { setError(null); setMode('login'); }}
+                  onClick={() => {
+                    setError(null);
+                    setMode('login');
+                  }}
                   className="focus-ring w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Sign in
-                  <span className="block text-xs font-normal text-slate-600 dark:text-slate-300 mt-0.5">Already have an account? We'll send a code to your email.</span>
+                  <span className="block text-xs font-normal text-slate-600 dark:text-slate-300 mt-0.5">
+                    Already have an account? We'll send a code to your email.
+                  </span>
                 </button>
               </div>
             </div>
           )}
 
           {mode === 'activate' && (
-            <form onSubmit={(e) => { void handleActivate(e); }} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                void handleActivate(e);
+              }}
+              className="space-y-4"
+            >
               <div className="flex items-center gap-2">
-                <button type="button" onClick={back} className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs">← Back</button>
-                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Activate account</h1>
+                <button
+                  type="button"
+                  onClick={back}
+                  className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Activate account
+                </h1>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="act-email">Email</label>
+                  <label
+                    className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+                    htmlFor="act-email"
+                  >
+                    Email
+                  </label>
                   <Input
                     id="act-email"
                     name="email"
@@ -149,7 +174,12 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="act-key">License key</label>
+                  <label
+                    className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+                    htmlFor="act-key"
+                  >
+                    License key
+                  </label>
                   <FormattedInput
                     id="act-key"
                     name="licenseKey"
@@ -163,7 +193,11 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                   />
                 </div>
               </div>
-              {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {error && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
               <Button type="submit" loading={loading} className="w-full">
                 {loading ? 'Activating…' : 'Activate'}
               </Button>
@@ -171,13 +205,31 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
           )}
 
           {mode === 'login' && (
-            <form onSubmit={(e) => { void handleLogin(e); }} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                void handleLogin(e);
+              }}
+              className="space-y-4"
+            >
               <div className="flex items-center gap-2">
-                <button type="button" onClick={back} className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs">← Back</button>
-                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Sign in</h1>
+                <button
+                  type="button"
+                  onClick={back}
+                  className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Sign in
+                </h1>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="login-email">Email</label>
+                <label
+                  className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+                  htmlFor="login-email"
+                >
+                  Email
+                </label>
                 <Input
                   id="login-email"
                   name="email"
@@ -188,7 +240,11 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                   placeholder="clinician@example.org"
                 />
               </div>
-              {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {error && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
               <Button type="submit" loading={loading} className="w-full">
                 {loading ? 'Sending code…' : 'Send sign-in code'}
               </Button>
@@ -196,16 +252,41 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
           )}
 
           {mode === 'verify' && (
-            <form onSubmit={(e) => { void handleVerify(e); }} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                void handleVerify(e);
+              }}
+              className="space-y-4"
+            >
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => { setError(null); setMode('login'); }} className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs">← Back</button>
-                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Enter code</h1>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setMode('login');
+                  }}
+                  className="inline-flex min-h-6 items-center text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 text-xs"
+                >
+                  ← Back
+                </button>
+                <h1 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Enter code
+                </h1>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                A 6-digit code was sent to <span className="font-medium text-slate-700 dark:text-slate-300">{pendingEmail}</span>.
+                A 6-digit code was sent to{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {pendingEmail}
+                </span>
+                .
               </p>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="otp-code">Code</label>
+                <label
+                  className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
+                  htmlFor="otp-code"
+                >
+                  Code
+                </label>
                 <Input
                   id="otp-code"
                   name="code"
@@ -220,7 +301,11 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                   className="font-mono tracking-widest"
                 />
               </div>
-              {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {error && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
               <Button type="submit" loading={loading} className="w-full">
                 {loading ? 'Verifying…' : 'Verify'}
               </Button>

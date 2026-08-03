@@ -19,6 +19,7 @@ Output format per event:
     ]
   }
 """
+
 from __future__ import annotations
 
 import json
@@ -29,16 +30,16 @@ from typing import Any
 import numpy as np
 import pyedflib
 
-from edf_parser import ChannelInventory
 from candidate_windows import (
-    CandidateSet,
-    _find_channel,
+    _EFFORT_LABELS,
     _FLOW_LABELS,
     _SPO2_LABELS,
-    _EFFORT_LABELS,
+    CandidateSet,
+    _find_channel,
     headline_flow_events,
     tagged_flow_events,
 )
+from edf_parser import ChannelInventory
 
 SLICES_DIR = Path(os.environ.get("SLICES_DIR", "data/slices"))
 
@@ -52,12 +53,13 @@ _MAX_SAMPLES = 400
 # Channels to include per event type
 _EVENT_CHANNELS: dict[str, list[set[str]]] = {
     "provisional_flow_reduction": [_FLOW_LABELS, _SPO2_LABELS, _EFFORT_LABELS],
-    "provisional_desaturation":   [_SPO2_LABELS, _FLOW_LABELS],
+    "provisional_desaturation": [_SPO2_LABELS, _FLOW_LABELS],
 }
 
 
 def _decimate(signal: np.ndarray, sample_rate: float, n_out: int) -> list[float | None]:
     """Evenly subsample signal to at most n_out points. NaN/Inf become None."""
+
     def _safe(v: float) -> float | None:
         return None if not np.isfinite(v) else round(float(v), 4)
 
@@ -136,8 +138,12 @@ def build_signal_slices(
 
                 total_samples = int(ch.sample_rate * duration_sec)
                 sig = _read_channel_window(
-                    reader, ch.index, ch.sample_rate,
-                    total_samples, window_start, window_end,
+                    reader,
+                    ch.index,
+                    ch.sample_rate,
+                    total_samples,
+                    window_start,
+                    window_end,
                 )
                 if sig.size == 0:
                     continue
@@ -147,22 +153,26 @@ def build_signal_slices(
                     sig = sig.copy()
                     sig[(sig < 50.0) | (sig > 100.0)] = float("nan")
 
-                slices.append({
-                    "channel": ch_label,
-                    "window_start_sec": round(window_start, 3),
-                    "window_end_sec": round(window_end, 3),
-                    "samples": _decimate(sig, ch.sample_rate, _MAX_SAMPLES),
-                })
+                slices.append(
+                    {
+                        "channel": ch_label,
+                        "window_start_sec": round(window_start, 3),
+                        "window_end_sec": round(window_end, 3),
+                        "samples": _decimate(sig, ch.sample_rate, _MAX_SAMPLES),
+                    }
+                )
 
-            output.append({
-                "event_id": event.event_id,
-                "type": event.label,
-                "start_sec": round(event.start_sec, 3),
-                "end_sec": round(event.end_sec, 3),
-                "magnitude": round(event.magnitude, 3),
-                "tags": [n for n in event.notes if n.startswith("tag:")],
-                "signal_slices": slices,
-            })
+            output.append(
+                {
+                    "event_id": event.event_id,
+                    "type": event.label,
+                    "start_sec": round(event.start_sec, 3),
+                    "end_sec": round(event.end_sec, 3),
+                    "magnitude": round(event.magnitude, 3),
+                    "tags": [n for n in event.notes if n.startswith("tag:")],
+                    "signal_slices": slices,
+                }
+            )
 
     out_path = SLICES_DIR / f"{case_hash}.json"
     out_path.write_text(json.dumps(output, allow_nan=False, default=lambda v: None))

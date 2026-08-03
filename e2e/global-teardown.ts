@@ -7,7 +7,11 @@ const authStatePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '.
 
 function assertTemporaryPath(target: string): void {
   const relative = path.relative(tmpdir(), target);
-  if (relative.startsWith('..') || path.isAbsolute(relative) || !path.basename(target).startsWith('ai-st-e2e-')) {
+  if (
+    relative.startsWith('..') ||
+    path.isAbsolute(relative) ||
+    !path.basename(target).startsWith('ai-st-e2e-')
+  ) {
     throw new Error(`Refusing to remove non-E2E path: ${target}`);
   }
 }

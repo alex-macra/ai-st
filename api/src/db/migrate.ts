@@ -124,7 +124,7 @@ export function migrate(db: BetterSqlite3.Database): void {
 
   // User tier/admin/budget columns
   const userCols: string[] = db
-    .prepare("PRAGMA table_info(users)")
+    .prepare('PRAGMA table_info(users)')
     .all()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((r: any) => r.name as string);
@@ -142,7 +142,7 @@ export function migrate(db: BetterSqlite3.Database): void {
   }
 
   const otpCols: string[] = db
-    .prepare("PRAGMA table_info(auth_otps)")
+    .prepare('PRAGMA table_info(auth_otps)')
     .all()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((r: any) => r.name as string);
@@ -151,7 +151,7 @@ export function migrate(db: BetterSqlite3.Database): void {
   }
 
   const cols: string[] = db
-    .prepare("PRAGMA table_info(cases)")
+    .prepare('PRAGMA table_info(cases)')
     .all()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((r: any) => r.name as string);
@@ -191,9 +191,10 @@ export function migrate(db: BetterSqlite3.Database): void {
   // marks study_hash UNIQUE, rebuild the table without it (re-uploads of the
   // same artifact must succeed; uniqueness now lives on `name`).
   const tableSql: string =
-    (db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cases'")
-      .get() as { sql: string } | undefined)?.sql ?? '';
+    (
+      db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cases'").get() as
+        { sql: string } | undefined
+    )?.sql ?? '';
   if (/study_hash[^,]*UNIQUE/i.test(tableSql)) {
     // Disable FKs around the table rebuild so audit_log rows don't trip the
     // constraint. Inserts into cases_new preserve the same ids so the FK

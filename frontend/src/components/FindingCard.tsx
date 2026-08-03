@@ -13,29 +13,33 @@ interface Props {
   isFocused: boolean;
   editCounter?: number | undefined;
   signalSlices?: EventSlice[] | undefined;
-  onDecision: (findingId: string, decision: ReviewerDecision, editedClaim?: string) => Promise<void>;
+  onDecision: (
+    findingId: string,
+    decision: ReviewerDecision,
+    editedClaim?: string,
+  ) => Promise<void>;
 }
 
 const DECISION_CHIP: Record<ReviewerDecision, string> = {
-  confirm:  'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-  reject:   'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  uncertain:'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  edit:     'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  confirm: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+  reject: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  uncertain: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  edit: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
   artefact: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
 };
 
 const DECISION_LABELS: Record<ReviewerDecision, string> = {
-  confirm:  'Confirmed',
-  reject:   'Rejected',
-  uncertain:'Uncertain',
-  edit:     'Edited',
+  confirm: 'Confirmed',
+  reject: 'Rejected',
+  uncertain: 'Uncertain',
+  edit: 'Edited',
   artefact: 'Artefact',
 };
 
 const CONFIDENCE_ACCENT: Record<FindingConfidence, string> = {
-  high:   'border-l-4 border-l-emerald-500 dark:border-l-emerald-400',
+  high: 'border-l-4 border-l-emerald-500 dark:border-l-emerald-400',
   medium: 'border-l-4 border-l-amber-500 dark:border-l-amber-400',
-  low:    'border-l-4 border-l-rose-500 dark:border-l-rose-400',
+  low: 'border-l-4 border-l-rose-500 dark:border-l-rose-400',
 };
 
 export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCard(
@@ -52,24 +56,30 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
       setEditText(finding.editedClaim ?? finding.claim);
       setEditMode(true);
     }
-  // editCounter increment is the trigger; other deps are intentionally excluded
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // editCounter increment is the trigger; other deps are intentionally excluded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editCounter]);
 
-  const displayClaim = finding.reviewerDecision === 'edit' && finding.editedClaim
-    ? finding.editedClaim
-    : finding.claim;
+  const displayClaim =
+    finding.reviewerDecision === 'edit' && finding.editedClaim
+      ? finding.editedClaim
+      : finding.claim;
 
   const chipStyle = finding.reviewerDecision
     ? DECISION_CHIP[finding.reviewerDecision]
     : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
-  const chipLabel = finding.reviewerDecision ? DECISION_LABELS[finding.reviewerDecision] : 'Pending review';
+  const chipLabel = finding.reviewerDecision
+    ? DECISION_LABELS[finding.reviewerDecision]
+    : 'Pending review';
 
   async function handleDecision(decision: ReviewerDecision) {
     if (saving) return;
     setSaving(true);
-    try { await onDecision(finding.id, decision); }
-    finally { setSaving(false); }
+    try {
+      await onDecision(finding.id, decision);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleEditSubmit() {
@@ -78,7 +88,9 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
     try {
       await onDecision(finding.id, 'edit', editText.trim());
       setEditMode(false);
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -88,7 +100,9 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
     >
       {/* Claim row */}
       <div className="flex items-start gap-2">
-        <Chip className="chip-muted shrink-0 text-[10px] mt-0.5">F-{String(index + 1).padStart(3, '0')}</Chip>
+        <Chip className="chip-muted shrink-0 text-[10px] mt-0.5">
+          F-{String(index + 1).padStart(3, '0')}
+        </Chip>
         <div className="flex-1 min-w-0">
           {editMode ? (
             <Textarea
@@ -104,7 +118,9 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
             <p className="text-xs text-slate-400 mt-0.5 italic">Original: {finding.claim}</p>
           )}
           {finding.uncertainty && (
-            <p className="text-xs text-amber-700 dark:text-amber-400 italic mt-1">{finding.uncertainty}</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 italic mt-1">
+              {finding.uncertainty}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -136,7 +152,10 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
               </button>
               <button
                 className="btn-ghost text-xs py-0.5 px-2"
-                onClick={() => { setEditMode(false); setEditText(finding.editedClaim ?? finding.claim); }}
+                onClick={() => {
+                  setEditMode(false);
+                  setEditText(finding.editedClaim ?? finding.claim);
+                }}
                 disabled={saving}
               >
                 Cancel
@@ -179,7 +198,10 @@ export const FindingCard = forwardRef<HTMLDivElement, Props>(function FindingCar
                 aria-label="Edit claim"
                 aria-pressed={finding.reviewerDecision === 'edit'}
                 className={`rounded p-1 transition-colors ${finding.reviewerDecision === 'edit' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
-                onClick={() => { setEditText(finding.editedClaim ?? finding.claim); setEditMode(true); }}
+                onClick={() => {
+                  setEditText(finding.editedClaim ?? finding.claim);
+                  setEditMode(true);
+                }}
                 disabled={saving}
               >
                 <Pencil size={12} />

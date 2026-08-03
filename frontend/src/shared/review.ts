@@ -16,8 +16,10 @@ export function populatedReportSections(report: StructuredReport): ReportSection
 }
 
 export function reviewIsComplete(c: Case): boolean {
-  if (c.findings.length === 0 || c.findings.some((finding) => !finding.reviewerDecision)) return false;
+  if (c.findings.length === 0 || c.findings.some((finding) => !finding.reviewerDecision))
+    return false;
   if (!c.structuredReport) return true;
-  return populatedReportSections(c.structuredReport)
-    .every((key) => c.sectionReviews?.[key] !== undefined);
+  return populatedReportSections(c.structuredReport).every(
+    (key) => c.sectionReviews?.[key] !== undefined,
+  );
 }

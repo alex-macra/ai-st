@@ -14,7 +14,7 @@ function fullReport(): StructuredReport {
     studyQuality: {
       totalRecordingTime: '7h 12m',
       analysableTime: '6h 50m',
-      channelIssues: ['SpO₂ dropouts in last hour']
+      channelIssues: ['SpO₂ dropouts in last hour'],
     },
     respiratoryIndices: { ahi: 22.4, rei: 19.1, odi3: 18.5 },
     oxygenation: { meanSpO2: 93, nadirSpO2: 81, t90Pct: 6.2 },
@@ -22,7 +22,7 @@ function fullReport(): StructuredReport {
     snoring: { snoreTimePct: 22.1, snoreIndex: 140 },
     cardiac: { meanHr: 68, minHr: 51, maxHr: 92 },
     impression: 'Moderate OSA, position-dependent. Consider PAP titration.',
-    citations: { summary: ['F-001'], impression: ['F-001'] }
+    citations: { summary: ['F-001'], impression: ['F-001'] },
   };
 }
 
@@ -32,11 +32,11 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
     claim: 'AHI elevated at 22.4/h consistent with moderate OSA',
     evidence: [
       { type: 'edf_metric', source: 'ahi', value: 22.4 },
-      { type: 'event_table', source: 'apnea_events', value: 87 }
+      { type: 'event_table', source: 'apnea_events', value: 87 },
     ],
     confidence: 'high',
     reviewerDecision: 'confirm',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -49,14 +49,14 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     findings: [makeFinding()],
     structuredReport: fullReport(),
     sectionReviews: {
-      summary: { decision: 'confirm', reviewedAt: '2026-04-30T10:00:00Z' }
+      summary: { decision: 'confirm', reviewedAt: '2026-04-30T10:00:00Z' },
     },
     preprocessorVersion: '0.3.1',
     promptVersion: '1.2.0',
     modelVersion: 'gpt-5.4-mini',
     createdAt: '2026-04-30T09:00:00Z',
     updatedAt: '2026-04-30T10:00:00Z',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -89,7 +89,7 @@ describe('<PrintableReport />', () => {
       structuredReport: (() => {
         const { snoring: _s, cardiac: _c, ...rest } = fullReport();
         return { ...rest, studyQuality: { channelIssues: [] } };
-      })()
+      })(),
     });
     render(<PrintableReport signalSlices={[]} c={c} />);
     expect(screen.queryByText('Snore Analysis')).not.toBeInTheDocument();
@@ -106,7 +106,7 @@ describe('<PrintableReport />', () => {
   it('uses editedClaim over claim when reviewer edited the finding', () => {
     const f = makeFinding({
       reviewerDecision: 'edit',
-      editedClaim: 'Reviewer-edited: AHI 18.0/h - mild OSA'
+      editedClaim: 'Reviewer-edited: AHI 18.0/h - mild OSA',
     });
     render(<PrintableReport signalSlices={[]} c={makeCase({ findings: [f] })} />);
     expect(screen.getByText(/Reviewer-edited: AHI 18\.0\/h/)).toBeInTheDocument();
@@ -139,9 +139,9 @@ describe('<PrintableReport />', () => {
         impression: {
           decision: 'edit',
           editedValue: 'Reviewer rewrote impression: severe OSA, urgent.',
-          reviewedAt: '2026-04-30T10:00:00Z'
-        }
-      }
+          reviewedAt: '2026-04-30T10:00:00Z',
+        },
+      },
     });
     render(<PrintableReport signalSlices={[]} c={c} />);
     expect(screen.getByText(/Reviewer rewrote impression/)).toBeInTheDocument();
@@ -160,7 +160,7 @@ function makeEventSlice(overrides: Partial<EventSlice> = {}): EventSlice {
     tags: [],
     signalSlices: [
       { channel: 'Airflow', windowStartSec: 10, windowEndSec: 85, samples: [0.1, 0.2, 0.3] },
-      { channel: 'SpO2',    windowStartSec: 10, windowEndSec: 85, samples: [96, 95, 94] },
+      { channel: 'SpO2', windowStartSec: 10, windowEndSec: 85, samples: [96, 95, 94] },
     ],
     ...overrides,
   };

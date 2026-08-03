@@ -27,7 +27,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     modelVersion: 'gpt-5.4-mini',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -37,7 +37,7 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
     claim: 'AHI elevated at 22.4/h',
     evidence: [{ type: 'edf_metric', source: 'ahi', value: 22.4 }],
     confidence: 'high',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -107,7 +107,9 @@ describe('PATCH /api/cases/:id/findings/:findingId', () => {
     expect(persisted.reviewedAt).toBeTruthy();
 
     const audit = await request.get(`/api/cases/${c.id}/audit`);
-    expect(audit.body.auditLog.some((r: { action: string }) => r.action === 'finding_confirm')).toBe(true);
+    expect(
+      audit.body.auditLog.some((r: { action: string }) => r.action === 'finding_confirm'),
+    ).toBe(true);
   });
 
   it('persists editedClaim when decision is edit', async () => {

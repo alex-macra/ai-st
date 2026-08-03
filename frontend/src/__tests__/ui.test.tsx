@@ -17,7 +17,11 @@ afterEach(() => {
 
 function ThemeProbe() {
   const { dark, toggle } = useDarkMode();
-  return <button type="button" onClick={toggle}>{dark ? 'dark' : 'light'}</button>;
+  return (
+    <button type="button" onClick={toggle}>
+      {dark ? 'dark' : 'light'}
+    </button>
+  );
 }
 
 function reviewCase(complete: boolean): Case {
@@ -27,13 +31,15 @@ function reviewCase(complete: boolean): Case {
     name: 'Synthetic case',
     status: 'pending_review',
     cohort: 'adult',
-    findings: [{
-      id: 'F-001',
-      claim: 'Synthetic finding.',
-      confidence: 'high',
-      evidence: [{ type: 'report_page', source: 'synthetic', value: 'present' }],
-      ...(complete ? { reviewerDecision: 'confirm' as const } : {}),
-    }],
+    findings: [
+      {
+        id: 'F-001',
+        claim: 'Synthetic finding.',
+        confidence: 'high',
+        evidence: [{ type: 'report_page', source: 'synthetic', value: 'present' }],
+        ...(complete ? { reviewerDecision: 'confirm' as const } : {}),
+      },
+    ],
     structuredReport: {
       summary: 'Synthetic summary.',
       studyQuality: { channelIssues: [] },
@@ -43,7 +49,13 @@ function reviewCase(complete: boolean): Case {
       impression: '',
       citations: { summary: ['F-001'] },
     },
-    ...(complete ? { sectionReviews: { summary: { decision: 'confirm' as const, reviewedAt: '2026-08-03T00:00:00Z' } } } : {}),
+    ...(complete
+      ? {
+          sectionReviews: {
+            summary: { decision: 'confirm' as const, reviewedAt: '2026-08-03T00:00:00Z' },
+          },
+        }
+      : {}),
     preprocessorVersion: 'synthetic',
     promptVersion: 'synthetic',
     modelVersion: 'synthetic',
@@ -70,15 +82,17 @@ describe('local UI contracts', () => {
     const user = userEvent.setup();
     function Harness() {
       const [active, setActive] = useState('report');
-      return <Tabs
-        active={active}
-        onChange={setActive}
-        tabs={[
-          { id: 'report', label: 'Report' },
-          { id: 'disabled', label: 'Disabled', disabled: true },
-          { id: 'findings', label: 'Findings' },
-        ]}
-      />;
+      return (
+        <Tabs
+          active={active}
+          onChange={setActive}
+          tabs={[
+            { id: 'report', label: 'Report' },
+            { id: 'disabled', label: 'Disabled', disabled: true },
+            { id: 'findings', label: 'Findings' },
+          ]}
+        />
+      );
     }
     render(<Harness />);
 
@@ -95,14 +109,16 @@ describe('local UI contracts', () => {
 
   it('moves focus through the account menu and restores it on Escape', async () => {
     const user = userEvent.setup();
-    render(<AccountPanel
-      label="reviewer@example.test"
-      items={[
-        { id: 'profile', label: 'Profile', onClick: vi.fn() },
-        { id: 'usage', label: 'Usage', onClick: vi.fn() },
-      ]}
-      onSignOut={vi.fn()}
-    />);
+    render(
+      <AccountPanel
+        label="reviewer@example.test"
+        items={[
+          { id: 'profile', label: 'Profile', onClick: vi.fn() },
+          { id: 'usage', label: 'Usage', onClick: vi.fn() },
+        ]}
+        onSignOut={vi.fn()}
+      />,
+    );
 
     const trigger = screen.getByRole('button', { name: 'Account menu' });
     await user.click(trigger);
@@ -117,7 +133,11 @@ describe('local UI contracts', () => {
   });
 
   it('closes a popover on Escape and returns focus to its trigger', async () => {
-    render(<Popover label="Details" trigger={<span>Open details</span>}>Body</Popover>);
+    render(
+      <Popover label="Details" trigger={<span>Open details</span>}>
+        Body
+      </Popover>,
+    );
     const trigger = screen.getByRole('button', { name: 'Open details' });
     fireEvent.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Details' })).toBeVisible();

@@ -13,12 +13,14 @@ export async function parseHttpError(response: Response): Promise<HttpErrorInfo>
     payload = null;
   }
 
-  const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : null;
-  const apiMessage = typeof record?.['message'] === 'string'
-    ? record['message']
-    : typeof record?.['error'] === 'string'
-      ? record['error']
-      : null;
+  const record =
+    payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
+  const apiMessage =
+    typeof record?.['message'] === 'string'
+      ? record['message']
+      : typeof record?.['error'] === 'string'
+        ? record['error']
+        : null;
   const code = typeof record?.['code'] === 'string' ? record['code'] : undefined;
   const fallback = response.statusText || `Request failed with status ${response.status}`;
   return {

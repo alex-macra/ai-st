@@ -19,7 +19,7 @@ function rowToRef(r: DbRefRow): ReferenceDoc {
     cohort: r.cohort as ReferenceDoc['cohort'],
     type: r.type as ReferenceDoc['type'],
     license: r.license as ReferenceDoc['license'],
-    createdAt: r.created_at
+    createdAt: r.created_at,
   };
 }
 
@@ -27,7 +27,7 @@ export function insertReferenceDoc(doc: ReferenceDoc): void {
   getDb()
     .prepare(
       `INSERT INTO reference_docs (id, title, content, cohort, type, license, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(doc.id, doc.title, doc.content, doc.cohort, doc.type, doc.license, doc.createdAt);
 }
@@ -43,15 +43,15 @@ export function upsertReferenceDoc(doc: ReferenceDoc): void {
          cohort = excluded.cohort,
          type = excluded.type,
          license = excluded.license,
-         created_at = excluded.created_at`
+         created_at = excluded.created_at`,
     )
     .run(doc.id, doc.title, doc.content, doc.cohort, doc.type, doc.license, doc.createdAt);
 }
 
 export function clearReferencePackDocs(): number {
-  const result = getDb()
-    .prepare("DELETE FROM reference_docs WHERE instr(id, ':') > 0")
-    .run() as { changes: number };
+  const result = getDb().prepare("DELETE FROM reference_docs WHERE instr(id, ':') > 0").run() as {
+    changes: number;
+  };
   return result.changes;
 }
 
@@ -72,13 +72,19 @@ export function deleteReferenceDocsByPrefix(prefix: string): number {
 
 export function getReferenceDocs(cohort?: string): ReferenceDoc[] {
   // Never return restricted docs (AASM Scoring Manual excluded here)
-  const rows = (cohort
-    ? getDb()
-        .prepare("SELECT * FROM reference_docs WHERE cohort = ? AND license != 'restricted' ORDER BY created_at DESC")
-        .all(cohort)
-    : getDb()
-        .prepare("SELECT * FROM reference_docs WHERE license != 'restricted' ORDER BY created_at DESC")
-        .all()) as DbRefRow[];
+  const rows = (
+    cohort
+      ? getDb()
+          .prepare(
+            "SELECT * FROM reference_docs WHERE cohort = ? AND license != 'restricted' ORDER BY created_at DESC",
+          )
+          .all(cohort)
+      : getDb()
+          .prepare(
+            "SELECT * FROM reference_docs WHERE license != 'restricted' ORDER BY created_at DESC",
+          )
+          .all()
+  ) as DbRefRow[];
   return rows.map(rowToRef);
 }
 
@@ -89,13 +95,15 @@ export function getReferenceDocsForCohortAndType(cohort: string, type: string): 
         WHERE cohort IN (?, 'generic')
           AND type IN (?, 'generic')
           AND license != 'restricted'
-        ORDER BY created_at DESC`
+        ORDER BY created_at DESC`,
     )
     .all(cohort, type) as DbRefRow[];
   return rows.map(rowToRef);
 }
 
 export function deleteReferenceDoc(id: string): boolean {
-  const result = getDb().prepare('DELETE FROM reference_docs WHERE id = ?').run(id) as { changes: number };
+  const result = getDb().prepare('DELETE FROM reference_docs WHERE id = ?').run(id) as {
+    changes: number;
+  };
   return result.changes > 0;
 }

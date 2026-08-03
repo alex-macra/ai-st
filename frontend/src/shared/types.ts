@@ -17,7 +17,8 @@ export interface User {
   weekEndsAt?: number;
 }
 
-export type EvidenceType = 'edf_metric' | 'event_table' | 'report_page' | 'screenshot_window' | 'pdf_metric';
+export type EvidenceType =
+  'edf_metric' | 'event_table' | 'report_page' | 'screenshot_window' | 'pdf_metric';
 export type FindingConfidence = 'high' | 'medium' | 'low';
 export type CaseStatus = 'draft' | 'pending_review' | 'signed_off';
 export type ReviewerDecision = 'confirm' | 'reject' | 'uncertain' | 'edit' | 'artefact';
@@ -103,7 +104,7 @@ export const REPORT_SECTION_KEYS = [
   'positional',
   'snoring',
   'cardiac',
-  'impression'
+  'impression',
 ] as const;
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
 
@@ -383,7 +384,15 @@ export interface AuditRecord {
 
 export type AnalysisEvent =
   | { type: 'progress'; pass: number; message: string }
-  | { type: 'stage_complete'; pass: number | '3b'; tokensIn: number; tokensOut: number; findingCount?: number; warningCount?: number; flagCount?: number }
+  | {
+      type: 'stage_complete';
+      pass: number | '3b';
+      tokensIn: number;
+      tokensOut: number;
+      findingCount?: number;
+      warningCount?: number;
+      flagCount?: number;
+    }
   | { type: 'documents_only_mode'; message: string }
   | { type: 'warning'; code: 'reference_pack_unavailable'; message: string }
   | { type: 'validation_warnings'; warnings: ValidationWarning[] }
@@ -399,7 +408,10 @@ export type AnalysisEvent =
       promptVersion: string;
       tokenStats?: TokenStats;
     }
-  | { type: 'validation_failed'; rejections: Array<{ quote: string; reason: string; section?: ReportSectionKey }> }
+  | {
+      type: 'validation_failed';
+      rejections: Array<{ quote: string; reason: string; section?: ReportSectionKey }>;
+    }
   | { type: 'error'; message: string };
 
 export type ActionPlanEvent =

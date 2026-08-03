@@ -10,7 +10,7 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 }
 
 vi.mock('../api', () => ({
-  uploadCase: vi.fn()
+  uploadCase: vi.fn(),
 }));
 
 import { uploadCase } from '../api';
@@ -20,7 +20,8 @@ const uploadCaseMock = uploadCase as unknown as ReturnType<typeof vi.fn>;
 function makeFile(name: string, content = 'x'): File {
   // Pick a MIME type that matches the input's `accept` attribute so user-event
   // doesn't filter the file out: image/* for screenshots, otherwise generic.
-  const type = name.endsWith('.png') || name.endsWith('.jpg') ? 'image/png' : 'application/octet-stream';
+  const type =
+    name.endsWith('.png') || name.endsWith('.jpg') ? 'image/png' : 'application/octet-stream';
   return new File([content], name, { type });
 }
 
@@ -72,7 +73,11 @@ describe('<CaseUpload />', () => {
     const user = userEvent.setup();
     render(<CaseUpload onUploaded={vi.fn()} />);
     await expandOptional(user);
-    await user.upload(getScreenshotsInput(), [makeFile('a.png'), makeFile('b.png'), makeFile('c.png')]);
+    await user.upload(getScreenshotsInput(), [
+      makeFile('a.png'),
+      makeFile('b.png'),
+      makeFile('c.png'),
+    ]);
 
     const removeBtn = screen.getByLabelText('Remove b.png');
     await user.click(removeBtn);
@@ -89,7 +94,9 @@ describe('<CaseUpload />', () => {
     expect(screen.getByRole('button', { name: /upload & process/i })).toBeEnabled();
 
     // The dropzone shows the EDF name + an X button after selection.
-    const removeBtn = screen.getByText('study.edf').parentElement?.querySelector('button') as HTMLButtonElement;
+    const removeBtn = screen
+      .getByText('study.edf')
+      .parentElement?.querySelector('button') as HTMLButtonElement;
     await user.click(removeBtn);
 
     expect(screen.getByRole('button', { name: /upload & process/i })).toBeDisabled();

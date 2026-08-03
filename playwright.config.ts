@@ -10,7 +10,8 @@ const dbPath = process.env['AI_ST_E2E_DB'] ?? path.join(runRoot, 'cases.sqlite')
 const uploadPath = process.env['AI_ST_E2E_UPLOADS'] ?? path.join(runRoot, 'uploads');
 const artifactPath = process.env['AI_ST_E2E_ARTIFACTS'] ?? path.join(runRoot, 'artifacts');
 const localPython = path.resolve('preprocessor/.venv/bin/python');
-const pythonBin = process.env['AI_ST_PYTHON_BIN'] ?? (existsSync(localPython) ? localPython : 'python3');
+const pythonBin =
+  process.env['AI_ST_PYTHON_BIN'] ?? (existsSync(localPython) ? localPython : 'python3');
 
 process.env['AI_ST_E2E_DB'] = dbPath;
 process.env['AI_ST_E2E_UPLOADS'] = uploadPath;
@@ -18,7 +19,7 @@ process.env['AI_ST_E2E_ARTIFACTS'] = artifactPath;
 process.env['AI_ST_E2E_ROOT'] = runRoot;
 
 const baseEnvironment = Object.fromEntries(
-  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
 );
 
 export default defineConfig({

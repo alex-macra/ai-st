@@ -7,12 +7,12 @@ interface Phase {
 }
 
 const PHASES: Phase[] = [
-  { id: 'review',    label: 'Reviewing high-confidence findings' },
-  { id: 'priority',  label: 'Synthesising priority actions' },
-  { id: 'verify',    label: 'Drafting verification steps' },
-  { id: 'artefact',  label: 'Checking for artefact caveats' },
-  { id: 'context',   label: 'Composing clinical context' },
-  { id: 'evidence',  label: 'Compiling evidence references' },
+  { id: 'review', label: 'Reviewing high-confidence findings' },
+  { id: 'priority', label: 'Synthesising priority actions' },
+  { id: 'verify', label: 'Drafting verification steps' },
+  { id: 'artefact', label: 'Checking for artefact caveats' },
+  { id: 'context', label: 'Composing clinical context' },
+  { id: 'evidence', label: 'Compiling evidence references' },
 ];
 
 const PHASE_INTERVAL_MS = 2200;
@@ -44,8 +44,12 @@ export function ActionPlanThinking() {
           return (
             <div key={p.id} className="flex items-center gap-2.5 px-1">
               <div className="shrink-0 w-3.5 flex items-center justify-center">
-                {status === 'active' && <Loader2 size={12} className="animate-spin text-teal-500" />}
-                {status === 'done'   && <Check    size={12} className="text-teal-600 dark:text-teal-400" />}
+                {status === 'active' && (
+                  <Loader2 size={12} className="animate-spin text-teal-500" />
+                )}
+                {status === 'done' && (
+                  <Check size={12} className="text-teal-600 dark:text-teal-400" />
+                )}
                 {status === 'pending' && (
                   <div className="w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600" />
                 )}
@@ -55,8 +59,8 @@ export function ActionPlanThinking() {
                   status === 'pending'
                     ? 'text-xs text-slate-400 dark:text-slate-500'
                     : status === 'active'
-                    ? 'text-xs text-slate-700 dark:text-slate-200'
-                    : 'text-xs text-slate-500 dark:text-slate-400'
+                      ? 'text-xs text-slate-700 dark:text-slate-200'
+                      : 'text-xs text-slate-500 dark:text-slate-400'
                 }
               >
                 {p.label}

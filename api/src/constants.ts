@@ -31,20 +31,20 @@ export const EVIDENCE_TYPES = [
   'event_table',
   'report_page',
   'screenshot_window',
-  'pdf_metric'
+  'pdf_metric',
 ] as const;
 export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 
 // Conservative prompt-size budget for text candidates and attached images.
-export const MAX_INPUT_TOKENS   = 35_000;
-export const TOKEN_BASE_PACKAGE = 1_500;  // estimated tokens for the base case package JSON
-export const TOKEN_PER_CANDIDATE = 80;    // estimated tokens per text candidate summary
-export const TOKEN_PER_IMAGE    = 1_500;  // estimated tokens per 480×180 JPEG (vision)
-export const MAX_IMAGE_CANDIDATES = 8;    // never attach more than 8 images per Pass 1 call
+export const MAX_INPUT_TOKENS = 35_000;
+export const TOKEN_BASE_PACKAGE = 1_500; // estimated tokens for the base case package JSON
+export const TOKEN_PER_CANDIDATE = 80; // estimated tokens per text candidate summary
+export const TOKEN_PER_IMAGE = 1_500; // estimated tokens per 480×180 JPEG (vision)
+export const MAX_IMAGE_CANDIDATES = 8; // never attach more than 8 images per Pass 1 call
 
 // Cost per 1M tokens in USD (approximate, for display only)
-export const COST_PER_1M_INPUT  = 0.15;
-export const COST_PER_1M_OUTPUT = 0.60;
+export const COST_PER_1M_INPUT = 0.15;
+export const COST_PER_1M_OUTPUT = 0.6;
 
 export const ALLOWED_MODELS = ['gpt-5.4-nano', 'gpt-5.4-mini', 'gpt-5.4', 'gpt-5.5'] as const;
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];

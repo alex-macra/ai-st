@@ -14,7 +14,8 @@ export function syntheticLlmEnabled(environment: Environment = process.env): boo
 }
 
 function systemPromptFrom(params: unknown): string {
-  const messages = (params as { messages?: Array<{ role?: string; content?: unknown }> }).messages ?? [];
+  const messages =
+    (params as { messages?: Array<{ role?: string; content?: unknown }> }).messages ?? [];
   const system = messages.find((message) => message.role === 'system');
   return typeof system?.content === 'string' ? system.content : '';
 }
@@ -22,22 +23,28 @@ function systemPromptFrom(params: unknown): string {
 export function syntheticResponseFor(systemPrompt: string): string {
   if (systemPrompt.includes('clinical data extraction engine')) {
     return JSON.stringify({
-      findings: [{
-        id: 'F-001',
-        claim: 'Synthetic artifact is available for workflow verification; no clinical interpretation was performed.',
-        confidence: 'high',
-        evidence: [{
-          type: 'report_page',
-          source: 'synthetic-e2e-artifact',
-          value: 'present',
-        }],
-      }],
+      findings: [
+        {
+          id: 'F-001',
+          claim:
+            'Synthetic artifact is available for workflow verification; no clinical interpretation was performed.',
+          confidence: 'high',
+          evidence: [
+            {
+              type: 'report_page',
+              source: 'synthetic-e2e-artifact',
+              value: 'present',
+            },
+          ],
+        },
+      ],
     });
   }
 
   if (systemPrompt.includes('conservative report builder for home sleep study review')) {
     return JSON.stringify({
-      summary: 'Synthetic workflow verification completed; this output contains no clinical interpretation. (F-001)',
+      summary:
+        'Synthetic workflow verification completed; this output contains no clinical interpretation. (F-001)',
       studyQuality: { channelIssues: ['Synthetic test artifact; not a clinical recording.'] },
       respiratoryIndices: {},
       oxygenation: {},
@@ -59,14 +66,18 @@ export function syntheticResponseFor(systemPrompt: string): string {
     return JSON.stringify({ valid: true, rejections: [] });
   }
 
-  if (systemPrompt.includes('review-support assistant helping a licensed sleep medicine specialist')) {
+  if (
+    systemPrompt.includes('review-support assistant helping a licensed sleep medicine specialist')
+  ) {
     return JSON.stringify({
       priorityActions: [],
-      verifyNext: [{
-        action: 'Confirm that this case is synthetic before reviewing the workflow.',
-        rationale: 'The generated artifact is intended only to verify the release smoke path.',
-        findingIds: ['F-001'],
-      }],
+      verifyNext: [
+        {
+          action: 'Confirm that this case is synthetic before reviewing the workflow.',
+          rationale: 'The generated artifact is intended only to verify the release smoke path.',
+          findingIds: ['F-001'],
+        },
+      ],
       artifactCaveats: [],
       clinicalContext: {
         commonPresentation: 'Synthetic test mode does not provide clinical context.',
@@ -88,16 +99,18 @@ function createSyntheticClient(): OpenAI {
           object: 'chat.completion',
           created: 0,
           model: 'synthetic-test-model',
-          choices: [{
-            index: 0,
-            finish_reason: 'stop',
-            logprobs: null,
-            message: {
-              role: 'assistant',
-              refusal: null,
-              content: syntheticResponseFor(systemPromptFrom(params)),
+          choices: [
+            {
+              index: 0,
+              finish_reason: 'stop',
+              logprobs: null,
+              message: {
+                role: 'assistant',
+                refusal: null,
+                content: syntheticResponseFor(systemPromptFrom(params)),
+              },
             },
-          }],
+          ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }),
       },
@@ -113,9 +126,10 @@ export function getOpenAIClient(): OpenAI {
 }
 
 export function writeSSE(res: Response, data: unknown, requestId?: string): void {
-  const payload = requestId !== undefined && data && typeof data === 'object' && !Array.isArray(data)
-    ? { requestId, ...data }
-    : data;
+  const payload =
+    requestId !== undefined && data && typeof data === 'object' && !Array.isArray(data)
+      ? { requestId, ...data }
+      : data;
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
@@ -137,8 +151,8 @@ export function extractUsage(usage: UsageLike | null | undefined): {
     inputTokens: usage?.prompt_tokens ?? usage?.input_tokens ?? 0,
     outputTokens: usage?.completion_tokens ?? usage?.output_tokens ?? 0,
     cacheReadTokens:
-      usage?.prompt_tokens_details?.cached_tokens
-      ?? usage?.input_tokens_details?.cached_tokens
-      ?? 0,
+      usage?.prompt_tokens_details?.cached_tokens ??
+      usage?.input_tokens_details?.cached_tokens ??
+      0,
   };
 }

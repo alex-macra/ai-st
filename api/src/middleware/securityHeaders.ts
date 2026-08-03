@@ -28,7 +28,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     }
     res.setHeader(
       'Permissions-Policy',
-      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()'
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()',
     );
     next();
   });

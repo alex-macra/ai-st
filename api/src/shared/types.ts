@@ -90,7 +90,7 @@ export const REPORT_SECTION_KEYS = [
   'positional',
   'snoring',
   'cardiac',
-  'impression'
+  'impression',
 ] as const;
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
 

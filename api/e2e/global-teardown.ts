@@ -4,7 +4,11 @@ import path from 'node:path';
 
 function assertApiE2ePath(target: string): void {
   const relative = path.relative(tmpdir(), target);
-  if (relative.startsWith('..') || path.isAbsolute(relative) || !path.basename(target).startsWith('ai-st-api-e2e-')) {
+  if (
+    relative.startsWith('..') ||
+    path.isAbsolute(relative) ||
+    !path.basename(target).startsWith('ai-st-api-e2e-')
+  ) {
     throw new Error(`Refusing to remove non-E2E path: ${target}`);
   }
 }

@@ -9,11 +9,24 @@ const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
 
 vi.mock('../llm.js', () => ({
   getOpenAIClient: () => ({ chat: { completions: { create: mockCreate } } }),
-  writeSSE: (res: { write: (s: string) => void }, data: Record<string, unknown>, requestId?: string) => {
+  writeSSE: (
+    res: { write: (s: string) => void },
+    data: Record<string, unknown>,
+    requestId?: string,
+  ) => {
     const payload = requestId !== undefined ? { requestId, ...data } : data;
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   },
-  extractUsage: (u: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } } | null | undefined) => ({
+  extractUsage: (
+    u:
+      | {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          prompt_tokens_details?: { cached_tokens?: number };
+        }
+      | null
+      | undefined,
+  ) => ({
     inputTokens: u?.prompt_tokens ?? 0,
     outputTokens: u?.completion_tokens ?? 0,
     cacheReadTokens: u?.prompt_tokens_details?.cached_tokens ?? 0,
@@ -32,11 +45,16 @@ function syntheticEdf(): Buffer {
 
 function stubPreprocessor(payload: Record<string, unknown>): () => void {
   const original = globalThis.fetch;
-  globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { 'content-type': 'application/json' }
-  })) as unknown as typeof fetch;
-  return () => { globalThis.fetch = original; };
+  globalThis.fetch = vi.fn(
+    async () =>
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+  ) as unknown as typeof fetch;
+  return () => {
+    globalThis.fetch = original;
+  };
 }
 
 function parseSseEvents(body: string): Array<Record<string, unknown>> {
@@ -54,19 +72,21 @@ const DOCS_ONLY_PACKAGE = {
   channels: [],
   candidate_windows: [],
   screenshot_count: 0,
-  pdf_metrics: { parsed: true, ahi: { value: 18.5, confidence: 'extracted' } }
+  pdf_metrics: { parsed: true, ahi: { value: 18.5, confidence: 'extracted' } },
 };
 
 function makePass1Response(): { text: string; findingId: string } {
   const findingId = `F-${randomUUID()}`;
   const text = JSON.stringify({
-    findings: [{
-      id: findingId,
-      claim: 'AHI 18.5/h from DOMINO PDF',
-      confidence: 'medium',
-      confidenceRationale: 'Derived from PDF metric; no raw signal available.',
-      evidence: [{ type: 'pdf_metric', source: 'pdf_metrics.ahi', value: 18.5 }]
-    }]
+    findings: [
+      {
+        id: findingId,
+        claim: 'AHI 18.5/h from DOMINO PDF',
+        confidence: 'medium',
+        confidenceRationale: 'Derived from PDF metric; no raw signal available.',
+        evidence: [{ type: 'pdf_metric', source: 'pdf_metrics.ahi', value: 18.5 }],
+      },
+    ],
   });
   return { text, findingId };
 }
@@ -82,8 +102,8 @@ function makePass2Response(findingId: string): string {
     citations: {
       summary: [findingId],
       respiratoryIndices: [findingId],
-      impression: [findingId]
-    }
+      impression: [findingId],
+    },
   });
 }
 
@@ -119,15 +139,15 @@ describe('analyze gates', () => {
     mockCreate
       .mockImplementationOnce(async () => ({
         choices: [{ message: { content: pass1Text } }],
-        usage: { prompt_tokens: 50, completion_tokens: 20 }
+        usage: { prompt_tokens: 50, completion_tokens: 20 },
       }))
       .mockImplementationOnce(async () => ({
         choices: [{ message: { content: makePass2Response(findingId) } }],
-        usage: { prompt_tokens: 80, completion_tokens: 40 }
+        usage: { prompt_tokens: 80, completion_tokens: 40 },
       }))
       .mockImplementationOnce(async () => ({
         choices: [{ message: { content: PASS3_OK } }],
-        usage: { prompt_tokens: 60, completion_tokens: 10 }
+        usage: { prompt_tokens: 60, completion_tokens: 10 },
       }));
 
     const analyze = await request
@@ -139,8 +159,12 @@ describe('analyze gates', () => {
     const events = parseSseEvents(analyze.text);
 
     expect(events.find((e) => e['type'] === 'documents_only_mode')).toBeDefined();
-    expect(events.find((e) => e['type'] === 'warning' && e['code'] === 'reference_pack_unavailable')).toBeDefined();
-    expect(events.find((e) => e['type'] === 'error' && e['code'] === 'documents_only_unsupported')).toBeUndefined();
+    expect(
+      events.find((e) => e['type'] === 'warning' && e['code'] === 'reference_pack_unavailable'),
+    ).toBeDefined();
+    expect(
+      events.find((e) => e['type'] === 'error' && e['code'] === 'documents_only_unsupported'),
+    ).toBeUndefined();
     const done = events.find((e) => e['type'] === 'done');
     expect(done).toBeDefined();
     const findings = done?.['findings'] as Array<Record<string, unknown>>;
@@ -149,11 +173,14 @@ describe('analyze gates', () => {
   });
 
   it('rejects a concurrent model job from the same authenticated user with 429', async () => {
-    restore = stubPreprocessor({ schema_version: '0.4', edf_available: true, channels: [], candidate_windows: [] });
+    restore = stubPreprocessor({
+      schema_version: '0.4',
+      edf_available: true,
+      channels: [],
+      candidate_windows: [],
+    });
 
-    const upload = await request
-      .post('/api/upload')
-      .attach('edf', syntheticEdf(), 'study.edf');
+    const upload = await request.post('/api/upload').attach('edf', syntheticEdf(), 'study.edf');
     expect(upload.status).toBe(201);
     const { caseId } = upload.body as { caseId: string };
 
@@ -171,7 +198,7 @@ describe('analyze gates', () => {
     const otherAuth = mintAuthCookie();
     const otherRequest = authedSupertest(
       createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 }),
-      otherAuth
+      otherAuth,
     );
     const upload = await otherRequest
       .post('/api/upload')
@@ -208,8 +235,10 @@ describe('analyze gates', () => {
     const caseId = await uploadDocCase();
 
     mockCreate.mockResolvedValueOnce({
-      choices: [{ finish_reason: 'length', message: { content: '{"findings":[{"id":"F1","claim":"AHI' } }],
-      usage: { prompt_tokens: 5000, completion_tokens: 16384 }
+      choices: [
+        { finish_reason: 'length', message: { content: '{"findings":[{"id":"F1","claim":"AHI' } },
+      ],
+      usage: { prompt_tokens: 5000, completion_tokens: 16384 },
     });
 
     const analyze = await request
@@ -229,7 +258,7 @@ describe('analyze gates', () => {
 
     mockCreate.mockResolvedValueOnce({
       choices: [{ finish_reason: 'stop', message: { content: 'I cannot process this study.' } }],
-      usage: { prompt_tokens: 100, completion_tokens: 10 }
+      usage: { prompt_tokens: 100, completion_tokens: 10 },
     });
 
     const analyze = await request
@@ -249,7 +278,7 @@ describe('analyze gates', () => {
 
     mockCreate.mockResolvedValueOnce({
       choices: [{ finish_reason: 'stop', message: { content: '{"results":[]}' } }],
-      usage: { prompt_tokens: 100, completion_tokens: 10 }
+      usage: { prompt_tokens: 100, completion_tokens: 10 },
     });
 
     const analyze = await request
@@ -269,7 +298,7 @@ describe('analyze gates', () => {
 
     mockCreate.mockResolvedValueOnce({
       choices: [{ finish_reason: 'content_filter', message: { content: null } }],
-      usage: { prompt_tokens: 100, completion_tokens: 0 }
+      usage: { prompt_tokens: 100, completion_tokens: 0 },
     });
 
     const analyze = await request

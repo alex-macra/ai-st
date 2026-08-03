@@ -5,7 +5,12 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import supertest from 'supertest';
 import { isReferenceRuleActive, seedReferenceDocs } from '../refs/seedReferenceDocs.js';
-import { deleteReferenceDocsByPrefix, getReferenceDocsForCohortAndType, insertReferenceDoc, setUserAdmin } from '../db.js';
+import {
+  deleteReferenceDocsByPrefix,
+  getReferenceDocsForCohortAndType,
+  insertReferenceDoc,
+  setUserAdmin,
+} from '../db.js';
 import { createApp } from '../app.js';
 import { authedSupertest, mintAuthCookie } from './authHelper.js';
 
@@ -68,10 +73,9 @@ describe('reference pack loading', () => {
 
     expect(status).toEqual({ enabled: true, filesLoaded: 2, rulesLoaded: 3 });
     const adultRules = getReferenceDocsForCohortAndType('adult', 'hsat');
-    expect(adultRules.map((rule) => rule.id)).toEqual(expect.arrayContaining([
-      'synthetic-adult-hsat:rule-a',
-      'synthetic-adult-hsat:rule-b',
-    ]));
+    expect(adultRules.map((rule) => rule.id)).toEqual(
+      expect.arrayContaining(['synthetic-adult-hsat:rule-a', 'synthetic-adult-hsat:rule-b']),
+    );
   });
 
   it('is idempotent', () => {
@@ -79,8 +83,9 @@ describe('reference pack loading', () => {
     seedReferenceDocs(tmpDir);
     seedReferenceDocs(tmpDir);
 
-    const docs = getReferenceDocsForCohortAndType('adult', 'hsat')
-      .filter((doc) => doc.id.startsWith('synthetic-adult-hsat:'));
+    const docs = getReferenceDocsForCohortAndType('adult', 'hsat').filter((doc) =>
+      doc.id.startsWith('synthetic-adult-hsat:'),
+    );
     expect(docs).toHaveLength(2);
   });
 
@@ -91,8 +96,11 @@ describe('reference pack loading', () => {
 
     expect(seedReferenceDocs('')).toEqual({ enabled: false, filesLoaded: 0, rulesLoaded: 0 });
     expect(isReferenceRuleActive('synthetic-adult-hsat:rule-a')).toBe(false);
-    expect(getReferenceDocsForCohortAndType('adult', 'hsat')
-      .some((doc) => doc.id === 'synthetic-adult-hsat:rule-a')).toBe(false);
+    expect(
+      getReferenceDocsForCohortAndType('adult', 'hsat').some(
+        (doc) => doc.id === 'synthetic-adult-hsat:rule-a',
+      ),
+    ).toBe(false);
   });
 
   it('removes stale pack rules while preserving administrator-created references', () => {
@@ -119,7 +127,10 @@ describe('reference pack loading', () => {
 
   it('rejects an unsupported license value', () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
-    writeFileSync(join(tmpDir, 'invalid.md'), ADULT_MD.replace('license: open', 'license: unknown'));
+    writeFileSync(
+      join(tmpDir, 'invalid.md'),
+      ADULT_MD.replace('license: open', 'license: unknown'),
+    );
     expect(() => seedReferenceDocs(tmpDir)).toThrow(/invalid reference metadata/i);
   });
 
@@ -163,7 +174,11 @@ describe('reference API authorization', () => {
       type: 'generic',
       license: 'open',
     };
-    expect((await authedSupertest(app, user).post('/api/references').send(payload)).status).toBe(403);
-    expect((await authedSupertest(app, admin).post('/api/references').send(payload)).status).toBe(201);
+    expect((await authedSupertest(app, user).post('/api/references').send(payload)).status).toBe(
+      403,
+    );
+    expect((await authedSupertest(app, admin).post('/api/references').send(payload)).status).toBe(
+      201,
+    );
   });
 });

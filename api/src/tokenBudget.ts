@@ -65,9 +65,8 @@ export function selectCandidates(
 
   // 4. Compute token budget: images cost more; all candidates also appear as text summaries
   const allText = [...imageCandidates, ...textOnly];
-  let tokenEstimate = baseTokens
-    + allText.length * TOKEN_PER_CANDIDATE
-    + imageCandidates.length * TOKEN_PER_IMAGE;
+  let tokenEstimate =
+    baseTokens + allText.length * TOKEN_PER_CANDIDATE + imageCandidates.length * TOKEN_PER_IMAGE;
 
   // 5. Drop lowest-priority text candidates if still over budget
   let dropped = 0;
@@ -82,7 +81,7 @@ export function selectCandidates(
   if (dropped > 0) {
     logger.warn(
       { caseId, dropped, estimatedTokens: tokenEstimate },
-      'token_budget_candidates_dropped'
+      'token_budget_candidates_dropped',
     );
   }
 
@@ -96,7 +95,7 @@ export function selectCandidates(
       estimatedTokens: tokenEstimate,
       dropped,
     },
-    'token_budget_selected'
+    'token_budget_selected',
   );
 
   return { textCandidates, imageCandidates, estimatedTokens: tokenEstimate, droppedCount: dropped };

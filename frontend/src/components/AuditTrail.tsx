@@ -30,12 +30,12 @@ const ACTION_LABELS: Record<string, string> = {
 // Unmapped actions fall back to gray.
 const ACTION_TONE: Record<string, TimelineDotTone> = {
   analysis_completed: 'info',
-  signed_off:         'success',
-  finding_confirm:    'success',
-  finding_reject:     'danger',
-  finding_artefact:   'danger',
-  finding_uncertain:  'warning',
-  finding_edit:       'warning',
+  signed_off: 'success',
+  finding_confirm: 'success',
+  finding_reject: 'danger',
+  finding_artefact: 'danger',
+  finding_uncertain: 'warning',
+  finding_edit: 'warning',
 };
 
 function actionLabel(action: string): string {
@@ -60,7 +60,9 @@ function metaBadges(meta: Record<string, unknown>): ReactNode {
     items.push(<MetaBadge key="prompt" label="prompt" value={meta['promptVersion']} />);
   }
   if (typeof meta['studyHash'] === 'string') {
-    items.push(<MetaBadge key="hash" label="hash" value={meta['studyHash'].slice(0, 12) + '…'} mono />);
+    items.push(
+      <MetaBadge key="hash" label="hash" value={meta['studyHash'].slice(0, 12) + '…'} mono />,
+    );
   }
   if (typeof meta['findingId'] === 'string') {
     items.push(<MetaBadge key="finding" label="finding" value={meta['findingId']} mono />);
@@ -127,14 +129,16 @@ export function AuditTrail({ caseId }: Props) {
           setLoading(false);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [caseId]);
 
   if (loading) return <p className="text-xs text-slate-400">Loading audit trail…</p>;
   if (error) return <p className="text-xs text-red-500">{error}</p>;
 
   const modelVersion = records.find(
-    (r) => r.action === 'analysis_completed' && typeof r.metadata?.['modelVersion'] === 'string'
+    (r) => r.action === 'analysis_completed' && typeof r.metadata?.['modelVersion'] === 'string',
   )?.metadata?.['modelVersion'];
   const modelVersionStr = typeof modelVersion === 'string' ? modelVersion : undefined;
 

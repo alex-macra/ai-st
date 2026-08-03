@@ -6,6 +6,7 @@ Unit tests for each stage live in their respective test_*.py files.
 Borrowed pattern from webscan/findings.test.ts: call the business-logic function directly
 with a controlled synthetic input rather than going through HTTP.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,13 +26,12 @@ from evidence_packager import package_evidence
 from main import PREPROCESSOR_VERSION
 from signal_qc import run_signal_qc
 
-
 # ---------------------------------------------------------------------------
 # Fixtures — helpers
 # ---------------------------------------------------------------------------
 
 DURATION_SEC = 900
-FLOW_SR = 10   # Hz, kept low so tests finish fast
+FLOW_SR = 10  # Hz, kept low so tests finish fast
 SPO2_SR = 1
 POS_SR = 1
 
@@ -67,6 +67,7 @@ def _hdr(
 # Fixtures — EDF files
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def happy_path_edf(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """
@@ -79,7 +80,7 @@ def happy_path_edf(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
     t = np.arange(DURATION_SEC * FLOW_SR) / FLOW_SR
     flow = np.abs(np.sin(2 * np.pi * 0.25 * t))  # breathing baseline, amplitude ~1.0
-    for event_start in (300, 500, 700):           # three 20-second apnea-level events
+    for event_start in (300, 500, 700):  # three 20-second apnea-level events
         s, e = event_start * FLOW_SR, (event_start + 20) * FLOW_SR
         flow[s:e] = 0.05
 
@@ -95,9 +96,9 @@ def happy_path_edf(tmp_path_factory: pytest.TempPathFactory) -> Path:
     position[450:] = 2.0  # supine → left lateral; both runs ≥ 30s ✓
 
     headers = [
-        _hdr("Flow",     dimension="mV",  sample_frequency=FLOW_SR, physical_min=-2.0, physical_max=2.0),
-        _hdr("SpO2",     dimension="%",   sample_frequency=SPO2_SR, physical_min=50.0, physical_max=100.0),
-        _hdr("Position", dimension="code",sample_frequency=POS_SR,  physical_min=0.0,  physical_max=5.0),
+        _hdr("Flow", dimension="mV", sample_frequency=FLOW_SR, physical_min=-2.0, physical_max=2.0),
+        _hdr("SpO2", dimension="%", sample_frequency=SPO2_SR, physical_min=50.0, physical_max=100.0),
+        _hdr("Position", dimension="code", sample_frequency=POS_SR, physical_min=0.0, physical_max=5.0),
     ]
     _write_edf(path, headers, [flow, spo2, position])
     return path
@@ -131,7 +132,7 @@ def flat_flow_edf(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
     headers = [
         _hdr("Flow", dimension="mV", sample_frequency=FLOW_SR, physical_min=-2.0, physical_max=2.0),
-        _hdr("SpO2", dimension="%",  sample_frequency=SPO2_SR, physical_min=50.0, physical_max=100.0),
+        _hdr("SpO2", dimension="%", sample_frequency=SPO2_SR, physical_min=50.0, physical_max=100.0),
     ]
     _write_edf(path, headers, [flow, spo2])
     return path
@@ -140,6 +141,7 @@ def flat_flow_edf(tmp_path_factory: pytest.TempPathFactory) -> Path:
 # ---------------------------------------------------------------------------
 # Pipeline runner
 # ---------------------------------------------------------------------------
+
 
 def _run(edf_path: Path, cohort: str = "adult") -> dict:
     inventory = parse_edf(edf_path)
@@ -160,14 +162,23 @@ def _run(edf_path: Path, cohort: str = "adult") -> dict:
 # Tests — happy path
 # ---------------------------------------------------------------------------
 
+
 class TestHappyPath:
     def test_required_top_level_keys_present(self, happy_path_edf: Path) -> None:
         pkg = _run(happy_path_edf)
         for key in (
-            "schema_version", "preprocessor_version", "cohort",
-            "recording", "channels", "missing_channels", "low_quality_channels",
-            "candidate_windows", "candidate_count_total", "study_metrics",
-            "pdf_available", "screenshot_count",
+            "schema_version",
+            "preprocessor_version",
+            "cohort",
+            "recording",
+            "channels",
+            "missing_channels",
+            "low_quality_channels",
+            "candidate_windows",
+            "candidate_count_total",
+            "study_metrics",
+            "pdf_available",
+            "screenshot_count",
         ):
             assert key in pkg, f"missing top-level key: {key}"
 
@@ -249,6 +260,7 @@ class TestHappyPath:
 # Tests — missing channels
 # ---------------------------------------------------------------------------
 
+
 class TestMissingSpO2Channel:
     def test_spo2_in_missing_channels(self, flow_only_edf: Path) -> None:
         pkg = _run(flow_only_edf)
@@ -275,6 +287,7 @@ class TestMissingSpO2Channel:
 # ---------------------------------------------------------------------------
 # Tests — flat / artifact signal
 # ---------------------------------------------------------------------------
+
 
 class TestFlatFlowChannel:
     def test_flat_flow_channel_has_artifact_flag(self, flat_flow_edf: Path) -> None:

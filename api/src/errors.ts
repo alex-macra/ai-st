@@ -10,7 +10,7 @@ export function sendError(res: Response, status: number, code: string, message: 
   const body: ApiErrorBody = {
     code,
     message,
-    requestId: (res.locals as { requestId?: string }).requestId ?? ''
+    requestId: (res.locals as { requestId?: string }).requestId ?? '',
   };
   res.status(status).json(body);
 }

@@ -49,12 +49,12 @@ function seedLegacyDb(filePath: string): void {
   const now = '2026-04-01T10:00:00.000Z';
   db.prepare(
     `INSERT INTO cases (id, study_hash, status, findings, preprocessor_version, prompt_version, model_version, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run('case-legacy-1', 'a'.repeat(64), 'draft', '[]', '0.1.0', '1.0.0', 'gpt-5.4-mini', now, now);
 
   db.prepare(
     `INSERT INTO audit_log (id, case_id, action, actor_id, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?)`,
   ).run('audit-1', 'case-legacy-1', 'case_created', null, null, now);
 
   db.close();
@@ -150,8 +150,8 @@ describe('db migration on legacy schema', () => {
         promptVersion: '1.2.0',
         modelVersion: 'gpt-5.4-mini',
         createdAt: now,
-        updatedAt: now
-      })
+        updatedAt: now,
+      }),
     ).not.toThrow();
   });
 
@@ -177,16 +177,20 @@ describe('db migration on legacy schema', () => {
     mod.getCases(); // force migration
 
     const db = new Database(dbPath, { readonly: true });
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-      .all() as Array<{ name: string }>;
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{
+      name: string;
+    }>;
     const tableNames = tables.map((t) => t.name);
-    expect(tableNames).toEqual(expect.arrayContaining(['users', 'organizations', 'licenses', 'auth_otps']));
+    expect(tableNames).toEqual(
+      expect.arrayContaining(['users', 'organizations', 'licenses', 'auth_otps']),
+    );
 
-    const caseCols = (
-      db.prepare('PRAGMA table_info(cases)').all() as Array<{ name: string }>
-    ).map((c) => c.name);
-    expect(caseCols).toEqual(expect.arrayContaining(['action_plan', 'created_by', 'organization_id']));
+    const caseCols = (db.prepare('PRAGMA table_info(cases)').all() as Array<{ name: string }>).map(
+      (c) => c.name,
+    );
+    expect(caseCols).toEqual(
+      expect.arrayContaining(['action_plan', 'created_by', 'organization_id']),
+    );
     db.close();
   });
 
@@ -198,8 +202,9 @@ describe('db migration on legacy schema', () => {
       db.exec('ALTER TABLE cases ADD COLUMN action_plan TEXT');
       db.exec('ALTER TABLE cases ADD COLUMN created_by TEXT');
       db.exec('ALTER TABLE cases ADD COLUMN organization_id TEXT');
-      db.prepare('UPDATE cases SET action_plan = ?, created_by = ?, organization_id = ? WHERE id = ?')
-        .run('{"priorityActions":[]}', 'user-123', 'org-456', 'case-legacy-1');
+      db.prepare(
+        'UPDATE cases SET action_plan = ?, created_by = ?, organization_id = ? WHERE id = ?',
+      ).run('{"priorityActions":[]}', 'user-123', 'org-456', 'case-legacy-1');
       db.close();
     }
 

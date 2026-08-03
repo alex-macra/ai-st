@@ -3,14 +3,14 @@
 HTTP-contract tests (endpoint shapes, status codes) live in test_ingest_contract.py.
 These exercise the private helpers directly so edge cases aren't buried behind HTTP.
 """
+
 import sys
 from pathlib import Path
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from main import _minimal_case_package, _parse_pdf_metrics, PREPROCESSOR_VERSION
 from const import SCHEMA_VERSION
+from main import PREPROCESSOR_VERSION, _minimal_case_package, _parse_pdf_metrics
 
 
 class TestMinimalCasePackage:

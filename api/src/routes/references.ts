@@ -20,7 +20,7 @@ const createRefSchema = z.object({
   content: z.string().min(1).max(100_000),
   cohort: z.enum(COHORTS),
   type: z.enum(REF_TYPES),
-  license: z.enum(LICENSES)
+  license: z.enum(LICENSES),
 });
 
 export function referencesRouter(): Router {
@@ -47,7 +47,15 @@ export function referencesRouter(): Router {
       return;
     }
     const { title, content, cohort, type, license } = parsed.data;
-    const doc = { id: randomUUID(), title, content, cohort, type, license, createdAt: new Date().toISOString() };
+    const doc = {
+      id: randomUUID(),
+      title,
+      content,
+      cohort,
+      type,
+      license,
+      createdAt: new Date().toISOString(),
+    };
     insertReferenceDoc(doc);
     logger.info({ cohort, license, ipHash: hashIp(req.ip) }, 'reference_doc_created');
     res.status(201).json({ id: doc.id });
@@ -56,7 +64,10 @@ export function referencesRouter(): Router {
   router.delete('/:id', requireAdmin, (req: Request, res: Response): void => {
     const id = typeof req.params['id'] === 'string' ? req.params['id'] : '';
     const deleted = deleteReferenceDoc(id);
-    if (!deleted) { res.status(404).json({ error: 'Reference doc not found' }); return; }
+    if (!deleted) {
+      res.status(404).json({ error: 'Reference doc not found' });
+      return;
+    }
     logger.info({ ipHash: hashIp(req.ip) }, 'reference_doc_deleted');
     res.json({ ok: true });
   });

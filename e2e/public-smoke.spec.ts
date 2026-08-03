@@ -2,7 +2,9 @@ import { expect, test } from '@playwright/test';
 
 test.use({ storageState: 'e2e/.auth/user.json' });
 
-test('activation → three-service upload → synthetic analysis → review → sign-off', async ({ page }) => {
+test('activation → three-service upload → synthetic analysis → review → sign-off', async ({
+  page,
+}) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
 
@@ -15,11 +17,17 @@ test('activation → three-service upload → synthetic analysis → review → 
   });
   await page.getByRole('button', { name: 'Upload & Process' }).click();
 
-  await expect(page.getByRole('button', { name: 'Back to cases' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Back to cases' })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByRole('button', { name: 'Analyze' }).click();
 
-  await expect(page.getByText(/Synthetic workflow verification completed/)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Deterministic reference checks are disabled for this analysis.')).toBeVisible();
+  await expect(page.getByText(/Synthetic workflow verification completed/)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(
+    page.getByText('Deterministic reference checks are disabled for this analysis.'),
+  ).toBeVisible();
 
   await page.getByRole('tab', { name: /Findings/ }).click();
   const pendingFindingConfirmations = page.getByRole('button', { name: 'Confirm', exact: true });
@@ -32,7 +40,9 @@ test('activation → three-service upload → synthetic analysis → review → 
   await page.getByRole('tab', { name: 'Report' }).click();
 
   for (const section of ['Summary', 'Study quality', 'Impression']) {
-    const card = page.locator('.card').filter({ has: page.getByRole('heading', { name: section, exact: true }) });
+    const card = page
+      .locator('.card')
+      .filter({ has: page.getByRole('heading', { name: section, exact: true }) });
     await card.getByRole('button', { name: 'Confirm' }).click();
   }
 

@@ -11,7 +11,9 @@ async function expectWcagAa(page: Page): Promise<void> {
   expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual([]);
 }
 
-async function authenticatedPage(browser: Browser): Promise<{ page: Page; close: () => Promise<void> }> {
+async function authenticatedPage(
+  browser: Browser,
+): Promise<{ page: Page; close: () => Promise<void> }> {
   const context = await browser.newContext({ storageState: AUTH_STATE });
   const page = await context.newPage();
   return { page, close: () => context.close() };
@@ -62,7 +64,9 @@ test.describe('WCAG 2.2 AA automated checks', () => {
     try {
       await authenticated.page.goto('/');
       await authenticated.page.getByRole('button', { name: 'Upload study' }).click();
-      await expect(authenticated.page.getByRole('heading', { name: 'Upload Sleep Study' })).toBeVisible();
+      await expect(
+        authenticated.page.getByRole('heading', { name: 'Upload Sleep Study' }),
+      ).toBeVisible();
       await expectWcagAa(authenticated.page);
 
       await authenticated.page.getByRole('button', { name: /dark mode/i }).click();
@@ -81,7 +85,11 @@ test.describe('WCAG 2.2 AA interaction checks', () => {
 
     const headings = page.getByRole('heading', { level: 1 });
     await expect(headings).toHaveCount(1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
 
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: /dark mode/i })).toBeFocused();
@@ -99,7 +107,7 @@ test.describe('WCAG 2.2 AA interaction checks', () => {
     await expect(activate).toBeFocused();
 
     const controls = page.locator('button, input, select, textarea, [role="button"]');
-    for (let index = 0; index < await controls.count(); index += 1) {
+    for (let index = 0; index < (await controls.count()); index += 1) {
       const box = await controls.nth(index).boundingBox();
       if (box) {
         expect(box.width, `control ${index} width`).toBeGreaterThanOrEqual(24);
@@ -132,8 +140,14 @@ test.describe('WCAG 2.2 AA interaction checks', () => {
     try {
       await page.goto('/');
       await page.getByRole('button', { name: 'Upload study' }).click();
-      await expect(page.getByRole('heading', { level: 1, name: 'Upload Sleep Study' })).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Upload Sleep Study' }),
+      ).toBeVisible();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
     } finally {
       await context.close();
     }

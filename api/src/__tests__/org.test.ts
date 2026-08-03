@@ -44,7 +44,9 @@ describe('/api/org', () => {
     expect(join.status).toBe(200);
     expect(join.body.organization.id).toBe(created.body.organization.id);
 
-    const meMember = await authedSupertest(app, { ...member, cookie: member.cookie }).get('/api/org/me');
+    const meMember = await authedSupertest(app, { ...member, cookie: member.cookie }).get(
+      '/api/org/me',
+    );
     expect(meMember.status).toBe(200);
     expect(meMember.body.organization.id).toBe(created.body.organization.id);
     expect(meMember.body.members.length).toBeGreaterThanOrEqual(2);

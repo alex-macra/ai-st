@@ -1,4 +1,14 @@
-import type { Case, AuditRecord, AnalysisEvent, ActionPlanEvent, ReviewerDecision, TokenStats, ReportSectionKey, User, EventSlice } from './shared/types';
+import type {
+  Case,
+  AuditRecord,
+  AnalysisEvent,
+  ActionPlanEvent,
+  ReviewerDecision,
+  TokenStats,
+  ReportSectionKey,
+  User,
+  EventSlice,
+} from './shared/types';
 import { streamSSE, parseHttpError, errorMessage } from './apiClient';
 
 const BASE = '/api';
@@ -23,10 +33,9 @@ async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
 }
 
 function isAbortError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'name' in error
-    && error.name === 'AbortError';
+  return (
+    typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError'
+  );
 }
 
 // --- Auth ---
@@ -89,7 +98,7 @@ export async function uploadCase(
   edf: File | null,
   pdf?: File,
   screenshots?: File[],
-  cohort?: 'adult' | 'pediatric'
+  cohort?: 'adult' | 'pediatric',
 ): Promise<{ caseId: string; studyHash: string; name: string }> {
   const form = new FormData();
   if (edf) form.append('edf', edf);
@@ -117,7 +126,9 @@ export async function getCase(id: string): Promise<Case> {
   return data.case;
 }
 
-export async function getAuditLog(caseId: string): Promise<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }> {
+export async function getAuditLog(
+  caseId: string,
+): Promise<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }> {
   const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/audit`);
   if (!res.ok) throw new Error(await parseError(res));
   return res.json() as Promise<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }>;
@@ -132,12 +143,12 @@ export async function getModels(): Promise<{ models: string[]; default: string }
 export async function patchCaseStatus(
   caseId: string,
   status: string,
-  actorId?: string
+  actorId?: string,
 ): Promise<void> {
   const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, ...(actorId ? { actorId } : {}) })
+    body: JSON.stringify({ status, ...(actorId ? { actorId } : {}) }),
   });
   if (!res.ok) throw new Error(await parseError(res));
 }
@@ -147,13 +158,20 @@ export async function patchFindingDecision(
   findingId: string,
   decision: ReviewerDecision,
   editedClaim?: string,
-  actorId?: string
+  actorId?: string,
 ): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/findings/${encodeURIComponent(findingId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, ...(editedClaim ? { editedClaim } : {}), ...(actorId ? { actorId } : {}) })
-  });
+  const res = await apiFetch(
+    `${BASE}/cases/${encodeURIComponent(caseId)}/findings/${encodeURIComponent(findingId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        decision,
+        ...(editedClaim ? { editedClaim } : {}),
+        ...(actorId ? { actorId } : {}),
+      }),
+    },
+  );
   if (!res.ok) throw new Error(await parseError(res));
 }
 
@@ -162,13 +180,20 @@ export async function patchSectionReview(
   sectionKey: ReportSectionKey,
   decision: ReviewerDecision,
   editedValue?: string,
-  actorId?: string
+  actorId?: string,
 ): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/sections/${encodeURIComponent(sectionKey)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, ...(editedValue ? { editedValue } : {}), ...(actorId ? { actorId } : {}) })
-  });
+  const res = await apiFetch(
+    `${BASE}/cases/${encodeURIComponent(caseId)}/sections/${encodeURIComponent(sectionKey)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        decision,
+        ...(editedValue ? { editedValue } : {}),
+        ...(actorId ? { actorId } : {}),
+      }),
+    },
+  );
   if (!res.ok) throw new Error(await parseError(res));
 }
 
@@ -178,7 +203,9 @@ export async function deleteCase(caseId: string): Promise<void> {
 }
 
 export async function clearCaseAnalysis(caseId: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/clear-analysis`, { method: 'POST' });
+  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/clear-analysis`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error(await parseError(res));
 }
 
@@ -192,7 +219,7 @@ export async function fetchSignalSlices(caseId: string): Promise<EventSlice[]> {
 export async function deleteScreenshot(caseId: string, screenshotId: string): Promise<void> {
   const res = await apiFetch(
     `${BASE}/cases/${encodeURIComponent(caseId)}/screenshots/${encodeURIComponent(screenshotId)}`,
-    { method: 'DELETE' }
+    { method: 'DELETE' },
   );
   if (!res.ok) throw new Error(await parseError(res));
 }
@@ -201,7 +228,7 @@ export async function signOffCase(caseId: string, actorId: string): Promise<void
   const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/sign-off`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actorId })
+    body: JSON.stringify({ actorId }),
   });
   if (!res.ok) throw new Error(await parseError(res));
 }
@@ -211,7 +238,7 @@ async function streamCaseEndpoint<TEvent>(
   onEvent: (event: TEvent) => void,
   signal: AbortSignal | undefined,
   modelId: string | undefined,
-  sessionExpiredEvent: TEvent
+  sessionExpiredEvent: TEvent,
 ): Promise<void> {
   let res: Response;
   try {
@@ -219,7 +246,7 @@ async function streamCaseEndpoint<TEvent>(
       method: 'POST',
       ...(signal ? { signal } : {}),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modelId ? { modelId } : {})
+      body: JSON.stringify(modelId ? { modelId } : {}),
     });
   } catch (err) {
     if (isAbortError(err)) return;
@@ -248,14 +275,14 @@ export function streamActionPlan(
   caseId: string,
   onEvent: (event: ActionPlanEvent) => void,
   signal?: AbortSignal,
-  modelId?: string
+  modelId?: string,
 ): Promise<void> {
   return streamCaseEndpoint<ActionPlanEvent>(
     `/cases/${encodeURIComponent(caseId)}/action-plan`,
     onEvent,
     signal,
     modelId,
-    { type: 'error', message: 'Session expired. Please sign in again.' }
+    { type: 'error', message: 'Session expired. Please sign in again.' },
   );
 }
 
@@ -263,14 +290,14 @@ export function streamAnalysis(
   caseId: string,
   onEvent: (event: AnalysisEvent) => void,
   signal?: AbortSignal,
-  modelId?: string
+  modelId?: string,
 ): Promise<void> {
   return streamCaseEndpoint<AnalysisEvent>(
     `/cases/${encodeURIComponent(caseId)}/analyze`,
     onEvent,
     signal,
     modelId,
-    { type: 'error', message: 'Session expired. Please sign in again.' }
+    { type: 'error', message: 'Session expired. Please sign in again.' },
   );
 }
 

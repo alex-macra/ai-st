@@ -18,7 +18,7 @@ vi.mock('../llm.js', () => ({
 function finding(
   id: string,
   confidence: Finding['confidence'],
-  reviewerDecision: NonNullable<Finding['reviewerDecision']>
+  reviewerDecision: NonNullable<Finding['reviewerDecision']>,
 ): Finding {
   return {
     id,
@@ -75,27 +75,44 @@ describe('action-plan review gates', () => {
     insertCase(c);
 
     mockCreate.mockResolvedValueOnce({
-      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-        priorityActions: [
-          { action: 'Keep', rationale: 'Supported.', findingIds: ['F-CONFIRMED', 'UNKNOWN'] },
-          { action: 'Drop uncertain priority', rationale: 'Not anchored.', findingIds: ['F-UNCERTAIN'] },
-          { action: 'Drop rejected', rationale: 'Rejected.', findingIds: ['F-REJECTED'] },
-        ],
-        verifyNext: [
-          { action: 'Verify', rationale: 'Uncertain.', findingIds: ['F-UNCERTAIN', 'F-REJECTED'] },
-          { action: 'Drop unknown', rationale: 'Unsupported.', findingIds: ['UNKNOWN'] },
-        ],
-        artifactCaveats: [
-          { findingId: 'F-CONFIRMED', concern: 'Synthetic caveat.' },
-          { findingId: 'F-REJECTED', concern: 'Must be dropped.' },
-        ],
-        clinicalContext: {
-          commonPresentation: 'Synthetic context.',
-          rareButRelevant: ['Unsupported condition'],
-          treatmentEvidence: 'Private evidence must not cross the public contract.',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              priorityActions: [
+                { action: 'Keep', rationale: 'Supported.', findingIds: ['F-CONFIRMED', 'UNKNOWN'] },
+                {
+                  action: 'Drop uncertain priority',
+                  rationale: 'Not anchored.',
+                  findingIds: ['F-UNCERTAIN'],
+                },
+                { action: 'Drop rejected', rationale: 'Rejected.', findingIds: ['F-REJECTED'] },
+              ],
+              verifyNext: [
+                {
+                  action: 'Verify',
+                  rationale: 'Uncertain.',
+                  findingIds: ['F-UNCERTAIN', 'F-REJECTED'],
+                },
+                { action: 'Drop unknown', rationale: 'Unsupported.', findingIds: ['UNKNOWN'] },
+              ],
+              artifactCaveats: [
+                { findingId: 'F-CONFIRMED', concern: 'Synthetic caveat.' },
+                { findingId: 'F-REJECTED', concern: 'Must be dropped.' },
+              ],
+              clinicalContext: {
+                commonPresentation: 'Synthetic context.',
+                rareButRelevant: ['Unsupported condition'],
+                treatmentEvidence: 'Private evidence must not cross the public contract.',
+              },
+              evidenceReferences: [
+                { name: 'Private', year: '2026', source: 'Private', relevance: 'None' },
+              ],
+            }),
+          },
         },
-        evidenceReferences: [{ name: 'Private', year: '2026', source: 'Private', relevance: 'None' }],
-      }) } }],
+      ],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
     });
 
@@ -113,7 +130,9 @@ describe('action-plan review gates', () => {
       clinicalContext: { commonPresentation: 'Synthetic context.', rareButRelevant: [] },
     });
     expect(plan['evidenceReferences']).toBeUndefined();
-    expect((plan['clinicalContext'] as Record<string, unknown>)['treatmentEvidence']).toBeUndefined();
+    expect(
+      (plan['clinicalContext'] as Record<string, unknown>)['treatmentEvidence'],
+    ).toBeUndefined();
   });
 
   it('does not persist stale output when a review changes during generation', async () => {
@@ -146,7 +165,9 @@ describe('action-plan review gates', () => {
     insertCase(c);
 
     let release: ((value: unknown) => void) | undefined;
-    const completion = new Promise((resolve) => { release = resolve; });
+    const completion = new Promise((resolve) => {
+      release = resolve;
+    });
     mockCreate.mockImplementationOnce(() => completion);
     const request = authedSupertest(createApp({ rateLimitMax: 1000 }), auth);
     const actionResponse = request
@@ -161,13 +182,20 @@ describe('action-plan review gates', () => {
     expect(changed.status).toBe(200);
 
     release?.({
-      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-        priorityActions: [{ action: 'Stale', rationale: 'Stale.', findingIds: ['F-001'] }],
-        verifyNext: [],
-        artifactCaveats: [],
-        clinicalContext: { commonPresentation: 'Stale.', rareButRelevant: [] },
-        evidenceReferences: [],
-      }) } }],
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              priorityActions: [{ action: 'Stale', rationale: 'Stale.', findingIds: ['F-001'] }],
+              verifyNext: [],
+              artifactCaveats: [],
+              clinicalContext: { commonPresentation: 'Stale.', rareButRelevant: [] },
+              evidenceReferences: [],
+            }),
+          },
+        },
+      ],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
     });
 

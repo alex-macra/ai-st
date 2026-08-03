@@ -1,0 +1,16 @@
+# Lockfiles are maintained by their package managers.
+package-lock.json
+
+# Runtime and build output.
+data/
+dist/
+test-results/
+playwright-report/
+.logs/
+
+# Binary fixtures and captured images carry no formatting.
+docs/images/
+e2e/**/*-snapshots/
+
+# Python tooling owns this tree.
+preprocessor/

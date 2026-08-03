@@ -28,7 +28,9 @@ export function CaseList({ onSelect, refreshKey }: Props) {
     }
   }
 
-  useEffect(() => { void load(); }, [refreshKey]);
+  useEffect(() => {
+    void load();
+  }, [refreshKey]);
 
   async function handleDelete(c: Case) {
     if (!window.confirm(`Delete case ${c.id.slice(0, 8)}? This cannot be undone.`)) return;
@@ -46,13 +48,20 @@ export function CaseList({ onSelect, refreshKey }: Props) {
   }
 
   async function handleClear(c: Case) {
-    if (!window.confirm(`Clear analysis for ${c.id.slice(0, 8)}? Findings and report will be removed; uploaded files are kept.`)) return;
+    if (
+      !window.confirm(
+        `Clear analysis for ${c.id.slice(0, 8)}? Findings and report will be removed; uploaded files are kept.`,
+      )
+    )
+      return;
 
     setClearingId(c.id);
     setError(null);
     try {
       await clearCaseAnalysis(c.id);
-      setCases((prev) => prev.map((x) => x.id === c.id ? { ...x, findings: [], status: 'draft' } : x));
+      setCases((prev) =>
+        prev.map((x) => (x.id === c.id ? { ...x, findings: [], status: 'draft' } : x)),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Clear failed');
     } finally {
@@ -88,7 +97,9 @@ export function CaseList({ onSelect, refreshKey }: Props) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={CASE_STATUS_VARIANT[c.status] ?? 'default'}>{c.status.replaceAll('_', ' ')}</Badge>
+                  <Badge variant={CASE_STATUS_VARIANT[c.status] ?? 'default'}>
+                    {c.status.replaceAll('_', ' ')}
+                  </Badge>
                   <span className="text-sm font-medium mono truncate">{c.name}</span>
                 </div>
                 <p className="text-xs text-slate-500 truncate">

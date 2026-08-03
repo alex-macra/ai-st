@@ -19,7 +19,7 @@ export function updateFindingDecision(
   findingId: string,
   decision: ReviewerDecision,
   editedClaim: string | undefined,
-  updatedAt: string
+  updatedAt: string,
 ): boolean {
   const row = getDb()
     .prepare("SELECT findings FROM cases WHERE id = ? AND status != 'signed_off'")
@@ -29,7 +29,11 @@ export function updateFindingDecision(
   const idx = findings.findIndex((f) => f.id === findingId);
   if (idx === -1) return false;
   const existing = findings[idx]!;
-  const updated = { ...existing, reviewerDecision: decision, reviewedAt: updatedAt } as typeof existing;
+  const updated = {
+    ...existing,
+    reviewerDecision: decision,
+    reviewedAt: updatedAt,
+  } as typeof existing;
   if (decision === 'edit' && editedClaim !== undefined) {
     updated.editedClaim = editedClaim;
   } else {
@@ -37,7 +41,9 @@ export function updateFindingDecision(
   }
   findings[idx] = updated;
   getDb()
-    .prepare("UPDATE cases SET findings = ?, action_plan = NULL, updated_at = ? WHERE id = ? AND status != 'signed_off'")
+    .prepare(
+      "UPDATE cases SET findings = ?, action_plan = NULL, updated_at = ? WHERE id = ? AND status != 'signed_off'",
+    )
     .run(JSON.stringify(findings), updatedAt, caseId);
   return true;
 }
@@ -48,7 +54,7 @@ export function updateFindingDecisionWithAudit(
   decision: ReviewerDecision,
   editedClaim: string | undefined,
   updatedAt: string,
-  audit: AuditRecord
+  audit: AuditRecord,
 ): boolean {
   const transaction = getDb().transaction((): boolean => {
     const updated = updateFindingDecision(caseId, findingId, decision, editedClaim, updatedAt);
@@ -63,7 +69,7 @@ export function updateSectionReview(
   caseId: string,
   section: ReportSectionKey,
   review: SectionReview,
-  updatedAt: string
+  updatedAt: string,
 ): boolean {
   const row = getDb()
     .prepare("SELECT section_reviews FROM cases WHERE id = ? AND status != 'signed_off'")
@@ -74,7 +80,9 @@ export function updateSectionReview(
     : {};
   current[section] = review;
   getDb()
-    .prepare("UPDATE cases SET section_reviews = ?, action_plan = NULL, updated_at = ? WHERE id = ? AND status != 'signed_off'")
+    .prepare(
+      "UPDATE cases SET section_reviews = ?, action_plan = NULL, updated_at = ? WHERE id = ? AND status != 'signed_off'",
+    )
     .run(JSON.stringify(current), updatedAt, caseId);
   return true;
 }
@@ -84,7 +92,7 @@ export function updateSectionReviewWithAudit(
   section: ReportSectionKey,
   review: SectionReview,
   updatedAt: string,
-  audit: AuditRecord
+  audit: AuditRecord,
 ): boolean {
   const transaction = getDb().transaction((): boolean => {
     const updated = updateSectionReview(caseId, section, review, updatedAt);
@@ -104,7 +112,7 @@ export function updateCaseFindings(
   structuredReport: StructuredReport | null = null,
   referenceFlags: ReferenceFlag[] | null = null,
   validationWarnings: ValidationWarning[] | null = null,
-  expectedUpdatedAt?: string
+  expectedUpdatedAt?: string,
 ): boolean {
   const where = expectedUpdatedAt
     ? "id = ? AND status != 'signed_off' AND updated_at = ?"
@@ -115,7 +123,7 @@ export function updateCaseFindings(
          SET findings = ?, narrative = ?, structured_report = ?, section_reviews = NULL,
              reference_flags = ?, validation_warnings = ?, action_plan = NULL,
              model_version = ?, updated_at = ?
-       WHERE ${where}`
+       WHERE ${where}`,
     )
     .run(
       JSON.stringify(findings),
@@ -126,7 +134,7 @@ export function updateCaseFindings(
       modelVersion,
       updatedAt,
       id,
-      ...(expectedUpdatedAt ? [expectedUpdatedAt] : [])
+      ...(expectedUpdatedAt ? [expectedUpdatedAt] : []),
     );
   return result.changes === 1;
 }
@@ -141,14 +149,19 @@ export function updateCaseActionPlan(
   id: string,
   plan: ActionPlan,
   updatedAt: string,
-  expectedUpdatedAt?: string
+  expectedUpdatedAt?: string,
 ): boolean {
   const where = expectedUpdatedAt
     ? "id = ? AND status != 'signed_off' AND updated_at = ?"
     : "id = ? AND status != 'signed_off'";
   const result = getDb()
     .prepare(`UPDATE cases SET action_plan = ?, updated_at = ? WHERE ${where}`)
-    .run(JSON.stringify(plan), updatedAt, id, ...(expectedUpdatedAt ? [expectedUpdatedAt] : [])) as { changes: number };
+    .run(
+      JSON.stringify(plan),
+      updatedAt,
+      id,
+      ...(expectedUpdatedAt ? [expectedUpdatedAt] : []),
+    ) as { changes: number };
   return result.changes === 1;
 }
 
@@ -156,13 +169,15 @@ export function updateCasePackage(
   id: string,
   casePackage: string,
   updatedAt: string,
-  expectedUpdatedAt?: string
+  expectedUpdatedAt?: string,
 ): boolean {
   const where = expectedUpdatedAt
     ? "id = ? AND status != 'signed_off' AND updated_at = ?"
     : "id = ? AND status != 'signed_off'";
   const result = getDb()
     .prepare(`UPDATE cases SET case_package = ?, updated_at = ? WHERE ${where}`)
-    .run(casePackage, updatedAt, id, ...(expectedUpdatedAt ? [expectedUpdatedAt] : [])) as { changes: number };
+    .run(casePackage, updatedAt, id, ...(expectedUpdatedAt ? [expectedUpdatedAt] : [])) as {
+    changes: number;
+  };
   return result.changes > 0;
 }

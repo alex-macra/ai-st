@@ -12,7 +12,8 @@
     "check:boundary": "node scripts/check-public-boundary.mjs",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write"
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

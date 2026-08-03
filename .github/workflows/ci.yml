@@ -55,9 +55,14 @@ jobs:
           python -m pip install "ruff==0.16.1"
       - name: Lint TypeScript
         run: npm run lint
+      - name: Check TypeScript formatting
+        run: npm run format:check
       - name: Lint Python
         working-directory: preprocessor
         run: ruff check .
+      - name: Check Python formatting
+        working-directory: preprocessor
+        run: ruff format --check .
 
   api:
     name: API

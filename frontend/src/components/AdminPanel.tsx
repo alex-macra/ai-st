@@ -59,10 +59,17 @@ function DashboardTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) return <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>;
-  if (error || !data) return <p className="text-sm text-red-500 py-8 text-center">{error ?? 'Failed to load dashboard.'}</p>;
+  if (error || !data)
+    return (
+      <p className="text-sm text-red-500 py-8 text-center">
+        {error ?? 'Failed to load dashboard.'}
+      </p>
+    );
 
   return (
     <div>
@@ -79,7 +86,11 @@ function DashboardTab() {
         <StatCard label="Cases" value={data.cases} icon={<Activity size={16} />} />
         <StatCard label="Signed off" value={data.signedOff} icon={<FileCheck size={16} />} />
         <StatCard label="Pending review" value={data.pending} icon={<Hourglass size={16} />} />
-        <StatCard label="Tokens total" value={fmtTokens(data.tokensTotal)} icon={<Coins size={16} />} />
+        <StatCard
+          label="Tokens total"
+          value={fmtTokens(data.tokensTotal)}
+          icon={<Coins size={16} />}
+        />
         <StatCard label="Cases today" value={data.casesToday} icon={<CalendarDays size={16} />} />
       </div>
     </div>
@@ -99,19 +110,22 @@ function UsersTab() {
     setLoading(true);
     setError(null);
     adminUsers(pg, PAGE_SIZE)
-      .then((r) => { setRows(r.users); setTotal(r.total); })
+      .then((r) => {
+        setRows(r.users);
+        setTotal(r.total);
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(page); }, [page, load]);
+  useEffect(() => {
+    load(page);
+  }, [page, load]);
 
   async function toggleAdmin(u: AdminUserRow) {
     const next = !u.isAdmin;
     const confirmed = window.confirm(
-      next
-        ? `Grant admin privileges to ${u.email}?`
-        : `Revoke admin privileges from ${u.email}?`
+      next ? `Grant admin privileges to ${u.email}?` : `Revoke admin privileges from ${u.email}?`,
     );
     if (!confirmed) return;
     setBusyId(u.id);
@@ -129,9 +143,7 @@ function UsersTab() {
 
   return (
     <div>
-      {error && (
-        <p className="text-xs text-red-500 mb-3">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
       {loading ? (
         <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>
       ) : (
@@ -149,10 +161,14 @@ function UsersTab() {
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800/60">
-                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 font-mono">{u.email}</td>
+                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 font-mono">
+                    {u.email}
+                  </td>
                   <td className="py-2 pr-3 text-slate-500">{u.displayName ?? '—'}</td>
                   <td className="py-2 pr-3 text-slate-400">{fmtDate(u.createdAt)}</td>
-                  <td className="py-2 pr-3 tabular-nums text-slate-500">{fmtTokens(u.tokensTotal)}</td>
+                  <td className="py-2 pr-3 tabular-nums text-slate-500">
+                    {fmtTokens(u.tokensTotal)}
+                  </td>
                   <td className="py-2">
                     <button
                       onClick={() => void toggleAdmin(u)}
@@ -171,7 +187,9 @@ function UsersTab() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400">No users.</td>
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                    No users.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -202,7 +220,7 @@ export function AdminPanel({ user, onBack }: Props) {
 
   const tabs: SharedTab[] = [
     { id: 'dashboard', label: tabLabel(<Activity size={13} />, 'Dashboard') },
-    { id: 'users',     label: tabLabel(<UsersIcon size={13} />, 'Users')     },
+    { id: 'users', label: tabLabel(<UsersIcon size={13} />, 'Users') },
   ];
 
   return (
@@ -213,7 +231,9 @@ export function AdminPanel({ user, onBack }: Props) {
         </Button>
         <div className="flex items-center gap-2">
           <Shield size={15} className="text-teal-600 dark:text-teal-400" />
-          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">AI-ST Admin</h1>
+          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            AI-ST Admin
+          </h1>
         </div>
         <span className="ml-auto text-xs text-slate-400 hidden sm:inline">{user.email}</span>
       </div>
@@ -238,7 +258,9 @@ export function AdminPanel({ user, onBack }: Props) {
       <Tabs
         tabs={tabs}
         active={tab}
-        onChange={(id) => { if (isTabId(id)) setTab(id); }}
+        onChange={(id) => {
+          if (isTabId(id)) setTab(id);
+        }}
         className="mb-6"
       />
 

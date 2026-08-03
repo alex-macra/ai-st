@@ -12,7 +12,7 @@ export interface Invitation {
 
 export function createLicenseTable(
   db: BetterSqlite3.Database,
-  options: { trackUsedBy?: boolean } = {}
+  options: { trackUsedBy?: boolean } = {},
 ): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS licenses (
@@ -33,39 +33,38 @@ export function createLicenseTable(
   }
 }
 
-export function insertLicense(
-  db: BetterSqlite3.Database,
-  key: string,
-  tier = 'starter'
-): void {
-  db.prepare(`
+export function insertLicense(db: BetterSqlite3.Database, key: string, tier = 'starter'): void {
+  db.prepare(
+    `
     INSERT INTO licenses (key, used, used_at, used_by, tier, created_at)
     VALUES (?, 0, NULL, NULL, ?, ?)
-  `).run(key, tier, new Date().toISOString());
+  `,
+  ).run(key, tier, new Date().toISOString());
 }
 
-export function getLicense(
-  db: BetterSqlite3.Database,
-  key: string
-): Invitation | undefined {
+export function getLicense(db: BetterSqlite3.Database, key: string): Invitation | undefined {
   return db.prepare('SELECT * FROM licenses WHERE key = ?').get(key) as Invitation | undefined;
 }
 
-export function burnLicense(
-  db: BetterSqlite3.Database,
-  key: string,
-  usedBy?: string
-): boolean {
-  const result = db.prepare(`
+export function burnLicense(db: BetterSqlite3.Database, key: string, usedBy?: string): boolean {
+  const result = db
+    .prepare(
+      `
     UPDATE licenses
        SET used = 1, used_at = ?, used_by = ?
      WHERE key = ? AND used = 0
-  `).run(new Date().toISOString(), usedBy ?? null, key);
+  `,
+    )
+    .run(new Date().toISOString(), usedBy ?? null, key);
   return result.changes === 1;
 }
 
 function generateInvitationKey(): string {
-  const body = randomBytes(10).toString('hex').toUpperCase().match(/.{1,4}/g)?.join('-');
+  const body = randomBytes(10)
+    .toString('hex')
+    .toUpperCase()
+    .match(/.{1,4}/g)
+    ?.join('-');
   if (!body) throw new Error('Failed to generate invitation key');
   return `AIST-${body}`;
 }
@@ -73,7 +72,7 @@ function generateInvitationKey(): string {
 export function mintLicenseKeys(
   db: BetterSqlite3.Database,
   count: number,
-  tier = 'starter'
+  tier = 'starter',
 ): string[] {
   if (!Number.isInteger(count) || count < 1 || count > 1_000) {
     throw new RangeError('count must be an integer between 1 and 1000');

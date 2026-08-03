@@ -33,7 +33,9 @@ test('capture the README images from the synthetic journey', async ({ page }) =>
   });
   await page.getByRole('button', { name: 'Upload & Process' }).click();
 
-  await expect(page.getByRole('button', { name: 'Back to cases' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Back to cases' })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByRole('button', { name: 'Analyze' }).click();
   await expect(page.getByText(/Synthetic workflow verification completed/)).toBeVisible({
     timeout: 30_000,

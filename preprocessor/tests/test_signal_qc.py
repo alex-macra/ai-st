@@ -1,4 +1,5 @@
 """Synthetic-signal tests for channel-aware quality-control behavior."""
+
 import numpy as np
 
 from edf_parser import ChannelInfo

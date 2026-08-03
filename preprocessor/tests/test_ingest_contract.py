@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from const import SCHEMA_VERSION
 import main as service
+from const import SCHEMA_VERSION
 from main import app
 
 

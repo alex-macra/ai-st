@@ -47,7 +47,7 @@ const app = createApp({
   rateLimitWindowMs: Number(process.env['RATE_LIMIT_WINDOW_MS'] ?? RATE_LIMIT_WINDOW_MS),
   rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? RATE_LIMIT_MAX),
   uploadRateLimitMax: Number(process.env['UPLOAD_RATE_LIMIT_MAX'] ?? UPLOAD_RATE_LIMIT_MAX),
-  trustProxy: parseTrustProxy(process.env['TRUST_PROXY'])
+  trustProxy: parseTrustProxy(process.env['TRUST_PROXY']),
 });
 
 try {
@@ -55,7 +55,7 @@ try {
 } catch (err) {
   logger.warn(
     { errorType: err instanceof Error ? err.name : 'UnknownError' },
-    'reference_docs_seed_failed'
+    'reference_docs_seed_failed',
   );
 }
 

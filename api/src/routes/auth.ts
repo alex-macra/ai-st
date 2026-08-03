@@ -33,12 +33,14 @@ const loginSchema = z.object({
 
 const verifySchema = z.object({
   email: zEmail,
-  code: z.string().length(6).regex(/^\d{6}$/),
+  code: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
 });
 
 type ActivationResult =
-  | { ok: true; user: User }
-  | { ok: false; reason: 'invalid' | 'used' | 'existing' };
+  { ok: true; user: User } | { ok: false; reason: 'invalid' | 'used' | 'existing' };
 
 function activateInvitation(email: string, licenseKey: string): ActivationResult {
   const db = getDb();
@@ -79,7 +81,9 @@ export function createAuthRouter() {
       return;
     }
     if (!activation.ok) {
-      res.status(400).json({ error: 'An account with this email already exists. Please sign in instead.' });
+      res
+        .status(400)
+        .json({ error: 'An account with this email already exists. Please sign in instead.' });
       return;
     }
     const { user } = activation;
@@ -88,7 +92,16 @@ export function createAuthRouter() {
     setAuthCookie(res, token);
 
     logger.info({ userId: user.id }, 'account_activated');
-    res.json({ user: { id: user.id, email: user.email, organizationId: user.organizationId, tier: user.tier, isAdmin: user.isAdmin, tokenBudget: user.tokenBudget } });
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        organizationId: user.organizationId,
+        tier: user.tier,
+        isAdmin: user.isAdmin,
+        tokenBudget: user.tokenBudget,
+      },
+    });
   });
 
   router.post('/login', async (req: Request, res: Response): Promise<void> => {
@@ -130,9 +143,10 @@ export function createAuthRouter() {
 
     const { email, code } = parsed.data;
 
-    const devBypass = process.env['NODE_ENV'] !== 'production'
-      && process.env['DEV_OTP_BYPASS'] === 'true'
-      && code === '000000';
+    const devBypass =
+      process.env['NODE_ENV'] !== 'production' &&
+      process.env['DEV_OTP_BYPASS'] === 'true' &&
+      code === '000000';
     const valid = devBypass || verifyAndConsumeOtp(email, code);
     if (!valid) {
       res.status(400).json({ error: 'Invalid or expired code. Please request a new one.' });
@@ -150,7 +164,16 @@ export function createAuthRouter() {
     setAuthCookie(res, token);
 
     logger.info({ userId: user.id }, 'user_logged_in');
-    res.json({ user: { id: user.id, email: user.email, organizationId: user.organizationId, tier: user.tier, isAdmin: user.isAdmin, tokenBudget: user.tokenBudget } });
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        organizationId: user.organizationId,
+        tier: user.tier,
+        isAdmin: user.isAdmin,
+        tokenBudget: user.tokenBudget,
+      },
+    });
   });
 
   router.get('/me', requireAuth, (req: Request, res: Response): void => {
@@ -177,7 +200,10 @@ export function createAuthRouter() {
 
   router.patch('/me/name', requireAuth, (req: Request, res: Response): void => {
     const parsed = z.object({ name: z.string().trim().min(1).max(100) }).safeParse(req.body);
-    if (!parsed.success) { res.status(400).json({ error: 'name must be 1–100 characters' }); return; }
+    if (!parsed.success) {
+      res.status(400).json({ error: 'name must be 1–100 characters' });
+      return;
+    }
     updateUserName(req.user!.id, parsed.data.name);
     res.json({ ok: true, name: parsed.data.name });
   });

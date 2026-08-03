@@ -23,13 +23,14 @@ export function Tabs({ tabs, active, onChange, children, className }: TabsProps)
     event.preventDefault();
     const enabled = tabs.filter((candidate) => !candidate.disabled);
     const current = enabled.findIndex((candidate) => candidate.id === tab.id);
-    const nextIndex = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? enabled.length - 1
-        : event.key === 'ArrowRight'
-          ? (current + 1) % enabled.length
-          : (current - 1 + enabled.length) % enabled.length;
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? enabled.length - 1
+          : event.key === 'ArrowRight'
+            ? (current + 1) % enabled.length
+            : (current - 1 + enabled.length) % enabled.length;
     const next = enabled[nextIndex];
     if (!next) return;
     onChange(next.id);
@@ -40,7 +41,11 @@ export function Tabs({ tabs, active, onChange, children, className }: TabsProps)
 
   return (
     <div className={className}>
-      <div ref={listRef} role="tablist" className="flex items-center gap-1 border-b border-ui-border">
+      <div
+        ref={listRef}
+        role="tablist"
+        className="flex items-center gap-1 border-b border-ui-border"
+      >
         {tabs.map((tab) => {
           const selected = tab.id === active;
           return (
@@ -54,11 +59,15 @@ export function Tabs({ tabs, active, onChange, children, className }: TabsProps)
               aria-controls={`panel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
               disabled={tab.disabled}
-              onClick={() => { if (!tab.disabled) onChange(tab.id); }}
+              onClick={() => {
+                if (!tab.disabled) onChange(tab.id);
+              }}
               onKeyDown={(event) => handleKey(event, tab)}
               className={cx(
                 'focus-ring -mb-px rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                selected ? 'border-ui-accent text-ui-accent' : 'border-transparent text-ui-text-subtle hover:border-ui-border hover:text-ui-text'
+                selected
+                  ? 'border-ui-accent text-ui-accent'
+                  : 'border-transparent text-ui-text-subtle hover:border-ui-border hover:text-ui-text',
               )}
             >
               {tab.label}
@@ -66,7 +75,11 @@ export function Tabs({ tabs, active, onChange, children, className }: TabsProps)
           );
         })}
       </div>
-      {children && <div id={`panel-${active}`} role="tabpanel" aria-labelledby={`tab-${active}`}>{children}</div>}
+      {children && (
+        <div id={`panel-${active}`} role="tabpanel" aria-labelledby={`tab-${active}`}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -92,38 +105,78 @@ function pageWindow(page: number, total: number): Array<number | '…'> {
   return result;
 }
 
-export function Pagination({ page, totalPages, onPageChange, showEdges = false, className }: PaginationProps) {
+export function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+  showEdges = false,
+  className,
+}: PaginationProps) {
   const total = Math.max(1, totalPages);
-  const base = 'focus-ring inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40';
+  const base =
+    'focus-ring inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40';
   return (
     <nav aria-label="Pagination" className={cx('flex items-center gap-1', className)}>
       {showEdges && (
-        <button type="button" aria-label="First page" className={base} disabled={page <= 1} onClick={() => onPageChange(1)}>
+        <button
+          type="button"
+          aria-label="First page"
+          className={base}
+          disabled={page <= 1}
+          onClick={() => onPageChange(1)}
+        >
           <ChevronsLeft aria-hidden="true" size={15} />
         </button>
       )}
-      <button type="button" aria-label="Previous page" className={base} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+      <button
+        type="button"
+        aria-label="Previous page"
+        className={base}
+        disabled={page <= 1}
+        onClick={() => onPageChange(page - 1)}
+      >
         <ChevronLeft aria-hidden="true" size={15} />
       </button>
-      {pageWindow(page, total).map((entry, index) => entry === '…' ? (
-        <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ui-text-subtle">…</span>
-      ) : (
-        <button
-          key={entry}
-          type="button"
-          aria-label={`Page ${entry}`}
-          aria-current={entry === page ? 'page' : undefined}
-          className={cx(base, entry === page ? 'bg-ui-accent-solid text-ui-accent-fg' : 'text-ui-text-muted hover:bg-ui-bg-muted')}
-          onClick={() => onPageChange(entry)}
-        >
-          {entry}
-        </button>
-      ))}
-      <button type="button" aria-label="Next page" className={base} disabled={page >= total} onClick={() => onPageChange(page + 1)}>
+      {pageWindow(page, total).map((entry, index) =>
+        entry === '…' ? (
+          <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ui-text-subtle">
+            …
+          </span>
+        ) : (
+          <button
+            key={entry}
+            type="button"
+            aria-label={`Page ${entry}`}
+            aria-current={entry === page ? 'page' : undefined}
+            className={cx(
+              base,
+              entry === page
+                ? 'bg-ui-accent-solid text-ui-accent-fg'
+                : 'text-ui-text-muted hover:bg-ui-bg-muted',
+            )}
+            onClick={() => onPageChange(entry)}
+          >
+            {entry}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        aria-label="Next page"
+        className={base}
+        disabled={page >= total}
+        onClick={() => onPageChange(page + 1)}
+      >
         <ChevronRight aria-hidden="true" size={15} />
       </button>
       {showEdges && (
-        <button type="button" aria-label="Last page" className={base} disabled={page >= total} onClick={() => onPageChange(total)}>
+        <button
+          type="button"
+          aria-label="Last page"
+          className={base}
+          disabled={page >= total}
+          onClick={() => onPageChange(total)}
+        >
           <ChevronsRight aria-hidden="true" size={15} />
         </button>
       )}
@@ -163,15 +216,31 @@ export function Timeline({
   className,
   emptyLabel = 'No events yet.',
 }: TimelineProps) {
-  if (events.length === 0) return <p className={cx('text-xs text-ui-text-subtle', className)}>{emptyLabel}</p>;
+  if (events.length === 0)
+    return <p className={cx('text-xs text-ui-text-subtle', className)}>{emptyLabel}</p>;
   return (
     <ol className={cx('relative ml-1 space-y-4 border-l border-ui-border pl-4', className)}>
       {events.map((event) => (
         <li key={event.id} className="relative text-xs">
-          <span aria-hidden="true" className={cx('absolute -left-[1.27rem] mt-0.5 h-2 w-2 rounded-full', timelineTone[event.tone ?? 'default'])} />
+          <span
+            aria-hidden="true"
+            className={cx(
+              'absolute -left-[1.27rem] mt-0.5 h-2 w-2 rounded-full',
+              timelineTone[event.tone ?? 'default'],
+            )}
+          />
           <div className="flex flex-col gap-0.5">
             <span className="font-medium text-ui-text">{event.title}</span>
-            <time className="text-ui-text-subtle" dateTime={typeof event.timestamp === 'string' ? event.timestamp : event.timestamp.toISOString()}>{formatTimestamp(event.timestamp)}</time>
+            <time
+              className="text-ui-text-subtle"
+              dateTime={
+                typeof event.timestamp === 'string'
+                  ? event.timestamp
+                  : event.timestamp.toISOString()
+              }
+            >
+              {formatTimestamp(event.timestamp)}
+            </time>
             {event.actor && <span className="text-ui-text-muted">by {event.actor}</span>}
             {event.meta && <div className="mt-0.5 flex flex-wrap gap-1">{event.meta}</div>}
           </div>

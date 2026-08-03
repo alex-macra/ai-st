@@ -12,7 +12,9 @@ describe('jwtSecretError', () => {
   });
 
   it('flags a secret shorter than 32 bytes in production', () => {
-    expect(jwtSecretError({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(31) })).toMatch(/32 bytes/);
+    expect(jwtSecretError({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(31) })).toMatch(
+      /32 bytes/,
+    );
   });
 
   it('passes a secret of 32+ bytes in production', () => {
@@ -20,11 +22,13 @@ describe('jwtSecretError', () => {
   });
 
   it('rejects the development OTP bypass in production', () => {
-    expect(jwtSecretError({
-      NODE_ENV: 'production',
-      JWT_SECRET: 'x'.repeat(32),
-      DEV_OTP_BYPASS: 'true',
-    })).toMatch(/cannot be enabled/i);
+    expect(
+      jwtSecretError({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'x'.repeat(32),
+        DEV_OTP_BYPASS: 'true',
+      }),
+    ).toMatch(/cannot be enabled/i);
   });
 
   it('measures bytes, not characters (16 two-byte chars = 32 bytes)', () => {

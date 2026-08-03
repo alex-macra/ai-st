@@ -26,8 +26,8 @@ This alpha release is independently buildable from this repository. It includes 
 Captured from the synthetic browser journey, so every value shown is generated
 fixture data rather than a study.
 
-| Upload | Case list |
-| --- | --- |
+| Upload                                                                             | Case list                                                                   |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | ![Upload form with cohort selection and study file inputs](docs/images/upload.png) | ![Case list showing a signed-off synthetic case](docs/images/case-list.png) |
 
 Review workspace, with the three analysis passes, the reference-pack warning, and an evidence-linked finding awaiting adjudication:
@@ -42,11 +42,11 @@ Regenerate them with `npm run screenshots`.
 
 ## Services
 
-| Service | Stack | Default address |
-| --- | --- | --- |
-| Web interface | React, TypeScript, Vite | `http://127.0.0.1:5173` |
-| API | Express, TypeScript, SQLite | `http://127.0.0.1:3001` |
-| Preprocessor | FastAPI, MNE, pyEDFlib | `http://127.0.0.1:8001` |
+| Service       | Stack                       | Default address         |
+| ------------- | --------------------------- | ----------------------- |
+| Web interface | React, TypeScript, Vite     | `http://127.0.0.1:5173` |
+| API           | Express, TypeScript, SQLite | `http://127.0.0.1:3001` |
+| Preprocessor  | FastAPI, MNE, pyEDFlib      | `http://127.0.0.1:8001` |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and data flow, and [SAFETY.md](SAFETY.md) before evaluating the application.
 
@@ -113,16 +113,16 @@ Use the generated invitation with `/api/auth/activate` or the activation form. T
 
 Important API environment variables:
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `HOST` | `127.0.0.1` | API bind address. Set a wider address explicitly for containers. |
-| `TRUST_PROXY` | `false` | `false`, `loopback`, or a positive proxy hop count. |
-| `CORS_ORIGINS` | empty | Comma-separated allowed browser origins. Authenticated mutations enforce this policy. |
-| `JWT_SECRET` | development fallback | Required in production and must be at least 32 bytes. |
-| `DB_PATH` | `api/data/cases.sqlite` | SQLite database path. |
-| `PREPROCESSOR_URL` | `http://localhost:8001` | Preprocessor base URL. |
-| `OPENAI_API_KEY` | unset | Needed for real analysis calls. |
-| `REFERENCE_DIR` | unset | Optional external directory of validated Markdown rules. |
+| Variable           | Default                 | Meaning                                                                               |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------- |
+| `HOST`             | `127.0.0.1`             | API bind address. Set a wider address explicitly for containers.                      |
+| `TRUST_PROXY`      | `false`                 | `false`, `loopback`, or a positive proxy hop count.                                   |
+| `CORS_ORIGINS`     | empty                   | Comma-separated allowed browser origins. Authenticated mutations enforce this policy. |
+| `JWT_SECRET`       | development fallback    | Required in production and must be at least 32 bytes.                                 |
+| `DB_PATH`          | `api/data/cases.sqlite` | SQLite database path.                                                                 |
+| `PREPROCESSOR_URL` | `http://localhost:8001` | Preprocessor base URL.                                                                |
+| `OPENAI_API_KEY`   | unset                   | Needed for real analysis calls.                                                       |
+| `REFERENCE_DIR`    | unset                   | Optional external directory of validated Markdown rules.                              |
 
 For reverse-proxy deployments, explicitly configure `HOST`, `TRUST_PROXY`, TLS, and `CORS_ORIGINS`. Production cookies are HTTP-only, SameSite=Lax, and Secure.
 

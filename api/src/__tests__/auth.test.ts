@@ -55,7 +55,9 @@ describe('POST /api/auth/activate', () => {
   it('rejects activation when the email already has an account', async () => {
     insertLicense(getDb(), 'TEST-DUP1-DUP1-DUP1');
     insertLicense(getDb(), 'TEST-DUP2-DUP2-DUP2');
-    await request.post('/api/auth/activate').send({ email: 'duplicate@example.test', licenseKey: 'TEST-DUP1-DUP1-DUP1' });
+    await request
+      .post('/api/auth/activate')
+      .send({ email: 'duplicate@example.test', licenseKey: 'TEST-DUP1-DUP1-DUP1' });
 
     const res = await request
       .post('/api/auth/activate')
@@ -75,19 +77,27 @@ describe('POST /api/auth/verify', () => {
 
   it('rejects a wrong code', async () => {
     insertLicense(getDb(), 'TEST-LOG1-LOG1-LOG1');
-    await request.post('/api/auth/activate').send({ email: 'login@example.test', licenseKey: 'TEST-LOG1-LOG1-LOG1' });
+    await request
+      .post('/api/auth/activate')
+      .send({ email: 'login@example.test', licenseKey: 'TEST-LOG1-LOG1-LOG1' });
     upsertOtp('login@example.test', '123456');
 
-    const res = await request.post('/api/auth/verify').send({ email: 'login@example.test', code: '999999' });
+    const res = await request
+      .post('/api/auth/verify')
+      .send({ email: 'login@example.test', code: '999999' });
     expect(res.status).toBe(400);
   });
 
   it('accepts a correct code, sets the cookie, and lets /me return the user', async () => {
     insertLicense(getDb(), 'TEST-LOG2-LOG2-LOG2');
-    await request.post('/api/auth/activate').send({ email: 'login2@example.test', licenseKey: 'TEST-LOG2-LOG2-LOG2' });
+    await request
+      .post('/api/auth/activate')
+      .send({ email: 'login2@example.test', licenseKey: 'TEST-LOG2-LOG2-LOG2' });
     upsertOtp('login2@example.test', '111111');
 
-    const res = await request.post('/api/auth/verify').send({ email: 'login2@example.test', code: '111111' });
+    const res = await request
+      .post('/api/auth/verify')
+      .send({ email: 'login2@example.test', code: '111111' });
     expect(res.status).toBe(200);
     const cookie = res.headers['set-cookie']?.[0] ?? '';
     expect(cookie).toMatch(/somno_session=/);

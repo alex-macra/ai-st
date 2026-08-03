@@ -60,7 +60,14 @@ export default tseslint.config(
   },
 
   {
-    files: ['api/**/*.ts', 'e2e/**/*.ts', 'scripts/**/*.mjs', 'preprocessor/**/*.ts', '*.config.ts', '*.config.js'],
+    files: [
+      'api/**/*.ts',
+      'e2e/**/*.ts',
+      'scripts/**/*.mjs',
+      'preprocessor/**/*.ts',
+      '*.config.ts',
+      '*.config.js',
+    ],
     languageOptions: {
       globals: { ...globals.node },
     },

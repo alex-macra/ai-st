@@ -72,7 +72,9 @@ describe('publication security baseline', () => {
     const auth = mintAuthCookie();
 
     expect((await supertest(app).delete('/api/cases').set('Cookie', auth.cookie)).status).toBe(403);
-    expect((await supertest(app).post('/api/cases/clear-all').set('Cookie', auth.cookie)).status).toBe(403);
+    expect(
+      (await supertest(app).post('/api/cases/clear-all').set('Cookie', auth.cookie)).status,
+    ).toBe(403);
   });
 
   it('classifies malformed and oversized JSON as client errors', async () => {

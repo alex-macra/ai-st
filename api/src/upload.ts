@@ -58,11 +58,11 @@ const upload = multer({
     fields: 8,
     fieldSize: 4 * 1024,
     parts: 110,
-  }
+  },
 });
 
 const metaSchema = z.object({
-  cohort: z.enum(['adult', 'pediatric']).optional()
+  cohort: z.enum(['adult', 'pediatric']).optional(),
 });
 
 const PreprocessorResponseSchema = z.object({
@@ -76,9 +76,15 @@ class PreprocessorResponseLimitError extends Error {
   override name = 'PreprocessorResponseLimitError';
 }
 
-async function readBoundedJsonResponse(response: globalThis.Response): Promise<Record<string, unknown>> {
+async function readBoundedJsonResponse(
+  response: globalThis.Response,
+): Promise<Record<string, unknown>> {
   const declaredLength = response.headers.get('content-length');
-  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > MAX_CASE_PACKAGE_BYTES) {
+  if (
+    declaredLength &&
+    /^\d+$/.test(declaredLength) &&
+    Number(declaredLength) > MAX_CASE_PACKAGE_BYTES
+  ) {
     await response.body?.cancel();
     throw new PreprocessorResponseLimitError();
   }
@@ -105,7 +111,7 @@ async function readBoundedJsonResponse(response: globalThis.Response): Promise<R
 export const uploadMiddleware = upload.fields([
   { name: 'edf', maxCount: 1 },
   { name: 'pdf', maxCount: 1 },
-  { name: 'screenshots', maxCount: 100 }
+  { name: 'screenshots', maxCount: 100 },
 ]);
 
 export function enforceUploadContentLength(req: Request, res: Response, next: () => void): void {
@@ -156,8 +162,10 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
   const pdfFile = files?.['pdf']?.[0];
   const screenshotFiles = files?.['screenshots'] ?? [];
 
-  const totalBytes = [edfFile, pdfFile, ...screenshotFiles]
-    .reduce((sum, file) => sum + (file?.size ?? 0), 0);
+  const totalBytes = [edfFile, pdfFile, ...screenshotFiles].reduce(
+    (sum, file) => sum + (file?.size ?? 0),
+    0,
+  );
   if (totalBytes > MAX_TOTAL_UPLOAD_BYTES) {
     sendError(res, 413, 'UPLOAD_TOO_LARGE', 'The combined upload exceeds the size limit');
     return;
@@ -178,7 +186,12 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
 
   const signaturesValid = await validateFileSignatures(edfFile, pdfFile, screenshotFiles);
   if (!signaturesValid) {
-    sendError(res, 415, 'INVALID_FILE_SIGNATURE', 'One or more uploaded files do not match the expected format');
+    sendError(
+      res,
+      415,
+      'INVALID_FILE_SIGNATURE',
+      'One or more uploaded files do not match the expected format',
+    );
     return;
   }
 
@@ -195,15 +208,21 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
   let hashedArtifact: 'edf' | 'pdf' | 'screenshot';
   try {
     if (edfFile) {
-      studyHash = createHash('sha256').update(await readFile(edfFile.path)).digest('hex');
+      studyHash = createHash('sha256')
+        .update(await readFile(edfFile.path))
+        .digest('hex');
       hashedArtifact = 'edf';
     } else if (pdfFile) {
-      studyHash = createHash('sha256').update(await readFile(pdfFile.path)).digest('hex');
+      studyHash = createHash('sha256')
+        .update(await readFile(pdfFile.path))
+        .digest('hex');
       hashedArtifact = 'pdf';
     } else {
       const first = screenshotFiles[0];
       if (!first) throw new Error('no file to hash');
-      studyHash = createHash('sha256').update(await readFile(first.path)).digest('hex');
+      studyHash = createHash('sha256')
+        .update(await readFile(first.path))
+        .digest('hex');
       hashedArtifact = 'screenshot';
     }
   } catch (err) {
@@ -244,7 +263,11 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       form.append('screenshots', new Blob([ssBuf], { type: image.mimeType }), safeName);
 
       const screenshotId = randomUUID();
-      const screenshotPath = path.join(SCREENSHOTS_DIR, prelimCaseId, `${screenshotId}-${safeName}`);
+      const screenshotPath = path.join(
+        SCREENSHOTS_DIR,
+        prelimCaseId,
+        `${screenshotId}-${safeName}`,
+      );
       await writeFile(screenshotPath, ssBuf);
       screenshotMetadata.push({ id: screenshotId, originalName: safeName });
     }
@@ -253,7 +276,12 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
     if (!resp.ok) {
       await resp.body?.cancel();
       logger.error({ status: resp.status }, 'preprocessor_ingest_failed');
-      sendError(res, 502, 'PREPROCESSOR_ERROR', 'Study preprocessing failed. Please check your file and try again.');
+      sendError(
+        res,
+        502,
+        'PREPROCESSOR_ERROR',
+        'Study preprocessing failed. Please check your file and try again.',
+      );
       return;
     }
     let rawResponse: Record<string, unknown>;
@@ -261,18 +289,39 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       rawResponse = await readBoundedJsonResponse(resp);
     } catch (error) {
       if (error instanceof PreprocessorResponseLimitError) {
-        logger.error({ responseLimitBytes: MAX_CASE_PACKAGE_BYTES }, 'preprocessor_response_too_large');
-        sendError(res, 422, 'PREPROCESSOR_RESPONSE_TOO_LARGE', 'Study processing returned too much data. Please try again or contact support.');
+        logger.error(
+          { responseLimitBytes: MAX_CASE_PACKAGE_BYTES },
+          'preprocessor_response_too_large',
+        );
+        sendError(
+          res,
+          422,
+          'PREPROCESSOR_RESPONSE_TOO_LARGE',
+          'Study processing returned too much data. Please try again or contact support.',
+        );
       } else {
         logger.error(errorLogFields(error), 'preprocessor_response_invalid_json');
-        sendError(res, 422, 'PREPROCESSOR_SCHEMA_MISMATCH', 'Study processing returned an unexpected result. Please try again or contact support.');
+        sendError(
+          res,
+          422,
+          'PREPROCESSOR_SCHEMA_MISMATCH',
+          'Study processing returned an unexpected result. Please try again or contact support.',
+        );
       }
       return;
     }
     const parsed = PreprocessorResponseSchema.safeParse(rawResponse);
     if (!parsed.success) {
-      logger.error({ issueCount: parsed.error.issues.length }, 'preprocessor_response_schema_mismatch');
-      sendError(res, 422, 'PREPROCESSOR_SCHEMA_MISMATCH', 'Study processing returned an unexpected result. Please try again or contact support.');
+      logger.error(
+        { issueCount: parsed.error.issues.length },
+        'preprocessor_response_schema_mismatch',
+      );
+      sendError(
+        res,
+        422,
+        'PREPROCESSOR_SCHEMA_MISMATCH',
+        'Study processing returned an unexpected result. Please try again or contact support.',
+      );
       return;
     }
     casePackage = { ...rawResponse, screenshot_metadata: screenshotMetadata };
@@ -281,7 +330,12 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
     }
   } catch (err) {
     logger.error(errorLogFields(err), 'preprocessor_request_failed');
-    sendError(res, 502, 'PREPROCESSOR_UNREACHABLE', 'Preprocessing service is unreachable. Please try again.');
+    sendError(
+      res,
+      502,
+      'PREPROCESSOR_UNREACHABLE',
+      'Preprocessing service is unreachable. Please try again.',
+    );
     return;
   }
 
@@ -305,14 +359,17 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       pdfAttached: pdfFile !== undefined,
       screenshotCount: screenshotFiles.length,
       preprocessorVersion,
-      casePackageKeys: Object.keys(casePackage)
+      casePackageKeys: Object.keys(casePackage),
     },
-    createdAt: now
+    createdAt: now,
   };
 
   const uploadCohort: 'adult' | 'pediatric' | 'generic' =
-    casePackage['cohort'] === 'pediatric' ? 'pediatric' :
-    casePackage['cohort'] === 'generic' ? 'generic' : 'adult';
+    casePackage['cohort'] === 'pediatric'
+      ? 'pediatric'
+      : casePackage['cohort'] === 'generic'
+        ? 'generic'
+        : 'adult';
 
   let name: string;
   try {
@@ -330,10 +387,10 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
         promptVersion: PROMPT_VERSION,
         modelVersion: GPT_MODEL,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       audit,
-      basename
+      basename,
     );
   } catch (err) {
     logger.error(errorLogFields(err), 'case_create_failed');
@@ -353,13 +410,20 @@ interface ImageFormat {
 }
 
 function detectImageFormat(buffer: Buffer): ImageFormat | null {
-  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+  if (
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
     return { extension: 'png', mimeType: 'image/png' };
   }
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return { extension: 'jpg', mimeType: 'image/jpeg' };
   }
-  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  ) {
     return { extension: 'webp', mimeType: 'image/webp' };
   }
   return null;
@@ -368,7 +432,7 @@ function detectImageFormat(buffer: Buffer): ImageFormat | null {
 async function validateFileSignatures(
   edfFile: Express.Multer.File | undefined,
   pdfFile: Express.Multer.File | undefined,
-  screenshotFiles: Express.Multer.File[]
+  screenshotFiles: Express.Multer.File[],
 ): Promise<boolean> {
   if (edfFile) {
     const buffer = await readFile(edfFile.path);

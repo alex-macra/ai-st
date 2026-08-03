@@ -3,6 +3,7 @@ Heuristic detection of candidate respiratory event windows.
 All outputs are labeled PROVISIONAL - never "confirmed" or "scored".
 Clinical scoring is the clinician's responsibility.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -21,7 +22,16 @@ _SPO2_LABELS = {"spo2", "saturation", "oximetry", "o2 sat"}
 _EFFORT_LABELS = {"thorax", "abdomen", "chest", "resp effort", "thoracic", "abdominal"}
 _POSITION_LABELS = {"position", "body position", "lage"}
 # End-tidal and transcutaneous CO2 - critical for pediatric hypoventilation detection
-_CO2_LABELS = {"etco2", "end tidal co2", "co2", "tco2", "transcutaneous co2", "capnography", "petco2", "end-tidal co2"}
+_CO2_LABELS = {
+    "etco2",
+    "end tidal co2",
+    "co2",
+    "tco2",
+    "transcutaneous co2",
+    "capnography",
+    "petco2",
+    "end-tidal co2",
+}
 
 # Channels below this quality floor are skipped for candidate detection; the LLM
 # must never claim a finding from a low-quality channel. At/above the floor they're
@@ -95,9 +105,9 @@ def _severity_bucket(label: str, magnitude: float) -> str:
 class CandidateWindow:
     start_sec: float
     end_sec: float
-    label: str           # e.g. "provisional_flow_reduction"
+    label: str  # e.g. "provisional_flow_reduction"
     channel: str
-    magnitude: float     # fractional reduction or desaturation depth
+    magnitude: float  # fractional reduction or desaturation depth
     signal_quality: float = 1.0
     priority_score: float = 0.0
     dedupe_key: str = ""
@@ -109,7 +119,7 @@ class CandidateWindow:
 class CandidateSet:
     windows: list[CandidateWindow]
     channels_used: list[str]
-    channels_missing: list[str]              # truly absent from the EDF file
+    channels_missing: list[str]  # truly absent from the EDF file
     channels_low_quality: list[str] = field(default_factory=list)  # present but below QUALITY_FLOOR
     cohort: Literal["adult", "pediatric"] = "adult"
     # Flow-event filter funnel - surfaced in study_metrics so the clinician can
@@ -146,26 +156,18 @@ def _detect_flow_reductions(
 
     # Rolling baseline: 2-minute window
     baseline_samples = int(sample_rate * 120)
-    baseline = np.convolve(
-        abs_sig, np.ones(baseline_samples) / baseline_samples, mode="same"
-    )
+    baseline = np.convolve(abs_sig, np.ones(baseline_samples) / baseline_samples, mode="same")
     baseline = np.maximum(baseline, 1e-6)
 
     # Smooth amplitude over one breathing cycle so per-breath peaks don't
     # break continuity during hypopneas (30-50% reduction events).
     envelope_samples = max(1, int(sample_rate * envelope_sec))
-    envelope = np.convolve(
-        abs_sig, np.ones(envelope_samples) / envelope_samples, mode="same"
-    )
+    envelope = np.convolve(abs_sig, np.ones(envelope_samples) / envelope_samples, mode="same")
     reduced = envelope < baseline * (1 - threshold_pct)
 
     # P5 amplitude floor: a 30% reduction on a near-flatlined signal is meaningless.
     nonzero_amp = abs_sig[abs_sig > 0]
-    amp_floor = (
-        float(np.percentile(nonzero_amp, 95)) * amplitude_floor_frac
-        if nonzero_amp.size > 0
-        else 0.0
-    )
+    amp_floor = float(np.percentile(nonzero_amp, 95)) * amplitude_floor_frac if nonzero_amp.size > 0 else 0.0
 
     windows: list[tuple[float, float, float]] = []
     in_event = False
@@ -468,18 +470,12 @@ def _post_process_flow_events(
 
 def headline_flow_events(events: list[CandidateWindow]) -> list[CandidateWindow]:
     """Subset of flow events with no rejection tags - feeds the headline AHI/REI."""
-    return [
-        e for e in events
-        if TAG_OVERLAPS_FLAT not in e.notes and TAG_UNCOUPLED_HYPOPNEA not in e.notes
-    ]
+    return [e for e in events if TAG_OVERLAPS_FLAT not in e.notes and TAG_UNCOUPLED_HYPOPNEA not in e.notes]
 
 
 def tagged_flow_events(events: list[CandidateWindow]) -> list[CandidateWindow]:
     """Complement of headline_flow_events — scored-out events still shown to clinician."""
-    return [
-        e for e in events
-        if TAG_OVERLAPS_FLAT in e.notes or TAG_UNCOUPLED_HYPOPNEA in e.notes
-    ]
+    return [e for e in events if TAG_OVERLAPS_FLAT in e.notes or TAG_UNCOUPLED_HYPOPNEA in e.notes]
 
 
 def _assign_scores(windows: list[CandidateWindow]) -> None:
@@ -497,7 +493,7 @@ def _assign_scores(windows: list[CandidateWindow]) -> None:
     for i, wi in enumerate(sorted_by_base):
         if id(wi) in penalized:
             continue
-        for wj in sorted_by_base[i + 1:]:
+        for wj in sorted_by_base[i + 1 :]:
             if id(wj) in penalized:
                 continue
             # Overlap: windows that start within 60s of each other
@@ -567,7 +563,8 @@ def find_candidate_windows(
             if usable:
                 signal = reader.readSignal(ch.index).astype(np.float64)
                 for start, end, mag in _detect_flow_reductions(
-                    signal, ch.sample_rate,
+                    signal,
+                    ch.sample_rate,
                     min_duration_sec=flow_min_duration,
                     envelope_sec=flow_envelope_sec,
                 ):
@@ -642,13 +639,8 @@ def find_candidate_windows(
 
     flow_events = [w for w in windows if w.label == "provisional_flow_reduction"]
     desat_events = [w for w in windows if w.label == "provisional_desaturation"]
-    other_events = [
-        w for w in windows
-        if w.label not in ("provisional_flow_reduction",)
-    ]
-    position_transition_secs = [
-        w.start_sec for w in windows if w.label == "provisional_positional"
-    ]
+    other_events = [w for w in windows if w.label not in ("provisional_flow_reduction",)]
+    position_transition_secs = [w.start_sec for w in windows if w.label == "provisional_positional"]
 
     flat_intervals: list[tuple[float, float]] = []
     if flow_label is not None:
@@ -657,7 +649,10 @@ def find_candidate_windows(
             flat_intervals = qc_flow.flat_intervals
 
     flow_events, flow_filter_stats = _post_process_flow_events(
-        flow_events, desat_events, flat_intervals, position_transition_secs if position_transition_secs else None
+        flow_events,
+        desat_events,
+        flat_intervals,
+        position_transition_secs if position_transition_secs else None,
     )
     windows = other_events + flow_events
 

@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.use({ storageState: 'e2e/.auth/user.json' });
 
-const MOCK_USER = JSON.stringify({ user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null } });
+const MOCK_USER = JSON.stringify({
+  user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null },
+});
 const EMPTY_CASES = JSON.stringify({ cases: [] });
 
 test.describe('case list (authenticated)', () => {
@@ -15,7 +17,9 @@ test.describe('case list (authenticated)', () => {
     });
     await page.goto('/');
     // Wait for the authenticated app shell to render (Upload button only exists when signed in)
-    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('shows app header with AI-ST branding', async ({ page }) => {

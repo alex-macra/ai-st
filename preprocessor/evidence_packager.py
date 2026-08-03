@@ -3,6 +3,7 @@ Assemble a compact case package for LLM consumption.
 Target size: ≤ 8 KB JSON.  Raw signal arrays are never included.
 Candidates are pre-sorted by priority_score (descending) from candidate_windows.py.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,18 +14,18 @@ from typing import Any
 import numpy as np
 import pyedflib
 
-from edf_parser import ChannelInventory
-from signal_qc import QCResults
 from candidate_windows import (
-    CandidateWindow,
-    CandidateSet,
-    _SPO2_LABELS,
     _FLOW_LABELS,
     _POSITION_LABELS,
+    _SPO2_LABELS,
+    CandidateSet,
+    CandidateWindow,
     _find_channel,
     headline_flow_events,
 )
 from const import SCHEMA_VERSION
+from edf_parser import ChannelInventory
+from signal_qc import QCResults
 
 _MAX_CANDIDATES = 20
 _SPO2_PHYSIOLOGICAL_MIN = 50.0
@@ -37,7 +38,7 @@ _HR_LABELS = {"pulse", "hr", "heart rate", "pulse rate", "herzfrequenz"}
 _SNORE_LABELS = {"snore", "snoring", "schnarch", "schnarchen", "snore mic"}
 
 # Flow-reduction magnitude thresholds for apnea vs hypopnea classification
-_APNEA_MAGNITUDE_THRESHOLD = 0.9   # ≥90% reduction
+_APNEA_MAGNITUDE_THRESHOLD = 0.9  # ≥90% reduction
 _HYPOPNEA_MAGNITUDE_THRESHOLD = 0.3  # 30–90% reduction
 
 
@@ -126,7 +127,9 @@ def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> d
     }
 
 
-def _snore_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float) -> dict[str, Any] | None:
+def _snore_summary(
+    edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float
+) -> dict[str, Any] | None:
     snore_label = _find_channel(inventory, _SNORE_LABELS)
     if snore_label is None:
         return None
@@ -149,7 +152,7 @@ def _snore_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults, d
     if max_val <= 1.0:
         snore_threshold = 0.0
     else:
-        rms = float(np.sqrt(np.mean(sig ** 2)))
+        rms = float(np.sqrt(np.mean(sig**2)))
         snore_threshold = rms * 3.0
     snore_samples = float(np.sum(sig > snore_threshold))
     snore_minutes = round(snore_samples / ch.sample_rate / 60.0, 2)
@@ -219,7 +222,9 @@ def _positional_rei(
         "supine_flow_event_count": len(supine_events),
         "nonsupine_flow_event_count": len(nonsupine_events),
         "supine_rei_per_hour": round(len(supine_events) / supine_hours, 2) if supine_hours > 0 else None,
-        "nonsupine_rei_per_hour": round(len(nonsupine_events) / nonsupine_hours, 2) if nonsupine_hours > 0 else None,
+        "nonsupine_rei_per_hour": round(len(nonsupine_events) / nonsupine_hours, 2)
+        if nonsupine_hours > 0
+        else None,
     }
 
 
@@ -259,7 +264,8 @@ def _compute_study_metrics(
     # Flow-reduction sub-classification by magnitude (headline subset)
     apnea_candidates = [w for w in headline_candidates if w.magnitude >= _APNEA_MAGNITUDE_THRESHOLD]
     hypopnea_candidates = [
-        w for w in headline_candidates
+        w
+        for w in headline_candidates
         if _HYPOPNEA_MAGNITUDE_THRESHOLD <= w.magnitude < _APNEA_MAGNITUDE_THRESHOLD
     ]
 
@@ -272,10 +278,16 @@ def _compute_study_metrics(
         effective_duration_sec = duration_sec * (1.0 - flow_flat_pct)
     effective_duration_hours = effective_duration_sec / 3600.0 if effective_duration_sec > 0 else 0.0
 
-    provisional_rei_per_hour = round(len(headline_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    provisional_rei_per_hour = (
+        round(len(headline_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
     provisional_rei_adjusted_per_hour = provisional_rei_per_hour
-    provisional_rei_raw_per_hour = round(len(flow_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
-    provisional_odi_per_hour = round(len(desat_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    provisional_rei_raw_per_hour = (
+        round(len(flow_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
+    provisional_odi_per_hour = (
+        round(len(desat_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
 
     artifact_excluded = funnel.get("tagged_artifact", 0)
 
@@ -288,7 +300,9 @@ def _compute_study_metrics(
         # Pediatric criterion-4 split: coupled = desat-confirmed (only valid when SpO2
         # coupling was actually applied); uncoupled = tagged-out events that lacked a
         # concurrent SpO2 drop. None when coupling was not applied (no SpO2 channel).
-        "coupled_hypopnea_count": len(hypopnea_candidates) if bool(funnel.get("coupling_applied", 0)) else None,
+        "coupled_hypopnea_count": len(hypopnea_candidates)
+        if bool(funnel.get("coupling_applied", 0))
+        else None,
         "uncoupled_hypopnea_count": funnel.get("tagged_uncoupled_hypopnea", 0),
         "raw_count_pre_filter": len(flow_candidates),
         "severity_breakdown": dict(Counter(w.dedupe_key for w in headline_candidates if w.dedupe_key)),
@@ -385,12 +399,10 @@ def package_evidence(
         )
 
     missing_channels = [
-        {"label": label, "present": False, "reason": "not_in_file"}
-        for label in candidates.channels_missing
+        {"label": label, "present": False, "reason": "not_in_file"} for label in candidates.channels_missing
     ]
     low_quality_channels = [
-        {"label": label, "reason": "below_quality_floor"}
-        for label in candidates.channels_low_quality
+        {"label": label, "reason": "below_quality_floor"} for label in candidates.channels_low_quality
     ]
 
     trimmed_candidates = candidates.windows[:_MAX_CANDIDATES]
@@ -455,8 +467,8 @@ def package_evidence(
     # Enforce 8 KB limit - truncate candidates further if needed
     while len(json.dumps(package).encode()) > 8 * 1024 and package["candidate_windows"]:
         package["candidate_windows"].pop()
-        package["candidate_count_trimmed_from_llm_package"] = (
-            package["candidate_count_total"] - len(package["candidate_windows"])
+        package["candidate_count_trimmed_from_llm_package"] = package["candidate_count_total"] - len(
+            package["candidate_windows"]
         )
 
     return package

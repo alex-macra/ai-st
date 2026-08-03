@@ -4,7 +4,10 @@ import { Moon, Sun } from 'lucide-react';
 const STORAGE_KEY = 'dark-mode';
 
 function systemPrefersDark(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 }
 
 export function useDarkMode(): { dark: boolean; toggle: () => void } {

@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 // This file necessarily contains every marker string it searches for, so it is
 // the one file exempt from the marker scan. All other checks still apply to it.
-const selfPath = path.relative(process.cwd(), fileURLToPath(import.meta.url)).split(path.sep).join('/');
+const selfPath = path
+  .relative(process.cwd(), fileURLToPath(import.meta.url))
+  .split(path.sep)
+  .join('/');
 
 const allowedRoots = new Set([
   '.dockerignore',
@@ -13,6 +16,7 @@ const allowedRoots = new Set([
   '.github',
   '.gitignore',
   '.nvmrc',
+  '.prettierignore',
   '.prettierrc',
   'ARCHITECTURE.md',
   'CHANGELOG.md',
@@ -39,7 +43,16 @@ const allowedRoots = new Set([
 ]);
 
 const bannedExtensions = new Set([
-  '.bdf', '.db', '.duckdb', '.edf', '.p12', '.parquet', '.pdf', '.pfx', '.sqlite', '.sqlite3',
+  '.bdf',
+  '.db',
+  '.duckdb',
+  '.edf',
+  '.p12',
+  '.parquet',
+  '.pdf',
+  '.pfx',
+  '.sqlite',
+  '.sqlite3',
 ]);
 
 const bannedSegments = new Set([
@@ -61,15 +74,11 @@ const allowedDotSegments = new Set([
   '.github',
   '.gitignore',
   '.nvmrc',
+  '.prettierignore',
   '.prettierrc',
 ]);
 
-const privateMarkers = [
-  'shared-core',
-  '@shared/',
-  'file:../../',
-  'PlanForProjects',
-];
+const privateMarkers = ['shared-core', '@shared/', 'file:../../', 'PlanForProjects'];
 
 const secretPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
@@ -86,29 +95,39 @@ function publishableFiles() {
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
     { encoding: 'buffer' },
   );
-  return output.toString('utf8').split('\0').filter(Boolean).filter((file) => {
-    try {
-      lstatSync(file);
-      return true;
-    } catch (error) {
-      if (error && typeof error === 'object' && error.code === 'ENOENT') return false;
-      throw error;
-    }
-  }).sort();
+  return output
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .filter((file) => {
+      try {
+        lstatSync(file);
+        return true;
+      } catch (error) {
+        if (error && typeof error === 'object' && error.code === 'ENOENT') return false;
+        throw error;
+      }
+    })
+    .sort();
 }
 
 function checkPath(file, failures) {
   const normalized = file.split(path.sep).join('/');
   const segments = normalized.split('/');
   if (!allowedRoots.has(segments[0])) failures.push(`${file}: top-level path is not allowlisted`);
-  if (segments.some((segment) => bannedSegments.has(segment))) failures.push(`${file}: forbidden directory`);
+  if (segments.some((segment) => bannedSegments.has(segment)))
+    failures.push(`${file}: forbidden directory`);
   if (segments.some((segment) => segment.startsWith('.') && !allowedDotSegments.has(segment))) {
     failures.push(`${file}: dot-path is not allowlisted`);
   }
-  if (normalized.startsWith('api/refs/')) failures.push(`${file}: bundled reference pack is forbidden`);
-  if (normalized.startsWith('e2e/.auth/') && !normalized.endsWith('/.gitignore')) failures.push(`${file}: browser auth state is forbidden`);
-  if (bannedExtensions.has(path.extname(normalized).toLowerCase())) failures.push(`${file}: forbidden artifact type`);
-  if (/^(?:latest|generated[-_].*|.*[-_]report)\./i.test(path.basename(normalized))) failures.push(`${file}: generated report-like filename`);
+  if (normalized.startsWith('api/refs/'))
+    failures.push(`${file}: bundled reference pack is forbidden`);
+  if (normalized.startsWith('e2e/.auth/') && !normalized.endsWith('/.gitignore'))
+    failures.push(`${file}: browser auth state is forbidden`);
+  if (bannedExtensions.has(path.extname(normalized).toLowerCase()))
+    failures.push(`${file}: forbidden artifact type`);
+  if (/^(?:latest|generated[-_].*|.*[-_]report)\./i.test(path.basename(normalized)))
+    failures.push(`${file}: generated report-like filename`);
 
   const stat = lstatSync(file);
   if (stat.isSymbolicLink()) failures.push(`${file}: symlinks are forbidden`);
@@ -121,12 +140,17 @@ function checkText(file, failures) {
   if (buffer.includes(0)) return;
   const content = buffer.toString('utf8');
 
-  if (/\/home\/[A-Za-z0-9._-]+\//.test(content) || /\/Users\/[A-Za-z0-9._-]+\//.test(content) || /[A-Za-z]:\\Users\\/.test(content)) {
+  if (
+    /\/home\/[A-Za-z0-9._-]+\//.test(content) ||
+    /\/Users\/[A-Za-z0-9._-]+\//.test(content) ||
+    /[A-Za-z]:\\Users\\/.test(content)
+  ) {
     failures.push(`${file}: absolute machine path`);
   }
   if (file !== selfPath) {
     for (const marker of privateMarkers) {
-      if (content.toLowerCase().includes(marker.toLowerCase())) failures.push(`${file}: private marker detected`);
+      if (content.toLowerCase().includes(marker.toLowerCase()))
+        failures.push(`${file}: private marker detected`);
     }
   }
   for (const pattern of secretPatterns) {
@@ -136,7 +160,8 @@ function checkText(file, failures) {
   const emails = content.match(/[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,}|localhost)/gi) ?? [];
   for (const email of emails) {
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
-    if (!allowedEmailDomains.has(domain)) failures.push(`${file}: non-example email address detected`);
+    if (!allowedEmailDomains.has(domain))
+      failures.push(`${file}: non-example email address detected`);
   }
 }
 

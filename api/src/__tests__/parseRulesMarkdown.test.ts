@@ -76,17 +76,20 @@ license: open
   });
 
   it('rejects unsupported metadata values', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('license: open', 'license: private')))
-      .toThrow(/invalid reference metadata/i);
+    expect(() => parseRulesMarkdown(FIXTURE.replace('license: open', 'license: private'))).toThrow(
+      /invalid reference metadata/i,
+    );
   });
 
   it('rejects duplicate rule IDs', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-two', 'example-rule-one')))
-      .toThrow(/duplicate rule id/i);
+    expect(() =>
+      parseRulesMarkdown(FIXTURE.replace('example-rule-two', 'example-rule-one')),
+    ).toThrow(/duplicate rule id/i);
   });
 
   it('rejects unsafe rule IDs', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-one', '../../outside')))
-      .toThrow(/invalid rule id/i);
+    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-one', '../../outside'))).toThrow(
+      /invalid rule id/i,
+    );
   });
 });

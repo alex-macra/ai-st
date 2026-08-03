@@ -3,18 +3,18 @@ import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from deidentify import deidentify_edf_header
-from edf_parser import parse_edf, extract_demographics
-from signal_qc import run_signal_qc
 from candidate_windows import find_candidate_windows
-from evidence_packager import package_evidence
+from chart_renderer import CHART_RENDERER_VERSION, render_window
 from const import SCHEMA_VERSION
-from chart_renderer import render_window, CHART_RENDERER_VERSION
+from deidentify import deidentify_edf_header
+from edf_parser import extract_demographics, parse_edf
+from evidence_packager import package_evidence
+from parsers.domino_pdf import ParseFailure, metrics_to_dict, parse_domino_pdf
+from signal_qc import run_signal_qc
 from signal_slicer import build_signal_slices
-from parsers.domino_pdf import parse_domino_pdf, ParseFailure, metrics_to_dict
 
 logger = logging.getLogger(__name__)
 

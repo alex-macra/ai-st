@@ -5,10 +5,12 @@ We synthesize a minimal EDF-shaped header (just the first 256 bytes are needed
 for our byte-level patcher to operate) and verify the patient + recording
 identification fields are overwritten while every other byte is preserved.
 """
+
+import io
 from pathlib import Path
+
 import pytest
 from PIL import Image
-import io
 
 from deidentify import deidentify_edf_header
 
@@ -21,7 +23,8 @@ def _make_image(width: int, height: int) -> bytes:
 
 
 def test_deidentify_screenshot_crops_top_strip():
-    from deidentify import deidentify_screenshot, TOP_CROP_PX
+    from deidentify import TOP_CROP_PX, deidentify_screenshot
+
     original = _make_image(800, 600)
     result = deidentify_screenshot(original)
     out_img = Image.open(io.BytesIO(result))

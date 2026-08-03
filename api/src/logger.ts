@@ -45,10 +45,12 @@ export function errorLogFields(error: unknown): SafeErrorLogFields {
   if (typeof candidate.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(candidate.code)) {
     fields.errorCode = candidate.code;
   }
-  if (typeof candidate.status === 'number'
-    && Number.isInteger(candidate.status)
-    && candidate.status >= 100
-    && candidate.status <= 599) {
+  if (
+    typeof candidate.status === 'number' &&
+    Number.isInteger(candidate.status) &&
+    candidate.status >= 100 &&
+    candidate.status <= 599
+  ) {
     fields.status = candidate.status;
   }
   return fields;
@@ -56,5 +58,8 @@ export function errorLogFields(error: unknown): SafeErrorLogFields {
 
 export function hashIp(ip: string | undefined): string {
   const salt = process.env['LOG_HASH_SALT'] ?? process.env['JWT_SECRET'] ?? 'local-development';
-  return createHash('sha256').update(`${salt}:${ip ?? ''}`).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(`${salt}:${ip ?? ''}`)
+    .digest('hex')
+    .slice(0, 16);
 }

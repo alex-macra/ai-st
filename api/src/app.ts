@@ -7,7 +7,12 @@ import { referencesRouter } from './routes/references.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createOrgRouter } from './routes/org.js';
 import { createAdminRouter } from './routes/admin.js';
-import { cleanupUploadTemp, enforceUploadContentLength, handleUpload, uploadMiddleware } from './upload.js';
+import {
+  cleanupUploadTemp,
+  enforceUploadContentLength,
+  handleUpload,
+  uploadMiddleware,
+} from './upload.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
 import { requireAuth } from './middleware/auth.js';
@@ -79,9 +84,9 @@ export function createApp(cfg: AppConfig = {}): Express {
           method: req.method,
           status: res.statusCode,
           durationMs: Date.now() - start,
-          ipHash: hashIp(req.ip)
+          ipHash: hashIp(req.ip),
         },
-        'request'
+        'request',
       );
     });
     next();
@@ -95,8 +100,8 @@ export function createApp(cfg: AppConfig = {}): Express {
         origin(origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) {
           if (!origin) return cb(null, true);
           cb(null, corsOrigins.includes(origin));
-        }
-      })
+        },
+      }),
     );
   }
 
@@ -115,9 +120,21 @@ export function createApp(cfg: AppConfig = {}): Express {
   // Loopback skips rate limiting in dev so health probes don't burn budget;
   // TEST_RATE_LIMIT_INCLUDE_LOOPBACK=1 disables the skip for limiter tests.
   const skipLoopback = process.env['TEST_RATE_LIMIT_INCLUDE_LOOPBACK'] !== '1';
-  const globalLimiter = createRateLimiter({ windowMs: rateLimitWindowMs, maxRequests: rateLimitMax, skipLoopback });
-  const uploadLimiter = createRateLimiter({ windowMs: rateLimitWindowMs, maxRequests: uploadRateLimitMax, skipLoopback });
-  const authLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, maxRequests: AUTH_RATE_LIMIT_MAX, skipLoopback: false });
+  const globalLimiter = createRateLimiter({
+    windowMs: rateLimitWindowMs,
+    maxRequests: rateLimitMax,
+    skipLoopback,
+  });
+  const uploadLimiter = createRateLimiter({
+    windowMs: rateLimitWindowMs,
+    maxRequests: uploadRateLimitMax,
+    skipLoopback,
+  });
+  const authLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    maxRequests: AUTH_RATE_LIMIT_MAX,
+    skipLoopback: false,
+  });
 
   app.use(globalLimiter);
 
@@ -135,22 +152,43 @@ export function createApp(cfg: AppConfig = {}): Express {
   app.use('/api/references', referencesRouter());
   app.use('/api/admin', createAdminRouter());
 
-  app.post('/api/upload', uploadLimiter, requireAuth, enforceUploadContentLength,
+  app.post(
+    '/api/upload',
+    uploadLimiter,
+    requireAuth,
+    enforceUploadContentLength,
     (req: Request, res: Response, next: NextFunction) => {
       uploadMiddleware(req, res, (err?: unknown) => {
-        if (!err) { next(); return; }
-        void cleanupUploadTemp(req).then(() => {
-          const code = err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : null;
-          if (code === 'LIMIT_UNEXPECTED_FILE' || code === 'LIMIT_FILE_COUNT') {
-            sendError(res, 400, 'TOO_MANY_FILES', 'Too many screenshots - max 100 allowed');
-          } else if (code === 'LIMIT_FILE_SIZE') {
-            sendError(res, 413, 'FILE_TOO_LARGE', 'One or more files exceed the size limit');
-          } else if (code === 'LIMIT_FIELD_VALUE' || code === 'LIMIT_FIELD_COUNT' || code === 'LIMIT_PART_COUNT') {
-            sendError(res, 413, 'UPLOAD_TOO_LARGE', 'The multipart request exceeds the size limit');
-          } else {
-            next(err);
-          }
-        }).catch(next);
+        if (!err) {
+          next();
+          return;
+        }
+        void cleanupUploadTemp(req)
+          .then(() => {
+            const code =
+              err && typeof err === 'object' && 'code' in err
+                ? (err as { code: string }).code
+                : null;
+            if (code === 'LIMIT_UNEXPECTED_FILE' || code === 'LIMIT_FILE_COUNT') {
+              sendError(res, 400, 'TOO_MANY_FILES', 'Too many screenshots - max 100 allowed');
+            } else if (code === 'LIMIT_FILE_SIZE') {
+              sendError(res, 413, 'FILE_TOO_LARGE', 'One or more files exceed the size limit');
+            } else if (
+              code === 'LIMIT_FIELD_VALUE' ||
+              code === 'LIMIT_FIELD_COUNT' ||
+              code === 'LIMIT_PART_COUNT'
+            ) {
+              sendError(
+                res,
+                413,
+                'UPLOAD_TOO_LARGE',
+                'The multipart request exceeds the size limit',
+              );
+            } else {
+              next(err);
+            }
+          })
+          .catch(next);
       });
     },
     (req: Request, res: Response): void => {
@@ -158,15 +196,14 @@ export function createApp(cfg: AppConfig = {}): Express {
         logger.error(errorLogFields(err), 'upload_handler_error');
         if (!res.headersSent) sendError(res, 500, 'INTERNAL_ERROR', 'Internal Server Error');
       });
-    }
+    },
   );
 
   const errorHandler: ErrorRequestHandler = (err: unknown, _req, res, _next) => {
     logger.error(errorLogFields(err), 'unhandled_error');
     if (res.headersSent) return;
-    const error = err && typeof err === 'object'
-      ? err as { status?: unknown; type?: unknown }
-      : null;
+    const error =
+      err && typeof err === 'object' ? (err as { status?: unknown; type?: unknown }) : null;
     if (error?.status === 400 && error.type === 'entity.parse.failed') {
       sendError(res, 400, 'INVALID_JSON', 'Request body is not valid JSON');
       return;

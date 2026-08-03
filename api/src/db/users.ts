@@ -37,7 +37,7 @@ function rowToUser(row: DbUserRow): User {
     isAdmin: row.is_admin === 1,
     tokenBudget: row.token_budget ?? 5_000_000,
     createdAt: row.created_at,
-    lastSeen: row.last_seen
+    lastSeen: row.last_seen,
   };
 }
 
@@ -47,7 +47,7 @@ function rowToOrg(row: DbOrgRow): Organization {
     name: row.name,
     joinCode: row.join_code,
     createdBy: row.created_by,
-    createdAt: row.created_at
+    createdAt: row.created_at,
   };
 }
 
@@ -64,13 +64,25 @@ export function createUser(email: string, organizationId?: string): User {
   const id = randomUUID();
   const now = new Date().toISOString();
   getDb()
-    .prepare('INSERT INTO users (id, email, organization_id, tier, is_admin, token_budget, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .prepare(
+      'INSERT INTO users (id, email, organization_id, tier, is_admin, token_budget, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
     .run(id, email, organizationId ?? null, 'starter', 0, 5_000_000, now);
-  return { id, email, organizationId: organizationId ?? null, tier: 'starter', isAdmin: false, tokenBudget: 5_000_000, createdAt: now, lastSeen: null };
+  return {
+    id,
+    email,
+    organizationId: organizationId ?? null,
+    tier: 'starter',
+    isAdmin: false,
+    tokenBudget: 5_000_000,
+    createdAt: now,
+    lastSeen: null,
+  };
 }
 
 export function getUserByEmail(email: string): User | undefined {
-  const row = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as DbUserRow | undefined;
+  const row = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as
+    DbUserRow | undefined;
   return row ? rowToUser(row) : undefined;
 }
 
@@ -80,7 +92,9 @@ export function getUserById(id: string): User | undefined {
 }
 
 export function touchLastSeen(userId: string): void {
-  getDb().prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(new Date().toISOString(), userId);
+  getDb()
+    .prepare('UPDATE users SET last_seen = ? WHERE id = ?')
+    .run(new Date().toISOString(), userId);
 }
 
 export function updateUserName(userId: string, name: string): void {
@@ -88,7 +102,9 @@ export function updateUserName(userId: string, name: string): void {
 }
 
 export function setUserAdmin(userId: string, isAdmin: boolean): void {
-  getDb().prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, userId);
+  getDb()
+    .prepare('UPDATE users SET is_admin = ? WHERE id = ?')
+    .run(isAdmin ? 1 : 0, userId);
 }
 
 export interface AdminUserRow {
@@ -102,7 +118,10 @@ export interface AdminUserRow {
   tokensTotal: number;
 }
 
-export function getUsersPage(page: number, pageSize: number): { users: AdminUserRow[]; total: number } {
+export function getUsersPage(
+  page: number,
+  pageSize: number,
+): { users: AdminUserRow[]; total: number } {
   const db = getDb();
   const offset = (page - 1) * pageSize;
   interface JoinRow {
@@ -115,7 +134,9 @@ export function getUsersPage(page: number, pageSize: number): { users: AdminUser
     last_seen: string | null;
     tokens_total: number;
   }
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT u.id, u.email, u.name, u.tier, u.is_admin, u.created_at, u.last_seen,
            COALESCE(SUM(aa.tokens_in + aa.tokens_out), 0) as tokens_total
       FROM users u
@@ -123,7 +144,9 @@ export function getUsersPage(page: number, pageSize: number): { users: AdminUser
      GROUP BY u.id
      ORDER BY u.created_at DESC
      LIMIT ? OFFSET ?
-  `).all(pageSize, offset) as JoinRow[];
+  `,
+    )
+    .all(pageSize, offset) as JoinRow[];
 
   const total = (db.prepare('SELECT COUNT(*) as n FROM users').get() as { n: number }).n;
 
@@ -153,16 +176,20 @@ export interface AdminDashboardCounts {
 export function getAdminDashboardCounts(): AdminDashboardCounts {
   const db = getDb();
   const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-  const q = <T>(sql: string, ...params: unknown[]) =>
-    db.prepare(sql).get(...params) as T;
+  const q = <T>(sql: string, ...params: unknown[]) => db.prepare(sql).get(...params) as T;
 
   return {
-    users:       q<{ n: number }>('SELECT COUNT(*) as n FROM users').n,
-    cases:       q<{ n: number }>('SELECT COUNT(*) as n FROM cases').n,
-    signedOff:   q<{ n: number }>("SELECT COUNT(*) as n FROM cases WHERE status = 'signed_off'").n,
-    pending:     q<{ n: number }>("SELECT COUNT(*) as n FROM cases WHERE status = 'pending_review'").n,
-    tokensTotal: q<{ n: number }>('SELECT COALESCE(SUM(tokens_in + tokens_out), 0) as n FROM analysis_audit').n,
-    casesToday:  q<{ n: number }>('SELECT COUNT(*) as n FROM cases WHERE created_at >= ?', todayStartIso).n,
+    users: q<{ n: number }>('SELECT COUNT(*) as n FROM users').n,
+    cases: q<{ n: number }>('SELECT COUNT(*) as n FROM cases').n,
+    signedOff: q<{ n: number }>("SELECT COUNT(*) as n FROM cases WHERE status = 'signed_off'").n,
+    pending: q<{ n: number }>("SELECT COUNT(*) as n FROM cases WHERE status = 'pending_review'").n,
+    tokensTotal: q<{ n: number }>(
+      'SELECT COALESCE(SUM(tokens_in + tokens_out), 0) as n FROM analysis_audit',
+    ).n,
+    casesToday: q<{ n: number }>(
+      'SELECT COUNT(*) as n FROM cases WHERE created_at >= ?',
+      todayStartIso,
+    ).n,
   };
 }
 
@@ -186,7 +213,7 @@ export function getUserHierarchicalUsage(userId: string, tokenBudget: number): H
   function tokensUsedSince(since: string): number {
     const row = db
       .prepare(
-        'SELECT COALESCE(SUM(tokens_in + tokens_out), 0) as total FROM analysis_audit WHERE user_id = ? AND created_at >= ?'
+        'SELECT COALESCE(SUM(tokens_in + tokens_out), 0) as total FROM analysis_audit WHERE user_id = ? AND created_at >= ?',
       )
       .get(userId, since) as { total: number };
     return row.total;
@@ -205,15 +232,23 @@ export function getUserHierarchicalUsage(userId: string, tokenBudget: number): H
 export function upsertOtp(email: string, code: string, ttlMs = 10 * 60 * 1000): void {
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   getDb()
-    .prepare('INSERT OR REPLACE INTO auth_otps (email, code, expires_at, attempts) VALUES (?, ?, ?, 0)')
+    .prepare(
+      'INSERT OR REPLACE INTO auth_otps (email, code, expires_at, attempts) VALUES (?, ?, ?, 0)',
+    )
     .run(email, otpDigest(email, code), expiresAt);
 }
 
 export function verifyAndConsumeOtp(email: string, code: string): boolean {
-  interface DbOtpRow { email: string; code: string; expires_at: string; attempts: number; }
+  interface DbOtpRow {
+    email: string;
+    code: string;
+    expires_at: string;
+    attempts: number;
+  }
   const db = getDb();
   return db.transaction(() => {
-    const row = db.prepare('SELECT * FROM auth_otps WHERE email = ?').get(email) as DbOtpRow | undefined;
+    const row = db.prepare('SELECT * FROM auth_otps WHERE email = ?').get(email) as
+      DbOtpRow | undefined;
     if (!row) return false;
     if (new Date(row.expires_at).getTime() <= Date.now()) {
       db.prepare('DELETE FROM auth_otps WHERE email = ?').run(email);
@@ -238,7 +273,8 @@ export function verifyAndConsumeOtp(email: string, code: string): boolean {
 }
 
 function otpDigest(email: string, code: string): string {
-  const pepper = process.env['OTP_PEPPER'] ?? process.env['JWT_SECRET'] ?? 'local-development-otp-pepper';
+  const pepper =
+    process.env['OTP_PEPPER'] ?? process.env['JWT_SECRET'] ?? 'local-development-otp-pepper';
   return createHmac('sha256', pepper).update(`${email}\0${code}`).digest('hex');
 }
 
@@ -247,18 +283,22 @@ export function createOrg(name: string, createdBy: string): Organization {
   const joinCode = generateJoinCode();
   const now = new Date().toISOString();
   getDb()
-    .prepare('INSERT INTO organizations (id, name, join_code, created_by, created_at) VALUES (?, ?, ?, ?, ?)')
+    .prepare(
+      'INSERT INTO organizations (id, name, join_code, created_by, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
     .run(id, name, joinCode, createdBy, now);
   return { id, name, joinCode, createdBy, createdAt: now };
 }
 
 export function getOrgById(id: string): Organization | undefined {
-  const row = getDb().prepare('SELECT * FROM organizations WHERE id = ?').get(id) as DbOrgRow | undefined;
+  const row = getDb().prepare('SELECT * FROM organizations WHERE id = ?').get(id) as
+    DbOrgRow | undefined;
   return row ? rowToOrg(row) : undefined;
 }
 
 export function getOrgByJoinCode(joinCode: string): Organization | undefined {
-  const row = getDb().prepare('SELECT * FROM organizations WHERE join_code = ?').get(joinCode) as DbOrgRow | undefined;
+  const row = getDb().prepare('SELECT * FROM organizations WHERE join_code = ?').get(joinCode) as
+    DbOrgRow | undefined;
   return row ? rowToOrg(row) : undefined;
 }
 
@@ -267,6 +307,8 @@ export function addUserToOrg(userId: string, orgId: string): void {
 }
 
 export function getOrgMembers(orgId: string): User[] {
-  const rows = getDb().prepare('SELECT * FROM users WHERE organization_id = ? ORDER BY created_at ASC').all(orgId) as DbUserRow[];
+  const rows = getDb()
+    .prepare('SELECT * FROM users WHERE organization_id = ? ORDER BY created_at ASC')
+    .all(orgId) as DbUserRow[];
   return rows.map(rowToUser);
 }

@@ -1,6 +1,20 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Search, BookOpen, FlaskConical } from 'lucide-react';
-import type { ActionPlan, ActionPlanItem, ArtifactCaveat, EvidenceReference, Finding } from '../shared/types';
+import {
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  CheckCircle2,
+  Search,
+  BookOpen,
+  FlaskConical,
+} from 'lucide-react';
+import type {
+  ActionPlan,
+  ActionPlanItem,
+  ArtifactCaveat,
+  EvidenceReference,
+  Finding,
+} from '../shared/types';
 import { stripInlineCitations } from '../utils';
 
 interface Props {
@@ -46,24 +60,44 @@ function Section({
         className="w-full flex items-center gap-2 px-4 py-3 text-left"
       >
         <span className="shrink-0">{icon}</span>
-        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex-1">{title}</span>
-        <span className="text-xs text-slate-400 mr-2">{count} item{count !== 1 ? 's' : ''}</span>
-        {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex-1">
+          {title}
+        </span>
+        <span className="text-xs text-slate-400 mr-2">
+          {count} item{count !== 1 ? 's' : ''}
+        </span>
+        {open ? (
+          <ChevronUp size={14} className="text-slate-400" />
+        ) : (
+          <ChevronDown size={14} className="text-slate-400" />
+        )}
       </button>
       {open && <div className="px-4 pb-4 pt-1 space-y-3">{children}</div>}
     </div>
   );
 }
 
-function ActionItem({ item, index, findings }: { item: ActionPlanItem; index: number; findings: Finding[] }) {
+function ActionItem({
+  item,
+  index,
+  findings,
+}: {
+  item: ActionPlanItem;
+  index: number;
+  findings: Finding[];
+}) {
   return (
     <div className="flex gap-3">
       <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs font-semibold flex items-center justify-center">
         {index + 1}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{stripInlineCitations(item.action)}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{stripInlineCitations(item.rationale)}</p>
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          {stripInlineCitations(item.action)}
+        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+          {stripInlineCitations(item.rationale)}
+        </p>
         {item.findingIds.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-0.5">
             {item.findingIds.map((id) => (
@@ -87,7 +121,9 @@ function ArtifactItem({ item, findings }: { item: ArtifactCaveat; findings: Find
             {f.claim}
           </p>
         )}
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{stripInlineCitations(item.concern)}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          {stripInlineCitations(item.concern)}
+        </p>
         <FindingBadge id={item.findingId} findings={findings} />
       </div>
     </div>
@@ -99,7 +135,8 @@ export function ActionPlanView({ plan, findings }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-1">
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Generated {new Date(plan.generatedAt).toLocaleString()} · {plan.modelVersion} · prompt {plan.promptVersion}
+          Generated {new Date(plan.generatedAt).toLocaleString()} · {plan.modelVersion} · prompt{' '}
+          {plan.promptVersion}
         </p>
       </div>
 
@@ -111,7 +148,9 @@ export function ActionPlanView({ plan, findings }: Props) {
         count={plan.priorityActions.length}
       >
         {plan.priorityActions.length === 0 ? (
-          <p className="text-xs text-slate-400">No high-confidence findings to anchor priority actions.</p>
+          <p className="text-xs text-slate-400">
+            No high-confidence findings to anchor priority actions.
+          </p>
         ) : (
           plan.priorityActions.map((item, i) => (
             <ActionItem key={i} item={item} index={i} findings={findings} />
@@ -157,14 +196,18 @@ export function ActionPlanView({ plan, findings }: Props) {
         count={1 + plan.clinicalContext.rareButRelevant.length}
       >
         <div>
-          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Common presentation</p>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+            Common presentation
+          </p>
           <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
             {stripInlineCitations(plan.clinicalContext.commonPresentation)}
           </p>
         </div>
         {plan.clinicalContext.treatmentEvidence && (
           <div>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Treatment evidence</p>
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+              Treatment evidence
+            </p>
             <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
               {stripInlineCitations(plan.clinicalContext.treatmentEvidence)}
             </p>
@@ -172,7 +215,9 @@ export function ActionPlanView({ plan, findings }: Props) {
         )}
         {plan.clinicalContext.rareButRelevant.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">Rare but relevant</p>
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+              Rare but relevant
+            </p>
             <ul className="space-y-1.5">
               {plan.clinicalContext.rareButRelevant.map((item, i) => (
                 <li key={i} className="flex gap-2 text-xs text-slate-600 dark:text-slate-300">
@@ -198,7 +243,8 @@ export function ActionPlanView({ plan, findings }: Props) {
       )}
 
       <p className="text-xs text-slate-400 dark:text-slate-500 italic pt-1">
-        AI-generated draft for clinician review. This is not a diagnosis. Every review task requires clinical judgement.
+        AI-generated draft for clinician review. This is not a diagnosis. Every review task requires
+        clinical judgement.
       </p>
     </div>
   );
@@ -210,18 +256,30 @@ function EvidenceTable({ refs }: { refs: EvidenceReference[] }) {
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b border-slate-200 dark:border-slate-700">
-            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-6">#</th>
-            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400">Study / Guideline</th>
-            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-16">Year</th>
-            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-20">Source</th>
-            <th className="text-left py-1 font-medium text-slate-500 dark:text-slate-400">Relevance</th>
+            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-6">
+              #
+            </th>
+            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400">
+              Study / Guideline
+            </th>
+            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-16">
+              Year
+            </th>
+            <th className="text-left py-1 pr-3 font-medium text-slate-500 dark:text-slate-400 w-20">
+              Source
+            </th>
+            <th className="text-left py-1 font-medium text-slate-500 dark:text-slate-400">
+              Relevance
+            </th>
           </tr>
         </thead>
         <tbody>
           {refs.map((ref, i) => (
             <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
               <td className="py-1 pr-3 font-mono text-slate-400">{i + 1}</td>
-              <td className="py-1 pr-3 font-medium text-slate-700 dark:text-slate-200">{ref.name}</td>
+              <td className="py-1 pr-3 font-medium text-slate-700 dark:text-slate-200">
+                {ref.name}
+              </td>
               <td className="py-1 pr-3 font-mono text-slate-500 dark:text-slate-400">{ref.year}</td>
               <td className="py-1 pr-3 text-slate-500 dark:text-slate-400">{ref.source}</td>
               <td className="py-1 text-slate-600 dark:text-slate-300">{ref.relevance}</td>

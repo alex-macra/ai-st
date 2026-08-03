@@ -93,9 +93,9 @@ export function createAdminRouter(): Router {
         if (nextIsAdmin === false) {
           if (actorId === targetId) return { kind: 'self_demote' as const };
           const adminCount = (
-            getDb()
-              .prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1')
-              .get() as { n: number }
+            getDb().prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1').get() as {
+              n: number;
+            }
           ).n;
           if (existing.isAdmin && adminCount <= 1) return { kind: 'last_admin' as const };
         }
@@ -125,7 +125,7 @@ export function createAdminRouter(): Router {
 
       logger.info(
         { actorId, targetUserId: targetId, isAdmin: nextIsAdmin },
-        'admin_user_admin_changed'
+        'admin_user_admin_changed',
       );
       res.json({ user: result.user });
     } catch (err) {
@@ -147,23 +147,34 @@ export function createAdminRouter(): Router {
         .prepare(
           `SELECT case_id, user_id, tokens_in, tokens_out, created_at
              FROM analysis_audit
-            ORDER BY created_at DESC`
+            ORDER BY created_at DESC`,
         )
         .all() as UsageRow[];
 
-      const headers = ['case_id', 'user_id', 'model', 'tokens_in', 'tokens_out', 'cache_read', 'cost_usd', 'created_at'];
+      const headers = [
+        'case_id',
+        'user_id',
+        'model',
+        'tokens_in',
+        'tokens_out',
+        'cache_read',
+        'cost_usd',
+        'created_at',
+      ];
       const lines = [headers.join(',')];
       for (const r of rows) {
-        lines.push([
-          csvEscape(r.case_id),
-          csvEscape(r.user_id),
-          csvEscape(''),
-          csvEscape(r.tokens_in),
-          csvEscape(r.tokens_out),
-          csvEscape(''),
-          csvEscape(''),
-          csvEscape(r.created_at),
-        ].join(','));
+        lines.push(
+          [
+            csvEscape(r.case_id),
+            csvEscape(r.user_id),
+            csvEscape(''),
+            csvEscape(r.tokens_in),
+            csvEscape(r.tokens_out),
+            csvEscape(''),
+            csvEscape(''),
+            csvEscape(r.created_at),
+          ].join(','),
+        );
       }
       const csv = lines.join('\n');
 
@@ -211,7 +222,7 @@ export function createAdminRouter(): Router {
                 + COALESCE(json_extract(c.token_stats, '$.pass2Out'), 0)
                 + COALESCE(json_extract(c.token_stats, '$.pass3Out'), 0) AS tokens_out
              FROM cases c
-            ORDER BY c.created_at DESC`
+            ORDER BY c.created_at DESC`,
         )
         .all() as CaseExportRow[];
 

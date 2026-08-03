@@ -18,17 +18,46 @@ import {
   ALLOWED_MODELS,
 } from './constants.js';
 import type { AllowedModel } from './constants.js';
-import { pass1SystemPrompt, pass1SystemPromptDocumentsOnly, pass2SystemPrompt, pass3SystemPrompt, pass3bReferenceCheckPrompt, pass4ActionPlanPrompt } from './prompts.js';
-import { getCaseById, updateCaseFindings, updateCaseTokenStats, updateCaseActionPlan, insertAuditRecord, insertAnalysisAuditRecord, getReferenceDocsForCohortAndType, nextCaseUpdatedAt } from './db.js';
+import {
+  pass1SystemPrompt,
+  pass1SystemPromptDocumentsOnly,
+  pass2SystemPrompt,
+  pass3SystemPrompt,
+  pass3bReferenceCheckPrompt,
+  pass4ActionPlanPrompt,
+} from './prompts.js';
+import {
+  getCaseById,
+  updateCaseFindings,
+  updateCaseTokenStats,
+  updateCaseActionPlan,
+  insertAuditRecord,
+  insertAnalysisAuditRecord,
+  getReferenceDocsForCohortAndType,
+  nextCaseUpdatedAt,
+} from './db.js';
 import { logger, errorLogFields } from './logger.js';
-import type { Finding, TokenStats, StructuredReport, ReferenceFlag, ReferenceDoc, ValidationWarning, ActionPlan, ReportSectionKey } from './shared/types.js';
+import type {
+  Finding,
+  TokenStats,
+  StructuredReport,
+  ReferenceFlag,
+  ReferenceDoc,
+  ValidationWarning,
+  ActionPlan,
+  ReportSectionKey,
+} from './shared/types.js';
 import { REPORT_SECTION_KEYS, REFERENCE_FLAG_SEVERITIES } from './shared/types.js';
 import { selectCandidates } from './tokenBudget.js';
 import type { CandidateWindow } from './tokenBudget.js';
 import { checkMetricBounds } from './metricBounds.js';
 import { parsePass2Output } from './structuredReportParser.js';
 import { getReferenceStatus, isReferenceRuleActive } from './refs/seedReferenceDocs.js';
-import { reviewedFindingsForActionPlan, reviewedReportForActionPlan, unreviewedSectionKeys } from './review.js';
+import {
+  reviewedFindingsForActionPlan,
+  reviewedReportForActionPlan,
+  unreviewedSectionKeys,
+} from './review.js';
 
 const client = getOpenAIClient();
 
@@ -74,7 +103,7 @@ const evidenceRefSchema = z.object({
   source: z.string().min(1),
   value: z.union([z.string(), z.number()]),
   timestamp: z.string().optional(),
-  eventId: z.string().optional()
+  eventId: z.string().optional(),
 });
 
 const findingSchema = z.object({
@@ -82,32 +111,38 @@ const findingSchema = z.object({
   claim: z.string().min(1),
   confidence: z.enum(FINDING_CONFIDENCES),
   uncertainty: z.string().optional(),
-  evidence: z.array(evidenceRefSchema).min(1)
+  evidence: z.array(evidenceRefSchema).min(1),
 });
 
 const pass1ResponseSchema = z.object({
-  findings: z.array(findingSchema)
+  findings: z.array(findingSchema),
 });
 
 const sectionKeyEnum = z.enum(REPORT_SECTION_KEYS);
 
 const pass3ResponseSchema = z.object({
   valid: z.boolean(),
-  rejections: z.array(z.object({
-    section: z.string().optional(),
-    quote: z.string(),
-    reason: z.string()
-  })).default([])
+  rejections: z
+    .array(
+      z.object({
+        section: z.string().optional(),
+        quote: z.string(),
+        reason: z.string(),
+      }),
+    )
+    .default([]),
 });
 
 const pass3bResponseSchema = z.object({
-  flags: z.array(z.object({
-    ruleId: z.string().min(1),
-    section: sectionKeyEnum.optional(),
-    quote: z.string(),
-    issue: z.string().min(1),
-    severity: z.enum(REFERENCE_FLAG_SEVERITIES)
-  }))
+  flags: z.array(
+    z.object({
+      ruleId: z.string().min(1),
+      section: sectionKeyEnum.optional(),
+      quote: z.string(),
+      issue: z.string().min(1),
+      severity: z.enum(REFERENCE_FLAG_SEVERITIES),
+    }),
+  ),
 });
 
 interface CohortType {
@@ -141,12 +176,17 @@ function compactRulesForPrompt(docs: ReferenceDoc[]): CompactRule[] {
       if (parsed.rule && parsed.appliesTo) {
         out.push({ ruleId: d.id, rule: parsed.rule, appliesTo: parsed.appliesTo });
       }
-    } catch { /* skip non-JSON ref content */ }
+    } catch {
+      /* skip non-JSON ref content */
+    }
   }
   return out;
 }
 
-function sectionHasContent(report: StructuredReport, key: typeof REPORT_SECTION_KEYS[number]): boolean {
+function sectionHasContent(
+  report: StructuredReport,
+  key: (typeof REPORT_SECTION_KEYS)[number],
+): boolean {
   const v = report[key];
   if (v === undefined || v === null) return false;
   if (typeof v === 'string') return v.trim().length > 0;
@@ -177,16 +217,31 @@ function isNonActionableRejection(reason: string): boolean {
 
 function validateCitations(
   report: StructuredReport,
-  findings: Finding[]
-): { valid: boolean; rejections: Array<{ section: typeof REPORT_SECTION_KEYS[number]; quote: string; reason: string }> } {
+  findings: Finding[],
+): {
+  valid: boolean;
+  rejections: Array<{
+    section: (typeof REPORT_SECTION_KEYS)[number];
+    quote: string;
+    reason: string;
+  }>;
+} {
   const findingIds = new Set(findings.map((f) => f.id));
-  const rejections: Array<{ section: typeof REPORT_SECTION_KEYS[number]; quote: string; reason: string }> = [];
+  const rejections: Array<{
+    section: (typeof REPORT_SECTION_KEYS)[number];
+    quote: string;
+    reason: string;
+  }> = [];
 
   for (const key of REPORT_SECTION_KEYS) {
     if (!sectionHasContent(report, key)) continue;
     const cited = report.citations[key] ?? [];
     if (cited.length === 0) {
-      rejections.push({ section: key, quote: JSON.stringify(report[key]), reason: 'Section has values but no citations' });
+      rejections.push({
+        section: key,
+        quote: JSON.stringify(report[key]),
+        reason: 'Section has values but no citations',
+      });
       continue;
     }
     for (const id of cited) {
@@ -203,7 +258,12 @@ const MAX_ANALYSIS_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function isWithinDirectory(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
-  return relative.length > 0 && !relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative);
+  return (
+    relative.length > 0 &&
+    !relative.startsWith(`..${path.sep}`) &&
+    relative !== '..' &&
+    !path.isAbsolute(relative)
+  );
 }
 
 async function loadChartAsBase64(chartPath: string): Promise<{ b64: string; mime: string } | null> {
@@ -213,17 +273,19 @@ async function loadChartAsBase64(chartPath: string): Promise<{ b64: string; mime
     const requested = path.resolve(root, clean);
     if (!isWithinDirectory(root, requested)) return null;
     const stat = await lstat(requested);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_ANALYSIS_IMAGE_BYTES) return null;
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_ANALYSIS_IMAGE_BYTES)
+      return null;
     const resolved = await realpath(requested);
     if (!isWithinDirectory(root, resolved)) return null;
     const ext = path.extname(resolved).toLowerCase();
-    const mime = ext === '.png'
-      ? 'image/png'
-      : ext === '.webp'
-        ? 'image/webp'
-        : ext === '.jpg' || ext === '.jpeg'
-          ? 'image/jpeg'
-          : null;
+    const mime =
+      ext === '.png'
+        ? 'image/png'
+        : ext === '.webp'
+          ? 'image/webp'
+          : ext === '.jpg' || ext === '.jpeg'
+            ? 'image/jpeg'
+            : null;
     if (!mime) return null;
     const buf = await readFile(resolved);
     return { b64: buf.toString('base64'), mime };
@@ -233,14 +295,13 @@ async function loadChartAsBase64(chartPath: string): Promise<{ b64: string; mime
 }
 
 type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string; detail: 'low' } };
+  { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail: 'low' } };
 
 type ScreenshotMeta = { id: string; originalName: string };
 
 async function loadScreenshotAsBase64(
   caseId: string,
-  screenshotId: string
+  screenshotId: string,
 ): Promise<{ b64: string; mime: string } | null> {
   try {
     const dir = path.join(SCREENSHOTS_DIR, caseId);
@@ -249,14 +310,18 @@ async function loadScreenshotAsBase64(
     if (!filename) return null;
     const screenshotPath = path.join(dir, filename);
     const stat = await lstat(screenshotPath);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_ANALYSIS_IMAGE_BYTES) return null;
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_ANALYSIS_IMAGE_BYTES)
+      return null;
     const buf = await readFile(screenshotPath);
     const ext = path.extname(filename).toLowerCase();
     const mime =
-      ext === '.png'  ? 'image/png'  :
-      ext === '.gif'  ? 'image/gif'  :
-      ext === '.webp' ? 'image/webp' :
-      'image/jpeg';
+      ext === '.png'
+        ? 'image/png'
+        : ext === '.gif'
+          ? 'image/gif'
+          : ext === '.webp'
+            ? 'image/webp'
+            : 'image/jpeg';
     return { b64: buf.toString('base64'), mime };
   } catch {
     return null;
@@ -265,7 +330,7 @@ async function loadScreenshotAsBase64(
 
 async function buildPass1UserContent(
   casePackageJson: string,
-  caseId: string
+  caseId: string,
 ): Promise<ContentBlock[]> {
   let candidates: CandidateWindow[] = [];
   let pkg: Record<string, unknown> = {};
@@ -275,14 +340,19 @@ async function buildPass1UserContent(
     packageParsed = true;
     const raw = pkg['candidate_windows'];
     if (Array.isArray(raw)) candidates = raw as CandidateWindow[];
-  } catch { /* malformed package - proceed without budgeting */ }
+  } catch {
+    /* malformed package - proceed without budgeting */
+  }
 
   const blocks: ContentBlock[] = [];
 
   if (candidates.length === 0) {
     blocks.push({
       type: 'text',
-      text: untrustedJson('case-package', packageParsed ? pkg : { malformedPackage: casePackageJson }),
+      text: untrustedJson(
+        'case-package',
+        packageParsed ? pkg : { malformedPackage: casePackageJson },
+      ),
     });
   } else {
     const budget = selectCandidates(candidates, caseId);
@@ -290,7 +360,9 @@ async function buildPass1UserContent(
     let trimmedPackage: Record<string, unknown>;
     try {
       trimmedPackage = { ...pkg };
-      trimmedPackage['candidate_windows'] = budget.textCandidates.map(({ chart_path: _cp, ...rest }) => rest);
+      trimmedPackage['candidate_windows'] = budget.textCandidates.map(
+        ({ chart_path: _cp, ...rest }) => rest,
+      );
       trimmedPackage['token_budget'] = {
         selected: budget.textCandidates.length,
         images_attached: budget.imageCandidates.length,
@@ -348,7 +420,7 @@ export async function runAnalysis(
   caseId: string,
   res: Response,
   signal: AbortSignal,
-  modelId?: string
+  modelId?: string,
 ): Promise<void> {
   const model = validateModel(modelId) ?? GPT_MODEL;
 
@@ -365,13 +437,25 @@ export async function runAnalysis(
   try {
     const pkg = JSON.parse(casePackageJson) as Record<string, unknown>;
     isDocumentsOnly = pkg['edf_available'] === false;
-  } catch { /* malformed package - proceed, Pass 1 will surface the issue */ }
-
-  if (isDocumentsOnly) {
-    sse(res, { type: 'documents_only_mode', message: 'No EDF available - analysis uses PDF metrics and screenshots only.' });
+  } catch {
+    /* malformed package - proceed, Pass 1 will surface the issue */
   }
 
-  const tokenStats: TokenStats = { pass1In: 0, pass1Out: 0, pass2In: 0, pass2Out: 0, pass3In: 0, pass3Out: 0 };
+  if (isDocumentsOnly) {
+    sse(res, {
+      type: 'documents_only_mode',
+      message: 'No EDF available - analysis uses PDF metrics and screenshots only.',
+    });
+  }
+
+  const tokenStats: TokenStats = {
+    pass1In: 0,
+    pass1Out: 0,
+    pass2In: 0,
+    pass2Out: 0,
+    pass3In: 0,
+    pass3Out: 0,
+  };
   const { cohort: caseCohort } = detectCohortAndType(casePackageJson);
 
   try {
@@ -380,25 +464,43 @@ export async function runAnalysis(
 
     const pass1UserContent = await buildPass1UserContent(casePackageJson, caseId);
 
-    const pass1 = await callPass({
-      model,
-      max_completion_tokens: 16384,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: isDocumentsOnly ? pass1SystemPromptDocumentsOnly(caseCohort) : pass1SystemPrompt(caseCohort) },
-        { role: 'user', content: pass1UserContent }
-      ]
-    }, signal);
+    const pass1 = await callPass(
+      {
+        model,
+        max_completion_tokens: 16384,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: isDocumentsOnly
+              ? pass1SystemPromptDocumentsOnly(caseCohort)
+              : pass1SystemPrompt(caseCohort),
+          },
+          { role: 'user', content: pass1UserContent },
+        ],
+      },
+      signal,
+    );
 
-    if (!pass1) { res.end(); return; }
+    if (!pass1) {
+      res.end();
+      return;
+    }
 
-    tokenStats.pass1In       = pass1.tokensIn;
-    tokenStats.pass1Out      = pass1.tokensOut;
+    tokenStats.pass1In = pass1.tokensIn;
+    tokenStats.pass1Out = pass1.tokensOut;
     tokenStats.pass1CacheRead = pass1.cacheReadTokens;
 
     if (pass1.truncated) {
-      logger.error({ tokensIn: tokenStats.pass1In, tokensOut: tokenStats.pass1Out }, 'pass1_truncated');
-      sse(res, { type: 'error', message: 'Pass 1 response was truncated - too many findings or images. Try with fewer screenshots.' });
+      logger.error(
+        { tokensIn: tokenStats.pass1In, tokensOut: tokenStats.pass1Out },
+        'pass1_truncated',
+      );
+      sse(res, {
+        type: 'error',
+        message:
+          'Pass 1 response was truncated - too many findings or images. Try with fewer screenshots.',
+      });
       res.end();
       return;
     }
@@ -420,7 +522,7 @@ export async function runAnalysis(
     if (evidenceFiltered.length < rawFindings.length) {
       logger.warn(
         { dropped: rawFindings.length - evidenceFiltered.length },
-        'pass1_findings_dropped_no_evidence'
+        'pass1_findings_dropped_no_evidence',
       );
     }
 
@@ -445,53 +547,78 @@ export async function runAnalysis(
       }
       if (!drop) {
         validatedFindings.push(
-          uncertaintyNotes.length > 0
-            ? { ...f, uncertainty: uncertaintyNotes.join('; ') }
-            : f
+          uncertaintyNotes.length > 0 ? { ...f, uncertainty: uncertaintyNotes.join('; ') } : f,
         );
       }
     }
     if (validatedFindings.length < evidenceFiltered.length) {
       logger.warn(
         { dropped: evidenceFiltered.length - validatedFindings.length },
-        'metric_impossible_values_dropped'
+        'metric_impossible_values_dropped',
       );
     }
 
     // Remap LLM-generated IDs to stable sequential F-001, F-002, … so Pass 2/3
     // can cite them reliably and the report never shows raw UUIDs.
     const idMap = new Map(
-      validatedFindings.map((f, i) => [f.id, `F-${String(i + 1).padStart(3, '0')}`])
+      validatedFindings.map((f, i) => [f.id, `F-${String(i + 1).padStart(3, '0')}`]),
     );
     for (const f of validatedFindings) {
       f.id = idMap.get(f.id)!;
     }
 
-    sse(res, { type: 'progress', pass: 1, message: `Extracted ${validatedFindings.length} findings` });
-    sse(res, { type: 'stage_complete', pass: 1, tokensIn: tokenStats.pass1In, tokensOut: tokenStats.pass1Out, findingCount: validatedFindings.length });
+    sse(res, {
+      type: 'progress',
+      pass: 1,
+      message: `Extracted ${validatedFindings.length} findings`,
+    });
+    sse(res, {
+      type: 'stage_complete',
+      pass: 1,
+      tokensIn: tokenStats.pass1In,
+      tokensOut: tokenStats.pass1Out,
+      findingCount: validatedFindings.length,
+    });
 
     // ── Pass 2: structured report draft ────────────────────────────────────
     sse(res, { type: 'progress', pass: 2, message: 'Drafting structured report…' });
 
-    const pass2 = await callPass({
-      model,
-      max_completion_tokens: 4096,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: pass2SystemPrompt(caseCohort) },
-        { role: 'user', content: untrustedJson('validated-findings', validatedFindings) }
-      ]
-    }, signal);
+    const pass2 = await callPass(
+      {
+        model,
+        max_completion_tokens: 4096,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: pass2SystemPrompt(caseCohort) },
+          { role: 'user', content: untrustedJson('validated-findings', validatedFindings) },
+        ],
+      },
+      signal,
+    );
 
-    if (!pass2) { res.end(); return; }
+    if (!pass2) {
+      res.end();
+      return;
+    }
 
-    tokenStats.pass2In       = pass2.tokensIn;
-    tokenStats.pass2Out      = pass2.tokensOut;
+    tokenStats.pass2In = pass2.tokensIn;
+    tokenStats.pass2Out = pass2.tokensOut;
     tokenStats.pass2CacheRead = pass2.cacheReadTokens;
 
     if (pass2.truncated) {
-      logger.error({ tokensIn: tokenStats.pass2In, tokensOut: tokenStats.pass2Out, findingCount: validatedFindings.length }, 'pass2_truncated');
-      sse(res, { type: 'error', message: 'Pass 2 response was truncated - too many findings to fit in the report. Try with fewer screenshots.' });
+      logger.error(
+        {
+          tokensIn: tokenStats.pass2In,
+          tokensOut: tokenStats.pass2Out,
+          findingCount: validatedFindings.length,
+        },
+        'pass2_truncated',
+      );
+      sse(res, {
+        type: 'error',
+        message:
+          'Pass 2 response was truncated - too many findings to fit in the report. Try with fewer screenshots.',
+      });
       res.end();
       return;
     }
@@ -509,67 +636,101 @@ export async function runAnalysis(
     if (parseOutcome.coerced) {
       logger.warn({ warningCount: parseOutcome.warnings.length, caseId }, 'pass2_output_coerced');
       for (const w of parseOutcome.warnings) {
-        validationWarnings.push({ stage: 'citation_check', section: 'summary', quote: '', reason: `Pass 2 output coerced: ${w}` });
+        validationWarnings.push({
+          stage: 'citation_check',
+          section: 'summary',
+          quote: '',
+          reason: `Pass 2 output coerced: ${w}`,
+        });
       }
     }
 
     // Deterministic citation pre-check - collected as advisory warnings, not a hard block.
     const localCheck = validateCitations(structuredReport, validatedFindings);
     if (!localCheck.valid) {
-      logger.warn({ warningCount: localCheck.rejections.length, caseId }, 'pass2_citation_check_warnings');
+      logger.warn(
+        { warningCount: localCheck.rejections.length, caseId },
+        'pass2_citation_check_warnings',
+      );
       for (const r of localCheck.rejections) {
-        validationWarnings.push({ stage: 'citation_check', section: r.section, quote: r.quote, reason: r.reason });
+        validationWarnings.push({
+          stage: 'citation_check',
+          section: r.section,
+          quote: r.quote,
+          reason: r.reason,
+        });
       }
     }
 
     sse(res, { type: 'progress', pass: 2, message: 'Structured report drafted' });
-    sse(res, { type: 'stage_complete', pass: 2, tokensIn: tokenStats.pass2In, tokensOut: tokenStats.pass2Out });
+    sse(res, {
+      type: 'stage_complete',
+      pass: 2,
+      tokensIn: tokenStats.pass2In,
+      tokensOut: tokenStats.pass2Out,
+    });
 
     // ── Pass 3: skeptical validator ────────────────────────────────────────
     sse(res, { type: 'progress', pass: 3, message: 'Validating report sections…' });
 
-    const pass3 = await callPass({
-      model: NANO_MODEL,
-      max_completion_tokens: 4096,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: pass3SystemPrompt() },
-        {
-          role: 'user',
-          content: [
-            untrustedJson('structured-report', structuredReport),
-            untrustedJson('validated-findings', validatedFindings),
-          ].join('\n\n'),
-        }
-      ]
-    }, signal);
+    const pass3 = await callPass(
+      {
+        model: NANO_MODEL,
+        max_completion_tokens: 4096,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: pass3SystemPrompt() },
+          {
+            role: 'user',
+            content: [
+              untrustedJson('structured-report', structuredReport),
+              untrustedJson('validated-findings', validatedFindings),
+            ].join('\n\n'),
+          },
+        ],
+      },
+      signal,
+    );
 
-    if (!pass3) { res.end(); return; }
+    if (!pass3) {
+      res.end();
+      return;
+    }
 
-    tokenStats.pass3In       = pass3.tokensIn;
-    tokenStats.pass3Out      = pass3.tokensOut;
+    tokenStats.pass3In = pass3.tokensIn;
+    tokenStats.pass3Out = pass3.tokensOut;
     tokenStats.pass3CacheRead = pass3.cacheReadTokens;
 
     const pass3Text = pass3.text;
     let validationResult: z.infer<typeof pass3ResponseSchema>;
     if (pass3.truncated) {
       logger.warn({ caseId, tokensOut: tokenStats.pass3Out }, 'pass3_truncated');
-      validationResult = { valid: false, rejections: [{ quote: '', reason: 'Validator response was truncated' }] };
+      validationResult = {
+        valid: false,
+        rejections: [{ quote: '', reason: 'Validator response was truncated' }],
+      };
     } else {
       try {
         validationResult = pass3ResponseSchema.parse(JSON.parse(pass3Text));
       } catch {
         logger.warn({ caseId }, 'pass3_json_parse_error');
-        validationResult = { valid: false, rejections: [{ quote: '', reason: 'Validator returned invalid JSON' }] };
+        validationResult = {
+          valid: false,
+          rejections: [{ quote: '', reason: 'Validator returned invalid JSON' }],
+        };
       }
     }
 
     if (!validationResult.valid) {
-      logger.warn({ warningCount: validationResult.rejections.length, caseId }, 'pass3_validation_warnings');
+      logger.warn(
+        { warningCount: validationResult.rejections.length, caseId },
+        'pass3_validation_warnings',
+      );
       for (const r of validationResult.rejections) {
         if (isNonActionableRejection(r.reason)) continue;
         const w: ValidationWarning = { stage: 'pass3', quote: r.quote, reason: r.reason };
-        if (r.section && (REPORT_SECTION_KEYS as readonly string[]).includes(r.section)) w.section = r.section as ReportSectionKey;
+        if (r.section && (REPORT_SECTION_KEYS as readonly string[]).includes(r.section))
+          w.section = r.section as ReportSectionKey;
         validationWarnings.push(w);
       }
     }
@@ -577,50 +738,69 @@ export async function runAnalysis(
     sse(res, {
       type: 'progress',
       pass: 3,
-      message: validationWarnings.length > 0
-        ? `Validation produced ${validationWarnings.length} warning(s)`
-        : 'Validation passed'
+      message:
+        validationWarnings.length > 0
+          ? `Validation produced ${validationWarnings.length} warning(s)`
+          : 'Validation passed',
     });
     if (validationWarnings.length > 0) {
       sse(res, { type: 'validation_warnings', warnings: validationWarnings });
     }
-    sse(res, { type: 'stage_complete', pass: 3, tokensIn: tokenStats.pass3In, tokensOut: tokenStats.pass3Out, warningCount: validationWarnings.length });
+    sse(res, {
+      type: 'stage_complete',
+      pass: 3,
+      tokensIn: tokenStats.pass3In,
+      tokensOut: tokenStats.pass3Out,
+      warningCount: validationWarnings.length,
+    });
 
     // ── Pass 3b: reference cross-check (advisory) ──────────────────────────
     const referenceDocs = getReferenceStatus().enabled
-      ? getReferenceDocsForCohortAndType(caseCohort, 'hsat').filter((doc) => isReferenceRuleActive(doc.id))
+      ? getReferenceDocsForCohortAndType(caseCohort, 'hsat').filter((doc) =>
+          isReferenceRuleActive(doc.id),
+        )
       : [];
     const compactRules = compactRulesForPrompt(referenceDocs);
     let referenceFlags: ReferenceFlag[] = [];
 
     if (compactRules.length > 0) {
-      sse(res, { type: 'progress', pass: 3, message: `Reference cross-check (${compactRules.length} rules)…` });
-      const pass3bTokenBaseIn  = tokenStats.pass3In;
+      sse(res, {
+        type: 'progress',
+        pass: 3,
+        message: `Reference cross-check (${compactRules.length} rules)…`,
+      });
+      const pass3bTokenBaseIn = tokenStats.pass3In;
       const pass3bTokenBaseOut = tokenStats.pass3Out;
       try {
-        const pass3b = await callPass({
-          model: NANO_MODEL,
-          max_completion_tokens: 1024,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: pass3bReferenceCheckPrompt() },
-            {
-              role: 'user',
-              content: [
-                untrustedJson('cohort', caseCohort),
-                untrustedJson('reference-rules', compactRules),
-                untrustedJson('structured-report', structuredReport),
-                untrustedJson('validated-findings', validatedFindings),
-              ].join('\n\n'),
-            }
-          ]
-        }, signal);
+        const pass3b = await callPass(
+          {
+            model: NANO_MODEL,
+            max_completion_tokens: 1024,
+            response_format: { type: 'json_object' },
+            messages: [
+              { role: 'system', content: pass3bReferenceCheckPrompt() },
+              {
+                role: 'user',
+                content: [
+                  untrustedJson('cohort', caseCohort),
+                  untrustedJson('reference-rules', compactRules),
+                  untrustedJson('structured-report', structuredReport),
+                  untrustedJson('validated-findings', validatedFindings),
+                ].join('\n\n'),
+              },
+            ],
+          },
+          signal,
+        );
 
-        if (!pass3b) { res.end(); return; }
+        if (!pass3b) {
+          res.end();
+          return;
+        }
 
-        tokenStats.pass3In        += pass3b.tokensIn;
-        tokenStats.pass3Out       += pass3b.tokensOut;
-        tokenStats.pass3CacheRead  = (tokenStats.pass3CacheRead ?? 0) + pass3b.cacheReadTokens;
+        tokenStats.pass3In += pass3b.tokensIn;
+        tokenStats.pass3Out += pass3b.tokensOut;
+        tokenStats.pass3CacheRead = (tokenStats.pass3CacheRead ?? 0) + pass3b.cacheReadTokens;
 
         const pass3bText = pass3b.text;
         const parsedFlags = pass3bResponseSchema.safeParse(JSON.parse(pass3bText));
@@ -637,11 +817,14 @@ export async function runAnalysis(
           if (accepted.length < parsedFlags.data.flags.length) {
             logger.warn(
               { dropped: parsedFlags.data.flags.length - accepted.length, caseId },
-              'pass3b_flags_dropped_unknown_rule_id'
+              'pass3b_flags_dropped_unknown_rule_id',
             );
           }
         } else {
-          logger.warn({ issueCount: parsedFlags.error.issues.length, caseId }, 'pass3b_parse_error');
+          logger.warn(
+            { issueCount: parsedFlags.error.issues.length, caseId },
+            'pass3b_parse_error',
+          );
         }
       } catch (err) {
         logger.warn({ ...errorLogFields(err), caseId }, 'pass3b_failed_continuing');
@@ -665,7 +848,14 @@ export async function runAnalysis(
     // ── Persist ────────────────────────────────────────────────────────────
     const now = nextCaseUpdatedAt(c.updatedAt);
     const narrative = structuredReport.impression;
-    const findingsPendingReview = validatedFindings.map(({ reviewerDecision: _decision, reviewedAt: _reviewedAt, editedClaim: _editedClaim, ...finding }) => finding);
+    const findingsPendingReview = validatedFindings.map(
+      ({
+        reviewerDecision: _decision,
+        reviewedAt: _reviewedAt,
+        editedClaim: _editedClaim,
+        ...finding
+      }) => finding,
+    );
     const persisted = updateCaseFindings(
       caseId,
       findingsPendingReview,
@@ -675,15 +865,18 @@ export async function runAnalysis(
       structuredReport,
       referenceFlags,
       validationWarnings,
-      c.updatedAt
+      c.updatedAt,
     );
     if (!persisted) {
-      sse(res, { type: 'error', message: 'Case changed while analysis was running; the stale draft was not saved.' });
+      sse(res, {
+        type: 'error',
+        message: 'Case changed while analysis was running; the stale draft was not saved.',
+      });
       return;
     }
     updateCaseTokenStats(caseId, tokenStats, now);
     if (c.createdBy) {
-      const totalIn  = tokenStats.pass1In  + tokenStats.pass2In  + tokenStats.pass3In;
+      const totalIn = tokenStats.pass1In + tokenStats.pass2In + tokenStats.pass3In;
       const totalOut = tokenStats.pass1Out + tokenStats.pass2Out + tokenStats.pass3Out;
       insertAnalysisAuditRecord(caseId, c.createdBy, totalIn, totalOut);
     }
@@ -699,7 +892,7 @@ export async function runAnalysis(
         validationWarningCount: validationWarnings.length,
         tokenStats,
       },
-      createdAt: now
+      createdAt: now,
     });
 
     sse(res, {
@@ -731,34 +924,42 @@ export async function runAnalysis(
 const actionPlanItemSchema = z.object({
   action: z.string().min(1),
   rationale: z.string().min(1),
-  findingIds: z.array(z.string())
+  findingIds: z.array(z.string()),
 });
 
 const actionPlanResponseSchema = z.object({
   priorityActions: z.array(actionPlanItemSchema).default([]),
   verifyNext: z.array(actionPlanItemSchema).default([]),
-  artifactCaveats: z.array(z.object({
-    findingId: z.string().min(1),
-    concern: z.string().min(1)
-  })).default([]),
+  artifactCaveats: z
+    .array(
+      z.object({
+        findingId: z.string().min(1),
+        concern: z.string().min(1),
+      }),
+    )
+    .default([]),
   clinicalContext: z.object({
     commonPresentation: z.string().min(1),
     rareButRelevant: z.array(z.string()).default([]),
-    treatmentEvidence: z.string().optional()
+    treatmentEvidence: z.string().optional(),
   }),
-  evidenceReferences: z.array(z.object({
-    name: z.string().min(1),
-    year: z.string().min(1),
-    source: z.string().min(1),
-    relevance: z.string().min(1)
-  })).default([])
+  evidenceReferences: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        year: z.string().min(1),
+        source: z.string().min(1),
+        relevance: z.string().min(1),
+      }),
+    )
+    .default([]),
 });
 
 export async function runActionPlan(
   caseId: string,
   res: Response,
   signal: AbortSignal,
-  modelId?: string
+  modelId?: string,
 ): Promise<void> {
   const model = validateModel(modelId) ?? GPT_MODEL;
 
@@ -770,7 +971,10 @@ export async function runActionPlan(
   }
 
   if (!c.findings?.length || !c.structuredReport) {
-    sse(res, { type: 'error', message: 'Case has no analysis to base the action plan on. Run analysis first.' });
+    sse(res, {
+      type: 'error',
+      message: 'Case has no analysis to base the action plan on. Run analysis first.',
+    });
     res.end();
     return;
   }
@@ -779,15 +983,25 @@ export async function runActionPlan(
 
   // High-confidence findings anchor recommendations; medium provide supporting context.
   // Low-confidence findings are included so the LLM can surface them in verifyNext.
-  if (c.findings.some((finding) => !finding.reviewerDecision) || unreviewedSectionKeys(c).length > 0) {
-    sse(res, { type: 'error', message: 'Review all findings and populated report sections before generating an action plan.' });
+  if (
+    c.findings.some((finding) => !finding.reviewerDecision) ||
+    unreviewedSectionKeys(c).length > 0
+  ) {
+    sse(res, {
+      type: 'error',
+      message:
+        'Review all findings and populated report sections before generating an action plan.',
+    });
     res.end();
     return;
   }
 
   const findingsForPlan = reviewedFindingsForActionPlan(c);
   if (findingsForPlan.length === 0) {
-    sse(res, { type: 'error', message: 'No accepted or uncertain findings remain for an action plan.' });
+    sse(res, {
+      type: 'error',
+      message: 'No accepted or uncertain findings remain for an action plan.',
+    });
     res.end();
     return;
   }
@@ -802,21 +1016,27 @@ export async function runActionPlan(
       untrustedJson('structured-report', reportForPlan),
     ].join('\n\n');
 
-    const pass4 = await callPass({
-      model,
-      max_completion_tokens: ACTION_PLAN_MAX_OUTPUT_TOKENS,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: pass4ActionPlanPrompt(cohort) },
-        { role: 'user', content: userContent }
-      ]
-    }, signal);
+    const pass4 = await callPass(
+      {
+        model,
+        max_completion_tokens: ACTION_PLAN_MAX_OUTPUT_TOKENS,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: pass4ActionPlanPrompt(cohort) },
+          { role: 'user', content: userContent },
+        ],
+      },
+      signal,
+    );
 
-    if (!pass4) { res.end(); return; }
+    if (!pass4) {
+      res.end();
+      return;
+    }
 
-    const tokensIn         = pass4.tokensIn;
-    const tokensOut        = pass4.tokensOut;
-    const pass4CacheRead   = pass4.cacheReadTokens;
+    const tokensIn = pass4.tokensIn;
+    const tokensOut = pass4.tokensOut;
+    const pass4CacheRead = pass4.cacheReadTokens;
 
     const rawText = pass4.text;
     let parsed: z.infer<typeof actionPlanResponseSchema>;
@@ -831,16 +1051,25 @@ export async function runActionPlan(
 
     // Guard: only reference finding IDs that actually exist in this case
     const knownIds = new Set(findingsForPlan.map((finding) => finding.id));
-    const priorityIds = new Set(findingsForPlan
-      .filter((finding) => finding.confidence === 'high'
-        && (finding.reviewerDecision === 'confirm' || finding.reviewerDecision === 'edit'))
-      .map((finding) => finding.id));
+    const priorityIds = new Set(
+      findingsForPlan
+        .filter(
+          (finding) =>
+            finding.confidence === 'high' &&
+            (finding.reviewerDecision === 'confirm' || finding.reviewerDecision === 'edit'),
+        )
+        .map((finding) => finding.id),
+    );
     const sanitiseItems = (
       items: z.infer<typeof actionPlanItemSchema>[],
-      allowedIds: Set<string>
-    ) => items
-      .map((item) => ({ ...item, findingIds: [...new Set(item.findingIds.filter((id) => allowedIds.has(id)))] }))
-      .filter((item) => item.findingIds.length > 0);
+      allowedIds: Set<string>,
+    ) =>
+      items
+        .map((item) => ({
+          ...item,
+          findingIds: [...new Set(item.findingIds.filter((id) => allowedIds.has(id)))],
+        }))
+        .filter((item) => item.findingIds.length > 0);
     const sanitised: ActionPlan = {
       priorityActions: sanitiseItems(parsed.priorityActions, priorityIds),
       verifyNext: sanitiseItems(parsed.verifyNext, knownIds),
@@ -859,13 +1088,27 @@ export async function runActionPlan(
     const now = nextCaseUpdatedAt(c.updatedAt);
     const persisted = updateCaseActionPlan(caseId, sanitised, now, c.updatedAt);
     if (!persisted) {
-      sse(res, { type: 'error', message: 'Case changed while the action plan was running; the stale draft was not saved.' });
+      sse(res, {
+        type: 'error',
+        message: 'Case changed while the action plan was running; the stale draft was not saved.',
+      });
       return;
     }
 
     // Merge pass4 token counts into existing tokenStats
-    const existing = c.tokenStats ?? { pass1In: 0, pass1Out: 0, pass2In: 0, pass2Out: 0, pass3In: 0, pass3Out: 0 };
-    updateCaseTokenStats(caseId, { ...existing, pass4In: tokensIn, pass4Out: tokensOut, pass4CacheRead }, now);
+    const existing = c.tokenStats ?? {
+      pass1In: 0,
+      pass1Out: 0,
+      pass2In: 0,
+      pass2Out: 0,
+      pass3In: 0,
+      pass3Out: 0,
+    };
+    updateCaseTokenStats(
+      caseId,
+      { ...existing, pass4In: tokensIn, pass4Out: tokensOut, pass4CacheRead },
+      now,
+    );
     if (c.createdBy) {
       insertAnalysisAuditRecord(caseId, c.createdBy, tokensIn, tokensOut);
     }
@@ -883,7 +1126,7 @@ export async function runActionPlan(
         tokensIn,
         tokensOut,
       },
-      createdAt: now
+      createdAt: now,
     });
 
     sse(res, { type: 'stage_complete', pass: 4, tokensIn, tokensOut });
@@ -919,7 +1162,12 @@ function safeAnalysisErrorMessage(err: unknown): string {
   if (msg.includes('context_length_exceeded') || msg.includes('maximum context length')) {
     return 'Study data is too large to analyse in one request. Please contact support.';
   }
-  if (msg.includes('econnrefused') || msg.includes('fetch failed') || msg.includes('enotfound') || msg.includes('etimedout')) {
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('fetch failed') ||
+    msg.includes('enotfound') ||
+    msg.includes('etimedout')
+  ) {
     return 'Could not reach the analysis service. Please try again.';
   }
   return 'Analysis failed unexpectedly. Please try again.';

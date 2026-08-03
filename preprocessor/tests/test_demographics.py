@@ -5,7 +5,9 @@ Demographics must be derived BEFORE de-identification (which scrubs the patient
 header) and must surface only HIPAA-safe fields: age in years (capped at 89)
 and sex. Birthdate and patient name must NEVER appear in the output.
 """
+
 from datetime import datetime
+
 from edf_parser import _normalise_sex, _parse_birthdate
 
 

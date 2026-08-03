@@ -84,41 +84,28 @@ export default function App() {
               <Plus size={15} />
             </button>
             <DarkModeToggle dark={isDark} onToggle={toggleDark} />
-            <AccountPanel
-              user={user}
-              onSignOut={handleLogout}
-              onNavigate={handleNavigate}
-            />
+            <AccountPanel user={user} onSignOut={handleLogout} onNavigate={handleNavigate} />
           </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-5">
-        {view === 'list' && (
-          <CaseList onSelect={handleSelectCase} refreshKey={listRefreshKey} />
-        )}
-        {view === 'upload' && (
-          <CaseUpload onUploaded={handleUploaded} />
-        )}
+        {view === 'list' && <CaseList onSelect={handleSelectCase} refreshKey={listRefreshKey} />}
+        {view === 'upload' && <CaseUpload onUploaded={handleUploaded} />}
         {view === 'workspace' && selectedCase && (
-          <ReviewWorkspace
-            initialCase={selectedCase}
-            onBack={() => setView('list')}
-          />
+          <ReviewWorkspace initialCase={selectedCase} onBack={() => setView('list')} />
         )}
         {view === 'account' && (
           <AccountPage
             user={user}
             onBack={() => setView('list')}
-            onUserUpdate={(patch) => setUser((prev) => prev && typeof prev === 'object' ? { ...prev, ...patch } : prev)}
+            onUserUpdate={(patch) =>
+              setUser((prev) => (prev && typeof prev === 'object' ? { ...prev, ...patch } : prev))
+            }
           />
         )}
-        {view === 'usage' && (
-          <UsagePage user={user} onBack={() => setView('list')} />
-        )}
-        {view === 'admin' && (
-          <AdminPanel user={user} onBack={() => setView('list')} />
-        )}
+        {view === 'usage' && <UsagePage user={user} onBack={() => setView('list')} />}
+        {view === 'admin' && <AdminPanel user={user} onBack={() => setView('list')} />}
       </main>
     </div>
   );

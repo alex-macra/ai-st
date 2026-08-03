@@ -22,12 +22,17 @@ export function unreviewedSectionKeys(c: Case): ReportSectionKey[] {
 
 export function reviewedFindingsForActionPlan(c: Case): Finding[] {
   return c.findings
-    .filter((finding) => finding.reviewerDecision !== undefined
-      && finding.reviewerDecision !== 'reject'
-      && finding.reviewerDecision !== 'artefact')
-    .map((finding) => finding.reviewerDecision === 'edit' && finding.editedClaim
-      ? { ...finding, claim: finding.editedClaim }
-      : finding);
+    .filter(
+      (finding) =>
+        finding.reviewerDecision !== undefined &&
+        finding.reviewerDecision !== 'reject' &&
+        finding.reviewerDecision !== 'artefact',
+    )
+    .map((finding) =>
+      finding.reviewerDecision === 'edit' && finding.editedClaim
+        ? { ...finding, claim: finding.editedClaim }
+        : finding,
+    );
 }
 
 export function reviewedReportForActionPlan(c: Case): Record<string, unknown> {
@@ -36,9 +41,10 @@ export function reviewedReportForActionPlan(c: Case): Record<string, unknown> {
   for (const key of populatedSectionKeys(c.structuredReport)) {
     const review = c.sectionReviews?.[key];
     if (!review || review.decision === 'reject' || review.decision === 'artefact') continue;
-    report[key] = review.decision === 'edit' && review.editedValue
-      ? review.editedValue
-      : c.structuredReport[key];
+    report[key] =
+      review.decision === 'edit' && review.editedValue
+        ? review.editedValue
+        : c.structuredReport[key];
   }
   report['citations'] = c.structuredReport.citations;
   return report;

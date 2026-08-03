@@ -20,11 +20,16 @@ function syntheticEdf(): Buffer {
 
 function stubPreprocessor(payload: Record<string, unknown>): () => void {
   const original = globalThis.fetch;
-  globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { 'content-type': 'application/json' }
-  })) as unknown as typeof fetch;
-  return () => { globalThis.fetch = original; };
+  globalThis.fetch = vi.fn(
+    async () =>
+      new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+  ) as unknown as typeof fetch;
+  return () => {
+    globalThis.fetch = original;
+  };
 }
 
 const PACKAGE = {
@@ -37,7 +42,7 @@ const PACKAGE = {
     candidate_count_total: 161,
     provisional_odi_per_hour: 22.4,
   },
-  candidate_windows: []
+  candidate_windows: [],
 };
 
 function fakeAnalysisOutput(): { findings: Finding[]; report: StructuredReport } {
@@ -46,17 +51,17 @@ function fakeAnalysisOutput(): { findings: Finding[]; report: StructuredReport }
       id: `F-${randomUUID()}`,
       claim: 'AHI elevated at 22.4/h consistent with moderate OSA',
       evidence: [{ type: 'edf_metric', source: 'ahi', value: 22.4 }],
-      confidence: 'high'
+      confidence: 'high',
     },
     {
       id: `F-${randomUUID()}`,
       claim: 'Position-dependent component (supine AHI 35.0/h vs lateral 12.4/h)',
       evidence: [
         { type: 'edf_metric', source: 'supine_ahi', value: 35.0 },
-        { type: 'edf_metric', source: 'lateral_ahi', value: 12.4 }
+        { type: 'edf_metric', source: 'lateral_ahi', value: 12.4 },
       ],
-      confidence: 'medium'
-    }
+      confidence: 'medium',
+    },
   ];
   const report: StructuredReport = {
     summary: 'Adult patient, moderate OSA on HSAT.',
@@ -65,7 +70,7 @@ function fakeAnalysisOutput(): { findings: Finding[]; report: StructuredReport }
     oxygenation: { nadirSpO2: 81 },
     positional: { supineAhi: 35.0, nonSupineAhi: 12.4 },
     impression: 'Moderate OSA, position-dependent. Consider PAP titration.',
-    citations: {}
+    citations: {},
   };
   return { findings, report };
 }
@@ -96,7 +101,14 @@ describe('full case lifecycle (smoke)', () => {
 
     // Stand in for /analyze: write the analysis straight to the DB.
     const { findings, report } = fakeAnalysisOutput();
-    updateCaseFindings(caseId, findings, 'narrative', 'gpt-5.4-mini', new Date().toISOString(), report);
+    updateCaseFindings(
+      caseId,
+      findings,
+      'narrative',
+      'gpt-5.4-mini',
+      new Date().toISOString(),
+      report,
+    );
 
     // Sign-off is blocked while findings are unreviewed.
     const earlySignoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
@@ -114,7 +126,13 @@ describe('full case lifecycle (smoke)', () => {
     const midSignoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
     expect(midSignoff.status).toBe(422);
     expect(midSignoff.body.unreviewedSections).toEqual(
-      expect.arrayContaining(['summary', 'respiratoryIndices', 'oxygenation', 'positional', 'impression'])
+      expect.arrayContaining([
+        'summary',
+        'respiratoryIndices',
+        'oxygenation',
+        'positional',
+        'impression',
+      ]),
     );
 
     for (const key of midSignoff.body.unreviewedSections as string[]) {
