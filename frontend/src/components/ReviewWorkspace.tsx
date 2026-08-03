@@ -305,14 +305,18 @@ export function ReviewWorkspace({ initialCase, onBack }: Props) {
         <Badge variant={CASE_STATUS_VARIANT[c.status] ?? 'default'}>{c.status.replace(/_/g, ' ')}</Badge>
 
         {canAnalyze && availableModels.length > 0 && (
-          <Select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            disabled
-            className="text-xs w-auto"
-          >
-            {availableModels.map((m) => <option key={m} value={m}>{m}</option>)}
-          </Select>
+          // Select renders a w-full wrapper, so it needs a bounded box here or
+          // it consumes the row and collapses the case name beside it.
+          <div className="w-44 shrink-0">
+            <Select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled
+              className="text-xs"
+            >
+              {availableModels.map((m) => <option key={m} value={m}>{m}</option>)}
+            </Select>
+          </div>
         )}
 
         {canAnalyze && (
