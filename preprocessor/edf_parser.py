@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Discover EDF channels per-file - never assume a fixed channel set.
 SOMNOtouch RESP recordings vary: some have SpO2, some do not; flow channel

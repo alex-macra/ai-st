@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 

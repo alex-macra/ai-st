@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
 

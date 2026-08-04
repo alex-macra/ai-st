@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 export const GPT_MODEL = process.env['GPT_MODEL'] ?? 'gpt-5.4-mini';
 export const NANO_MODEL = process.env['NANO_MODEL'] ?? 'gpt-5.4-nano';
 export const PROMPT_VERSION = '2.0.0';

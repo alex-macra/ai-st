@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Play, Square, Sparkles, RefreshCw, FileDown } from 'lucide-react';
 import { Alert, Select, Tabs, Badge, CASE_STATUS_VARIANT, type Tab as SharedTab } from '../ui';

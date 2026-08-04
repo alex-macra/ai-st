@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync } from 'node:child_process';
 
 // globalSetup runs after the web servers boot, so seed the fresh private test

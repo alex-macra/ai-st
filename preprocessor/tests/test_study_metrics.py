@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Tests for the study_metrics aggregate block computed in evidence_packager.
 Locks in: ODI per-hour, candidate-by-type / by-severity counts, and graceful

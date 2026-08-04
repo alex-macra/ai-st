@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Synthetic-signal tests for candidate window detectors.
 Locks in: position-change detection works, low-quality channels are skipped (not crash),

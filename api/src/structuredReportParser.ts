@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { z } from 'zod';
 import { REPORT_SECTION_KEYS } from './shared/types.js';
 import type { StructuredReport } from './shared/types.js';

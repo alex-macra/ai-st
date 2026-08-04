@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Parse the structured numerics out of a DOMINO light Report print PDF.
 

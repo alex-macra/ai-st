@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Renders a compact multi-panel JPEG for a candidate event window.
 Output: 480×180px, dark background, ≤35KB, no patient info.

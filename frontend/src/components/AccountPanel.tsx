@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { User as UserIcon, BarChart2, ShieldCheck } from 'lucide-react';
 import { AccountPanel as SharedAccountPanel, type AccountMenuItem } from '../ui';
 import type { User } from '../shared/types';

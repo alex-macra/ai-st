@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 // Happy-path smoke test of the full case lifecycle over real Express + SQLite.
 // Two boundary stubs: the preprocessor is stubbed at fetch, and analyze output
 // is written straight to the DB so no real LLM is needed.

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { request } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';

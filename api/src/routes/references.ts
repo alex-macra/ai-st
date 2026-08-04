@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { z } from 'zod';
 import type { Request, Response, Router } from 'express';
 import { createRequire } from 'node:module';

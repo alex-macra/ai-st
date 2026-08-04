@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
 import { Button, Input } from '../ui';

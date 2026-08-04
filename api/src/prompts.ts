@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { PROMPT_VERSION, ACTION_PLAN_PROMPT_VERSION } from './constants.js';
 
 type Cohort = 'adult' | 'pediatric' | 'generic';

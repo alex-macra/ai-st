@@ -21,6 +21,14 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ### Changed
 
+- **The project is relicensed from Apache-2.0 to AGPL-3.0-only**, with commercial
+  terms offered separately in `LICENSE-COMMERCIAL.md`. Self-hosting, modifying,
+  and internal use stay free; running a modified version as a network service now
+  requires offering that source to its users. Contributions are accepted under the
+  Developer Certificate of Origin with a commercial-relicensing grant, which is
+  what keeps the second track available. Every source file carries an SPDX header.
+  The `v0.1.0-alpha.1` tag remains available under Apache-2.0; the change binds
+  everything after it.
 - **The project is renamed from AI-ST to Somnoscribe.** This renames the
   repository, the package names, the Docker image and volume paths
   (`/var/lib/somnoscribe`), and the `SOMNOSCRIBE_*` environment variables that

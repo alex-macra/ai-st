@@ -1,7 +1,7 @@
 # Somnoscribe Sleep Study Review Assistant
 
 [![CI](https://github.com/alex-macra/somnoscribe/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-macra/somnoscribe/actions/workflows/ci.yml)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
 
 Somnoscribe is an experimental, self-hosted review workspace for sleep-study artifacts. It preprocesses supported files, drafts evidence-linked observations with an LLM, and requires a human reviewer to adjudicate the output before sign-off.
@@ -168,8 +168,12 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md
 
 ## License
 
-Copyright 2026 Alex Macra. Licensed under the [Apache License 2.0](LICENSE). Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Copyright 2026 Alex Macra. Licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
-If you redistribute Somnoscribe in source or binary form, Apache-2.0 section 4(d) requires you to carry the [NOTICE](NOTICE) file with it. That file also records the SOMNOmedics trademark position stated above.
+Evaluating, self-hosting, modifying, and running Somnoscribe inside your own organisation are all covered at no cost. The condition is reciprocity: if you modify it and let anyone reach it over a network, AGPL section 13 requires you to offer those users your modified source.
+
+If that does not suit you — hosting it as a service, embedding it in a proprietary product, or combining it with code you cannot release under the AGPL — commercial terms are available. See [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
+
+Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). [NOTICE](NOTICE) records the SOMNOmedics trademark position stated above.
 
 To cite this software, use [CITATION.cff](CITATION.cff) or the "Cite this repository" control on the GitHub project page.

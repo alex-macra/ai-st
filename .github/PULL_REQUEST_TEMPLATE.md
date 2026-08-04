@@ -2,6 +2,12 @@
 
 <!-- The user-visible outcome, and the safety implications if any. -->
 
+## Sign-off
+
+- [ ] Every commit is signed off (`git commit -s`) under the [DCO](../DCO), and I
+      agree the maintainer may license this contribution under both the AGPL and
+      the separate commercial terms. See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Data policy
 
 - [ ] No patient data, real identifiers, clinical PDFs or EDFs, databases,

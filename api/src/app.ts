@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction, ErrorRequestHandler, Express } from 'express';

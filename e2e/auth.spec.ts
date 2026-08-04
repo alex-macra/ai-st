@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
 // No storageState - these tests verify the unauthenticated UI.

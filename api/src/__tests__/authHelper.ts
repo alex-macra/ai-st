@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';

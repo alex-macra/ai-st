@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import { Upload, FileText, Image, ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
 import {

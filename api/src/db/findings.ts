@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { getDb } from './connection.js';
 import { insertAuditRecord } from './audit.js';
 import type {

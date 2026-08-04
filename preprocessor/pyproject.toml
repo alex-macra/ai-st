@@ -1,6 +1,7 @@
 # Lint and format configuration for the preprocessor service. This project has
 # no Python packaging metadata on purpose: the service is run with uvicorn from
-# source, not installed as a distribution.
+# source, not installed as a distribution. Licensing is declared by the SPDX
+# header in each source file and by the repository LICENSE, not here.
 
 [tool.ruff]
 target-version = "py312"

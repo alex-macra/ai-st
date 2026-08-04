@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 from candidate_windows import CandidateSet, CandidateWindow
 from validation.scorer import score
 from validation.types import GroundTruth

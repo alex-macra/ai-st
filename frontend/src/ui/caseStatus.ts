@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import type { CaseStatus } from '../shared/types';
 import type { BadgeVariant } from './primitives';
 

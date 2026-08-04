@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createRequire } from 'node:module';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync } from 'node:fs';

@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """PHI-free tests for the DOMINO light Report print parser."""
 
 from __future__ import annotations

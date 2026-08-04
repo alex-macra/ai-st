@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """Unit tests for main.py internal helpers.
 
 HTTP-contract tests (endpoint shapes, status codes) live in test_ingest_contract.py.

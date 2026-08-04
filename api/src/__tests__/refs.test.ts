@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';

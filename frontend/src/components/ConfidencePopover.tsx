@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { Popover, Badge, Chip, type BadgeVariant } from '../ui';
 import { ShieldCheck, AlertTriangle, AlertOctagon } from 'lucide-react';
 import type { Finding, FindingConfidence } from '../shared/types';

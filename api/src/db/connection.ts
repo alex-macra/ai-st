@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { chmodSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';

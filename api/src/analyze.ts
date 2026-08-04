@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import type OpenAI from 'openai';
 import { getOpenAIClient, writeSSE, extractUsage } from './llm.js';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';

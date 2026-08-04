@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Per-channel quality scoring. Returns artifact flags and coverage percentages.
 No clinical interpretation - only signal-level metrics.

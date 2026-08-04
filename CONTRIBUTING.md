@@ -74,6 +74,16 @@ Accessibility is part of correctness. Interactive changes should preserve keyboa
 
 Do not use an issue for an undisclosed vulnerability or a sensitive-data leak. Follow [SECURITY.md](SECURITY.md). Clinical interpretation changes need an independently reviewable rationale and synthetic tests, but the repository still must not include restricted source material.
 
-## License
+## License and sign-off
 
-Unless stated otherwise, contributions intentionally submitted for inclusion are licensed under Apache-2.0 as described in [LICENSE](LICENSE).
+Somnoscribe is licensed under [AGPL-3.0](LICENSE), and commercial terms are offered separately ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)). That second track only stays possible if the maintainer can license the whole work, so every contribution needs a sign-off.
+
+Sign each commit:
+
+```bash
+git commit -s
+```
+
+The `Signed-off-by` line certifies the [Developer Certificate of Origin 1.1](DCO): you wrote the contribution, or you have the right to submit it. By signing off you also agree that the maintainer may license your contribution under both the AGPL and the separate commercial terms. You keep your copyright.
+
+If you cannot agree to that, say so in the pull request. A contribution can still be discussed and reimplemented independently.

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState, type ReactNode } from 'react';
 import { Progress, progressToneFromPercent, type ProgressTone } from './primitives';
 import { cx } from './utils';

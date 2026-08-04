@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Alert } from '../ui';

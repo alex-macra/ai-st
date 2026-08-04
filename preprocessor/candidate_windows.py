@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Heuristic detection of candidate respiratory event windows.
 All outputs are labeled PROVISIONAL - never "confirmed" or "scored".

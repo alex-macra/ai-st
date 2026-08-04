@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/connection.js';
 import { createLicenseTable, getLicense, mintLicenseKeys } from '../license.js';

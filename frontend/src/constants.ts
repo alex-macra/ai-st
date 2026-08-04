@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 export const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
   'gpt-5.4-mini': { inputPer1M: 0.15, outputPer1M: 0.6 },
   'gpt-5.4-nano': { inputPer1M: 0.075, outputPer1M: 0.3 },

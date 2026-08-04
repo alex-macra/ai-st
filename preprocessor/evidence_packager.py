@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Assemble a compact case package for LLM consumption.
 Target size: ≤ 8 KB JSON.  Raw signal arrays are never included.

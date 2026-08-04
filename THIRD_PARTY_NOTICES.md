@@ -1,6 +1,6 @@
 # Third-party notices
 
-Somnoscribe is licensed under Apache-2.0. Its dependencies remain subject to their own licenses and copyright notices. The lockfiles are the authoritative version inventory; distributions should preserve dependency license files.
+Somnoscribe is licensed under AGPL-3.0-only. Its dependencies remain subject to their own licenses and copyright notices, and are not covered by any commercial licence granted for Somnoscribe itself. The lockfiles are the authoritative version inventory; distributions should preserve dependency license files.
 
 Primary JavaScript runtime dependencies include:
 

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 const GENERATE_HINT = 'Generate with: openssl rand -base64 32';
 
 // Secrets that ship in this repository, so they are public knowledge to anyone

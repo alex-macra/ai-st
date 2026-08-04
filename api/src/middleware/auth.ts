@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import jwt from 'jsonwebtoken';
 import type { CookieOptions, NextFunction, Request, Response } from 'express';
 import { getUserById } from '../db.js';

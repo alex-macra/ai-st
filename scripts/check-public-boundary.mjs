@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +26,9 @@ const allowedRoots = new Set([
   'CITATION.cff',
   'CODE_OF_CONDUCT.md',
   'CONTRIBUTING.md',
+  'DCO',
   'LICENSE',
+  'LICENSE-COMMERCIAL.md',
   'NOTICE',
   'README.md',
   'SAFETY.md',

@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Extract per-event decimated signal slices for frontend waveform rendering.
 Written to SLICES_DIR/{caseHash}.json at ingest time.

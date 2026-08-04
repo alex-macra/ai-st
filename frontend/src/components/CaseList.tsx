@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText } from 'lucide-react';
 import { Alert, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';

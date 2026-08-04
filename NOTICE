@@ -1,7 +1,9 @@
 Somnoscribe Sleep Study Review Assistant
 Copyright 2026 Alex Macra
 
-Licensed under the Apache License, Version 2.0. See LICENSE for the full terms.
+Licensed under the GNU Affero General Public License, Version 3.0. See LICENSE
+for the full terms. Commercial terms are available separately; see
+LICENSE-COMMERCIAL.md.
 
 This product includes software developed by third parties under their
 respective licenses. See THIRD_PARTY_NOTICES.md and the dependency lockfiles.

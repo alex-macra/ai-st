@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useRef, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { Button, Input, DarkModeToggle, FormattedInput, LICENSE_KEY_RULE } from '../ui';

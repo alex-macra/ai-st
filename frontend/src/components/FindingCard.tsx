@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { forwardRef, useEffect, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, X, HelpCircle, Pencil, Activity } from 'lucide-react';
 import { Textarea, Chip } from '../ui';

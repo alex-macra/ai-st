@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { REPORT_SECTION_KEYS } from './types';
 import type { Case, ReportSectionKey, StructuredReport } from './types';
 

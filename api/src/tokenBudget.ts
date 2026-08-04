@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import {
   MAX_INPUT_TOKENS,
   TOKEN_BASE_PACKAGE,

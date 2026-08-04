@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getDb } from './connection.js';
 import type { User, Organization } from '../shared/types.js';

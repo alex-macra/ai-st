@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { expect, test } from '@playwright/test';
 
 test.use({ storageState: 'e2e/.auth/user.json' });

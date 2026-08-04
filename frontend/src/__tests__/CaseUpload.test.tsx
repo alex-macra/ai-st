@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactElement } from 'react';
 import { render as rtlRender, screen } from '@testing-library/react';

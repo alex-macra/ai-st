@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import type BetterSqlite3 from 'better-sqlite3';
 import { createLicenseTable } from '../license.js';
 

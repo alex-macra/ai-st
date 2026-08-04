@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 // Hand-maintained copy of the wire-crossing types from api/src/shared/types.ts
 // (the source of truth) — update both. Check drift with:
 //   diff api/src/shared/types.ts frontend/src/shared/types.ts

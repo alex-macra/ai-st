@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useCallback, useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 
