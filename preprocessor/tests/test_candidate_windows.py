@@ -418,6 +418,22 @@ def test_flow_reduction_open_at_end_of_signal():
     assert windows[-1][1] > int(sr * 285) / sr
 
 
+def test_flow_reduction_recording_shorter_than_the_baseline_window():
+    """
+    A recording between the minimum event duration and the 2-minute rolling
+    baseline used to raise a broadcast error out of the detector, which reached
+    /ingest as a 500. It reports events over the whole-recording baseline now.
+    """
+    sr = 25.0
+    sig = np.full(int(sr * 60), 10.0)  # 60s, well short of the 120s baseline window
+    sig[int(sr * 20) : int(sr * 35)] = 0.0
+    windows = _detect_flow_reductions(sig, sr)
+    assert len(windows) == 1
+    start, end, _magnitude = windows[0]
+    assert 15.0 <= start <= 25.0
+    assert 30.0 <= end <= 40.0
+
+
 def test_desaturation_open_at_end_of_signal():
     """A desaturation still active on the last sample must be captured."""
     sig = np.full(400, 97.0)

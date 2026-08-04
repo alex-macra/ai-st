@@ -55,6 +55,10 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ### Fixed
 
+- Flow reduction detection raised a broadcast error, surfacing as a failed
+  ingest, whenever a recording was longer than the minimum event duration but
+  shorter than the two-minute rolling baseline. The baseline window is now
+  capped at the length of the recording.
 - `QuotaCard` read the clock during render, so an unrelated re-render could jump
   the reset countdown. The clock is state, updated on its own interval.
 

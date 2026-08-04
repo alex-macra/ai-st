@@ -139,19 +139,23 @@ def _detect_flow_reductions(
     amplitude_floor_frac: skip events whose local envelope is below this fraction of the
         global 95th-percentile |signal|. Suppresses phantom events on near-flatlined regions.
     """
-    if len(signal) < int(sample_rate * min_duration_sec):
+    if len(signal) < max(1, int(sample_rate * min_duration_sec)):
         return []
 
     abs_sig = np.abs(signal)
 
-    # Rolling baseline: 2-minute window
-    baseline_samples = int(sample_rate * 120)
+    # Rolling baseline: 2-minute window, or the whole recording when it is
+    # shorter than that. Convolving in "same" mode returns max(signal, window)
+    # samples, so a window longer than the recording produces a baseline that
+    # cannot be compared against the envelope at all - a truncated study used to
+    # fail here rather than report no events.
+    baseline_samples = max(1, min(int(sample_rate * 120), len(abs_sig)))
     baseline = np.convolve(abs_sig, np.ones(baseline_samples) / baseline_samples, mode="same")
     baseline = np.maximum(baseline, 1e-6)
 
     # Smooth amplitude over one breathing cycle so per-breath peaks don't
     # break continuity during hypopneas (30-50% reduction events).
-    envelope_samples = max(1, int(sample_rate * envelope_sec))
+    envelope_samples = max(1, min(int(sample_rate * envelope_sec), len(abs_sig)))
     envelope = np.convolve(abs_sig, np.ones(envelope_samples) / envelope_samples, mode="same")
     reduced = envelope < baseline * (1 - threshold_pct)
 
