@@ -8,38 +8,35 @@ Clinical scoring is the clinician's responsibility.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import pyedflib
 
+from channels import (
+    APNEA_MAGNITUDE_FLOOR,
+    CO2_LABELS,
+    CO2_PHYSIOLOGICAL_MAX,
+    CO2_PHYSIOLOGICAL_MIN,
+    FLOW_LABELS,
+    POSITION_LABELS,
+    QUALITY_FLOOR,
+    SPO2_LABELS,
+    SPO2_PHYSIOLOGICAL_MAX,
+    SPO2_PHYSIOLOGICAL_MIN,
+    find_channel,
+    mask_outside,
+    runs,
+)
 from edf_parser import ChannelInventory
 from signal_qc import QCResults
 
-# Labels used in DOMINO / SOMNOtouch exports (may vary by firmware)
-_FLOW_LABELS = {"flow", "nasal flow", "airflow", "oronasal", "ptaf", "nasal pressure"}
-_SPO2_LABELS = {"spo2", "saturation", "oximetry", "o2 sat"}
-_EFFORT_LABELS = {"thorax", "abdomen", "chest", "resp effort", "thoracic", "abdominal"}
-_POSITION_LABELS = {"position", "body position", "lage"}
-# End-tidal and transcutaneous CO2 - critical for pediatric hypoventilation detection
-_CO2_LABELS = {
-    "etco2",
-    "end tidal co2",
-    "co2",
-    "tco2",
-    "transcutaneous co2",
-    "capnography",
-    "petco2",
-    "end-tidal co2",
-}
-
-# Channels below this quality floor are skipped for candidate detection; the LLM
-# must never claim a finding from a low-quality channel. At/above the floor they're
-# included, with quality_score downweighting priority_score — not hard-excluded on
-# artifact_flag alone.
-_QUALITY_FLOOR = 0.3
+# A detector takes (signal, sample_rate) and returns (start_sec, end_sec, magnitude).
+_Detector = Callable[[np.ndarray, float], list[tuple[float, float, float]]]
 
 # event_weight per label (used in priority_score formula)
 _EVENT_WEIGHTS: dict[str, float] = {
@@ -56,8 +53,6 @@ _EVENT_WEIGHTS: dict[str, float] = {
 # them - only the headline AHI/REI uses the coupled subset.
 _COUPLING_PRE_WINDOW_SEC = 5.0
 _COUPLING_POST_WINDOW_SEC = 30.0
-# Apneas (≥90% flow reduction ≥10s) are scored on flow alone - they bypass coupling.
-_APNEA_MAGNITUDE_FLOOR = 0.9
 # Merge flow events separated by < this gap. Disabled (0.0) for now: the IoU-
 # based validation scorer is 1-to-1, so collapsing two real adjacent apneas
 # converts both into FN + FP. Coupling/artifact tagging does the headline
@@ -129,13 +124,6 @@ class CandidateSet:
     flow_filter_stats: dict[str, int] = field(default_factory=dict)
 
 
-def _find_channel(inventory: ChannelInventory, label_set: set[str]) -> str | None:
-    for ch in inventory.channels:
-        if ch.label.lower() in label_set:
-            return ch.label
-    return None
-
-
 def _detect_flow_reductions(
     signal: np.ndarray,
     sample_rate: float,
@@ -172,32 +160,12 @@ def _detect_flow_reductions(
     amp_floor = float(np.percentile(nonzero_amp, 95)) * amplitude_floor_frac if nonzero_amp.size > 0 else 0.0
 
     windows: list[tuple[float, float, float]] = []
-    in_event = False
-    start_idx = 0
-    min_samples = int(sample_rate * min_duration_sec)
-
-    for i, val in enumerate(reduced):
-        if val and not in_event:
-            in_event = True
-            start_idx = i
-        elif not val and in_event:
-            in_event = False
-            length = i - start_idx
-            if length >= min_samples:
-                local_envelope = float(np.mean(abs_sig[start_idx:i]))
-                if local_envelope < amp_floor:
-                    continue
-                reduction = float(1.0 - local_envelope / np.mean(baseline[start_idx:i]))
-                windows.append((start_idx / sample_rate, i / sample_rate, reduction))
-
-    if in_event:
-        i = len(reduced)
-        length = i - start_idx
-        if length >= min_samples:
-            local_envelope = float(np.mean(abs_sig[start_idx:i]))
-            if local_envelope >= amp_floor:
-                reduction = float(1.0 - local_envelope / np.mean(baseline[start_idx:i]))
-                windows.append((start_idx / sample_rate, i / sample_rate, reduction))
+    for start, end in runs(reduced, int(sample_rate * min_duration_sec)):
+        local_envelope = float(np.mean(abs_sig[start:end]))
+        if local_envelope < amp_floor:
+            continue
+        reduction = float(1.0 - local_envelope / np.mean(baseline[start:end]))
+        windows.append((start / sample_rate, end / sample_rate, reduction))
 
     return windows
 
@@ -222,42 +190,21 @@ def _detect_desaturations(
 
     # Mask non-physiological values; treat as NaN so they neither inflate baseline
     # nor get reported as nadirs.
-    sig = signal.astype(np.float64).copy()
-    sig[(sig < 50.0) | (sig > 100.0)] = np.nan
+    sig = mask_outside(signal, SPO2_PHYSIOLOGICAL_MIN, SPO2_PHYSIOLOGICAL_MAX)
 
     valid = sig[~np.isnan(sig)]
     if valid.size == 0:
         return windows
 
     baseline = float(np.percentile(valid, 95))
-    min_samples = int(sample_rate * min_duration_sec)
-
     dropped = (sig < (baseline - drop_threshold)) & ~np.isnan(sig)
-    in_event = False
-    start_idx = 0
 
-    for i, val in enumerate(dropped):
-        if val and not in_event:
-            in_event = True
-            start_idx = i
-        elif not val and in_event:
-            in_event = False
-            if i - start_idx >= min_samples:
-                window_slice = sig[start_idx:i]
-                window_valid = window_slice[~np.isnan(window_slice)]
-                if window_valid.size == 0:
-                    continue
-                nadir = float(baseline - np.min(window_valid))
-                windows.append((start_idx / sample_rate, i / sample_rate, nadir))
-
-    if in_event:
-        i = len(dropped)
-        if i - start_idx >= min_samples:
-            window_slice = sig[start_idx:i]
-            window_valid = window_slice[~np.isnan(window_slice)]
-            if window_valid.size > 0:
-                nadir = float(baseline - np.min(window_valid))
-                windows.append((start_idx / sample_rate, i / sample_rate, nadir))
+    for start, end in runs(dropped, int(sample_rate * min_duration_sec)):
+        window_valid = sig[start:end][~np.isnan(sig[start:end])]
+        if window_valid.size == 0:
+            continue
+        nadir = float(baseline - np.min(window_valid))
+        windows.append((start / sample_rate, end / sample_rate, nadir))
 
     return windows
 
@@ -319,40 +266,16 @@ def _detect_co2_elevation(
     if len(signal) == 0:
         return []
 
-    sig = signal.astype(np.float64).copy()
-    sig[(sig < 20.0) | (sig > 80.0)] = np.nan
-
+    sig = mask_outside(signal, CO2_PHYSIOLOGICAL_MIN, CO2_PHYSIOLOGICAL_MAX)
     elevated = (sig > threshold_mmhg) & ~np.isnan(sig)
-    min_samples = int(sample_rate * min_duration_sec)
 
     windows: list[tuple[float, float, float]] = []
-    in_event = False
-    start_idx = 0
-
-    for i, val in enumerate(elevated):
-        if val and not in_event:
-            in_event = True
-            start_idx = i
-        elif not val and in_event:
-            in_event = False
-            length = i - start_idx
-            if length >= min_samples:
-                window_slice = sig[start_idx:i]
-                valid = window_slice[~np.isnan(window_slice)]
-                if valid.size == 0:
-                    continue
-                elevation = float(np.mean(valid) - threshold_mmhg)
-                windows.append((start_idx / sample_rate, i / sample_rate, elevation))
-
-    # Capture event still open at end of signal
-    if in_event:
-        length = len(signal) - start_idx
-        if length >= min_samples:
-            window_slice = sig[start_idx:]
-            valid = window_slice[~np.isnan(window_slice)]
-            if valid.size > 0:
-                elevation = float(np.mean(valid) - threshold_mmhg)
-                windows.append((start_idx / sample_rate, len(signal) / sample_rate, elevation))
+    for start, end in runs(elevated, int(sample_rate * min_duration_sec)):
+        valid = sig[start:end][~np.isnan(sig[start:end])]
+        if valid.size == 0:
+            continue
+        elevation = float(np.mean(valid) - threshold_mmhg)
+        windows.append((start / sample_rate, end / sample_rate, elevation))
 
     return windows
 
@@ -435,17 +358,15 @@ def _post_process_flow_events(
     coupling_applied = bool(desat_events)
     uncoupled_tagged = 0
     if coupling_applied:
-        desat_ends = sorted(d.end_sec for d in desat_events)
-        for e in merged:
-            if e.magnitude >= _APNEA_MAGNITUDE_FLOOR:
-                continue
-            if TAG_OVERLAPS_FLAT in e.notes:
-                continue  # already tagged; don't double-count
-            lo = e.end_sec - _COUPLING_PRE_WINDOW_SEC
-            hi = e.end_sec + _COUPLING_POST_WINDOW_SEC
-            if not any(lo <= de <= hi for de in desat_ends):
-                e.notes.append(TAG_UNCOUPLED_HYPOPNEA)
-                uncoupled_tagged += 1
+        # Apneas bypass coupling per AASM 4.A, and an event already tagged as a
+        # sensor artifact must not be counted against the funnel twice.
+        eligible = [
+            e for e in merged if e.magnitude < APNEA_MAGNITUDE_FLOOR and TAG_OVERLAPS_FLAT not in e.notes
+        ]
+        _, uncoupled = _filter_by_spo2_coupling(eligible, desat_events)
+        for e in uncoupled:
+            e.notes.append(TAG_UNCOUPLED_HYPOPNEA)
+        uncoupled_tagged = len(uncoupled)
 
     position_tagged = 0
     if position_transition_secs:
@@ -529,115 +450,71 @@ def find_candidate_windows(
     flow_min_duration = 6.0 if cohort == "pediatric" else 10.0
     flow_envelope_sec = 4.0 if cohort == "pediatric" else 10.0
 
-    flow_label = _find_channel(inventory, _FLOW_LABELS)
-    spo2_label = _find_channel(inventory, _SPO2_LABELS)
-    position_label = _find_channel(inventory, _POSITION_LABELS)
-    co2_label = _find_channel(inventory, _CO2_LABELS) if cohort == "pediatric" else None
+    flow_label = find_channel(inventory, FLOW_LABELS)
+    spo2_label = find_channel(inventory, SPO2_LABELS)
+    position_label = find_channel(inventory, POSITION_LABELS)
+    co2_label = find_channel(inventory, CO2_LABELS) if cohort == "pediatric" else None
+
+    # (name, resolved label, detector). Order fixes the order of `windows`, which
+    # `_assign_scores` re-sorts anyway but the tests read before that.
+    detectors: list[tuple[str, str | None, str, _Detector]] = [
+        (
+            "flow",
+            flow_label,
+            "provisional_flow_reduction",
+            partial(
+                _detect_flow_reductions,
+                min_duration_sec=flow_min_duration,
+                envelope_sec=flow_envelope_sec,
+            ),
+        ),
+        ("spo2", spo2_label, "provisional_desaturation", _detect_desaturations),
+        ("position", position_label, "provisional_positional", _detect_position_changes),
+        ("co2", co2_label, "provisional_hypoventilation", _detect_co2_elevation),
+    ]
 
     channels_used: list[str] = []
     channels_missing: list[str] = []
     channels_low_quality: list[str] = []
     windows: list[CandidateWindow] = []
 
-    if flow_label is None:
-        channels_missing.append("flow")
-    if spo2_label is None:
-        channels_missing.append("spo2")
-    if position_label is None:
-        channels_missing.append("position")
-    if cohort == "pediatric" and co2_label is None:
-        channels_missing.append("co2")
+    for name, label, _event_label, _detect in detectors:
+        # CO2 is only sought for the pediatric cohort, so its absence is only
+        # missing when it was looked for.
+        if label is None and (name != "co2" or cohort == "pediatric"):
+            channels_missing.append(name)
 
     def _channel_usable(label: str) -> tuple[bool, float]:
         qc_ch = qc.for_label(label)
         if qc_ch is None:
             return True, 1.0
-        if qc_ch.quality_score < _QUALITY_FLOOR:
+        if qc_ch.quality_score < QUALITY_FLOOR:
             channels_low_quality.append(f"{label} (q={qc_ch.quality_score:.2f})")
             return False, qc_ch.quality_score
         return True, qc_ch.quality_score
 
     with pyedflib.EdfReader(str(edf_path)) as reader:
-        if flow_label is not None:
-            ch = inventory.by_label(flow_label)
+        for _name, label, event_label, detect in detectors:
+            if label is None:
+                continue
+            ch = inventory.by_label(label)
             assert ch is not None
-            usable, quality = _channel_usable(flow_label)
-            if usable:
-                signal = reader.readSignal(ch.index).astype(np.float64)
-                for start, end, mag in _detect_flow_reductions(
-                    signal,
-                    ch.sample_rate,
-                    min_duration_sec=flow_min_duration,
-                    envelope_sec=flow_envelope_sec,
-                ):
-                    windows.append(
-                        CandidateWindow(
-                            start_sec=start,
-                            end_sec=end,
-                            label="provisional_flow_reduction",
-                            channel=flow_label,
-                            magnitude=mag,
-                            signal_quality=quality,
-                        )
+            usable, quality = _channel_usable(label)
+            if not usable:
+                continue
+            signal = reader.readSignal(ch.index).astype(np.float64)
+            for start, end, mag in detect(signal, ch.sample_rate):
+                windows.append(
+                    CandidateWindow(
+                        start_sec=start,
+                        end_sec=end,
+                        label=event_label,
+                        channel=label,
+                        magnitude=mag,
+                        signal_quality=quality,
                     )
-                channels_used.append(flow_label)
-
-        if spo2_label is not None:
-            ch = inventory.by_label(spo2_label)
-            assert ch is not None
-            usable, quality = _channel_usable(spo2_label)
-            if usable:
-                signal = reader.readSignal(ch.index).astype(np.float64)
-                for start, end, mag in _detect_desaturations(signal, ch.sample_rate):
-                    windows.append(
-                        CandidateWindow(
-                            start_sec=start,
-                            end_sec=end,
-                            label="provisional_desaturation",
-                            channel=spo2_label,
-                            magnitude=mag,
-                            signal_quality=quality,
-                        )
-                    )
-                channels_used.append(spo2_label)
-
-        if position_label is not None:
-            ch = inventory.by_label(position_label)
-            assert ch is not None
-            usable, quality = _channel_usable(position_label)
-            if usable:
-                signal = reader.readSignal(ch.index).astype(np.float64)
-                for start, end, mag in _detect_position_changes(signal, ch.sample_rate):
-                    windows.append(
-                        CandidateWindow(
-                            start_sec=start,
-                            end_sec=end,
-                            label="provisional_positional",
-                            channel=position_label,
-                            magnitude=mag,
-                            signal_quality=quality,
-                        )
-                    )
-                channels_used.append(position_label)
-
-        if co2_label is not None:
-            ch = inventory.by_label(co2_label)
-            assert ch is not None
-            usable, quality = _channel_usable(co2_label)
-            if usable:
-                signal = reader.readSignal(ch.index).astype(np.float64)
-                for start, end, mag in _detect_co2_elevation(signal, ch.sample_rate):
-                    windows.append(
-                        CandidateWindow(
-                            start_sec=start,
-                            end_sec=end,
-                            label="provisional_hypoventilation",
-                            channel=co2_label,
-                            magnitude=mag,
-                            signal_quality=quality,
-                        )
-                    )
-                channels_used.append(co2_label)
+                )
+            channels_used.append(label)
 
     flow_events = [w for w in windows if w.label == "provisional_flow_reduction"]
     desat_events = [w for w in windows if w.label == "provisional_desaturation"]

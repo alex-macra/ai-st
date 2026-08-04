@@ -33,13 +33,17 @@ import numpy as np
 import pyedflib
 
 from candidate_windows import (
-    _EFFORT_LABELS,
-    _FLOW_LABELS,
-    _SPO2_LABELS,
     CandidateSet,
-    _find_channel,
     headline_flow_events,
     tagged_flow_events,
+)
+from channels import (
+    EFFORT_LABELS,
+    FLOW_LABELS,
+    SPO2_LABELS,
+    SPO2_PHYSIOLOGICAL_MAX,
+    SPO2_PHYSIOLOGICAL_MIN,
+    find_channel,
 )
 from edf_parser import ChannelInventory
 
@@ -54,8 +58,8 @@ _MAX_SAMPLES = 400
 
 # Channels to include per event type
 _EVENT_CHANNELS: dict[str, list[set[str]]] = {
-    "provisional_flow_reduction": [_FLOW_LABELS, _SPO2_LABELS, _EFFORT_LABELS],
-    "provisional_desaturation": [_SPO2_LABELS, _FLOW_LABELS],
+    "provisional_flow_reduction": [FLOW_LABELS, SPO2_LABELS, EFFORT_LABELS],
+    "provisional_desaturation": [SPO2_LABELS, FLOW_LABELS],
 }
 
 
@@ -127,11 +131,11 @@ def build_signal_slices(
             window_start = max(0.0, event.start_sec - _PRE_PAD_SEC)
             window_end = min(duration_sec, event.end_sec + _POST_PAD_SEC)
 
-            channel_groups = _EVENT_CHANNELS.get(event.label, [_FLOW_LABELS, _SPO2_LABELS])
+            channel_groups = _EVENT_CHANNELS.get(event.label, [FLOW_LABELS, SPO2_LABELS])
             slices: list[dict[str, Any]] = []
 
             for label_set in channel_groups:
-                ch_label = _find_channel(inventory, label_set)
+                ch_label = find_channel(inventory, label_set)
                 if ch_label is None:
                     continue
                 ch = ch_meta.get(ch_label)
@@ -151,9 +155,9 @@ def build_signal_slices(
                     continue
 
                 # Mask SpO2 dropout values before decimating
-                if ch_label.lower() in _SPO2_LABELS:
+                if ch_label.lower() in SPO2_LABELS:
                     sig = sig.copy()
-                    sig[(sig < 50.0) | (sig > 100.0)] = float("nan")
+                    sig[(sig < SPO2_PHYSIOLOGICAL_MIN) | (sig > SPO2_PHYSIOLOGICAL_MAX)] = float("nan")
 
                 slices.append(
                     {

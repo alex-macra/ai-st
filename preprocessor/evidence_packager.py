@@ -17,31 +17,30 @@ import numpy as np
 import pyedflib
 
 from candidate_windows import (
-    _FLOW_LABELS,
-    _POSITION_LABELS,
-    _SPO2_LABELS,
     CandidateSet,
     CandidateWindow,
-    _find_channel,
     headline_flow_events,
+)
+from channels import (
+    APNEA_MAGNITUDE_FLOOR,
+    FLOW_LABELS,
+    HR_LABELS,
+    HYPOPNEA_MAGNITUDE_FLOOR,
+    POSITION_LABELS,
+    QUALITY_FLOOR,
+    SNORE_LABELS,
+    SPO2_LABELS,
+    SPO2_PHYSIOLOGICAL_MAX,
+    SPO2_PHYSIOLOGICAL_MIN,
+    find_channel,
 )
 from const import SCHEMA_VERSION
 from edf_parser import ChannelInventory
 from signal_qc import QCResults
 
 _MAX_CANDIDATES = 20
-_SPO2_PHYSIOLOGICAL_MIN = 50.0
-_SPO2_PHYSIOLOGICAL_MAX = 100.0
 _T90_THRESHOLD = 90.0
 _T80_THRESHOLD = 80.0
-
-# SOMNOtouch RESP channel label tokens for HR and snore
-_HR_LABELS = {"pulse", "hr", "heart rate", "pulse rate", "herzfrequenz"}
-_SNORE_LABELS = {"snore", "snoring", "schnarch", "schnarchen", "snore mic"}
-
-# Flow-reduction magnitude thresholds for apnea vs hypopnea classification
-_APNEA_MAGNITUDE_THRESHOLD = 0.9  # ≥90% reduction
-_HYPOPNEA_MAGNITUDE_THRESHOLD = 0.3  # 30–90% reduction
 
 
 def _spo2_summary(
@@ -50,11 +49,11 @@ def _spo2_summary(
     qc: QCResults,
     desat_candidates: list[CandidateWindow],
 ) -> dict[str, Any] | None:
-    spo2_label = _find_channel(inventory, _SPO2_LABELS)
+    spo2_label = find_channel(inventory, SPO2_LABELS)
     if spo2_label is None:
         return None
     qc_ch = qc.for_label(spo2_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(spo2_label)
     assert ch is not None
@@ -62,7 +61,7 @@ def _spo2_summary(
     with pyedflib.EdfReader(str(edf_path)) as reader:
         sig = reader.readSignal(ch.index).astype(np.float64)
 
-    sig[(sig < _SPO2_PHYSIOLOGICAL_MIN) | (sig > _SPO2_PHYSIOLOGICAL_MAX)] = np.nan
+    sig[(sig < SPO2_PHYSIOLOGICAL_MIN) | (sig > SPO2_PHYSIOLOGICAL_MAX)] = np.nan
     valid = sig[~np.isnan(sig)]
     if valid.size == 0:
         return None
@@ -103,11 +102,11 @@ def _spo2_summary(
 
 
 def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> dict[str, Any] | None:
-    hr_label = _find_channel(inventory, _HR_LABELS)
+    hr_label = find_channel(inventory, HR_LABELS)
     if hr_label is None:
         return None
     qc_ch = qc.for_label(hr_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(hr_label)
     assert ch is not None
@@ -132,11 +131,11 @@ def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> d
 def _snore_summary(
     edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float
 ) -> dict[str, Any] | None:
-    snore_label = _find_channel(inventory, _SNORE_LABELS)
+    snore_label = find_channel(inventory, SNORE_LABELS)
     if snore_label is None:
         return None
     qc_ch = qc.for_label(snore_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(snore_label)
     assert ch is not None
@@ -175,11 +174,11 @@ def _positional_rei(
     flow_candidates: list[CandidateWindow],
     duration_hours: float,
 ) -> dict[str, Any] | None:
-    pos_label = _find_channel(inventory, _POSITION_LABELS)
+    pos_label = find_channel(inventory, POSITION_LABELS)
     if pos_label is None or not flow_candidates:
         return None
     qc_ch = qc.for_label(pos_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(pos_label)
     assert ch is not None
@@ -253,7 +252,7 @@ def _compute_study_metrics(
     # (P1 SpO2 coupling, P2 flat-interval gating, P4 merge, P5 amplitude floor).
     # Headline AHI/REI uses only untagged events; the full set stays in the
     # candidate list so the validation scorer and clinician see everything.
-    flow_label = _find_channel(inventory, _FLOW_LABELS)
+    flow_label = find_channel(inventory, FLOW_LABELS)
     flow_flat_pct: float | None = None
     if flow_label:
         qc_flow = qc.for_label(flow_label)
@@ -264,11 +263,9 @@ def _compute_study_metrics(
     headline_candidates = headline_flow_events(flow_candidates)
 
     # Flow-reduction sub-classification by magnitude (headline subset)
-    apnea_candidates = [w for w in headline_candidates if w.magnitude >= _APNEA_MAGNITUDE_THRESHOLD]
+    apnea_candidates = [w for w in headline_candidates if w.magnitude >= APNEA_MAGNITUDE_FLOOR]
     hypopnea_candidates = [
-        w
-        for w in headline_candidates
-        if _HYPOPNEA_MAGNITUDE_THRESHOLD <= w.magnitude < _APNEA_MAGNITUDE_THRESHOLD
+        w for w in headline_candidates if HYPOPNEA_MAGNITUDE_FLOOR <= w.magnitude < APNEA_MAGNITUDE_FLOOR
     ]
 
     # Exclude flat-signal artifact from the REI/ODI denominator, matching DOMINO's

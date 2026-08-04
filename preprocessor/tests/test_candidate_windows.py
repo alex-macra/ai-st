@@ -9,7 +9,6 @@ and the quality floor is per channel rather than a hard artifact_flag gate.
 import numpy as np
 
 from candidate_windows import (
-    _APNEA_MAGNITUDE_FLOOR,
     TAG_OVERLAPS_FLAT,
     TAG_POSITION_ARTIFACT,
     TAG_UNCOUPLED_HYPOPNEA,
@@ -25,6 +24,7 @@ from candidate_windows import (
     headline_flow_events,
     tagged_flow_events,
 )
+from channels import APNEA_MAGNITUDE_FLOOR
 
 
 def test_position_change_simple_supine_to_left():
@@ -278,7 +278,7 @@ def test_coupling_passes_through_when_no_desat_data():
 
 def test_post_process_apneas_bypass_coupling():
     """An apnea (≥90% reduction) without a nearby desat must still be untagged."""
-    apnea = _flow(100, 115, mag=_APNEA_MAGNITUDE_FLOOR + 0.01)
+    apnea = _flow(100, 115, mag=APNEA_MAGNITUDE_FLOOR + 0.01)
     hypopnea = _flow(200, 215, mag=0.4)
     desats = [_desat(220, 230)]  # only the hypopnea is coupled
     out, stats = _post_process_flow_events([apnea, hypopnea], desats, flat_intervals=[])
