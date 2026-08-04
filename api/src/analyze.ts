@@ -40,6 +40,7 @@ import {
 } from './db.js';
 import { logger, errorLogFields } from './logger.js';
 import type {
+  Case,
   Finding,
   TokenStats,
   StructuredReport,
@@ -418,6 +419,526 @@ async function buildPass1UserContent(
   return blocks;
 }
 
+/**
+ * Everything a pass needs that does not change between passes. `tokenStats` is
+ * mutable and accumulated across the whole run.
+ */
+interface AnalysisContext {
+  caseId: string;
+  res: Response;
+  signal: AbortSignal;
+  model: string;
+  caseCohort: CohortType['cohort'];
+  isDocumentsOnly: boolean;
+  tokenStats: TokenStats;
+}
+
+/**
+ * A pass returns null when it has already reported the failure to the client
+ * and the caller should stop. Matching `callPass`, so a null anywhere in the
+ * chain means "stream is finished, end it".
+ */
+type PassOutcome<T> = T | null;
+
+/** Pass 1: extract findings, then drop any that evidence or bounds reject. */
+async function runPass1(
+  ctx: AnalysisContext,
+  casePackageJson: string,
+): Promise<PassOutcome<Finding[]>> {
+  const { res, caseId, signal, tokenStats, caseCohort } = ctx;
+  sse(res, { type: 'progress', pass: 1, message: 'Extracting findings…' });
+
+  const pass1UserContent = await buildPass1UserContent(casePackageJson, caseId);
+
+  const pass1 = await callPass(
+    {
+      model: ctx.model,
+      max_completion_tokens: 16384,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: ctx.isDocumentsOnly
+            ? pass1SystemPromptDocumentsOnly(caseCohort)
+            : pass1SystemPrompt(caseCohort),
+        },
+        { role: 'user', content: pass1UserContent },
+      ],
+    },
+    signal,
+  );
+
+  if (!pass1) return null;
+
+  tokenStats.pass1In = pass1.tokensIn;
+  tokenStats.pass1Out = pass1.tokensOut;
+  tokenStats.pass1CacheRead = pass1.cacheReadTokens;
+
+  if (pass1.truncated) {
+    logger.error(
+      { tokensIn: tokenStats.pass1In, tokensOut: tokenStats.pass1Out },
+      'pass1_truncated',
+    );
+    sse(res, {
+      type: 'error',
+      message:
+        'Pass 1 response was truncated - too many findings or images. Try with fewer screenshots.',
+    });
+    return null;
+  }
+
+  let rawFindings: Finding[];
+  try {
+    const parsed = pass1ResponseSchema.parse(JSON.parse(pass1.text));
+    rawFindings = parsed.findings as Finding[];
+  } catch {
+    logger.error({ caseId }, 'pass1_parse_error');
+    sse(res, { type: 'error', message: 'Pass 1 produced invalid JSON - please try again' });
+    return null;
+  }
+
+  // Hard validator: reject findings without evidence
+  const evidenceFiltered = rawFindings.filter((f) => f.evidence.length > 0);
+  if (evidenceFiltered.length < rawFindings.length) {
+    logger.warn(
+      { dropped: rawFindings.length - evidenceFiltered.length },
+      'pass1_findings_dropped_no_evidence',
+    );
+  }
+
+  const validatedFindings = applyMetricBounds(evidenceFiltered, caseCohort);
+  if (validatedFindings.length < evidenceFiltered.length) {
+    logger.warn(
+      { dropped: evidenceFiltered.length - validatedFindings.length },
+      'metric_impossible_values_dropped',
+    );
+  }
+
+  // Remap LLM-generated IDs to stable sequential F-001, F-002, … so Pass 2/3
+  // can cite them reliably and the report never shows raw UUIDs.
+  const idMap = new Map(
+    validatedFindings.map((f, i) => [f.id, `F-${String(i + 1).padStart(3, '0')}`]),
+  );
+  for (const f of validatedFindings) {
+    f.id = idMap.get(f.id)!;
+  }
+
+  sse(res, {
+    type: 'progress',
+    pass: 1,
+    message: `Extracted ${validatedFindings.length} findings`,
+  });
+  sse(res, {
+    type: 'stage_complete',
+    pass: 1,
+    tokensIn: tokenStats.pass1In,
+    tokensOut: tokenStats.pass1Out,
+    findingCount: validatedFindings.length,
+  });
+
+  return validatedFindings;
+}
+
+/**
+ * Deterministic metric bounds check. Runs before Pass 2 so impossible values
+ * never reach the structured report; out-of-range values survive but carry a
+ * note on the finding's uncertainty.
+ */
+function applyMetricBounds(findings: Finding[], cohort: CohortType['cohort']): Finding[] {
+  const kept: Finding[] = [];
+  for (const f of findings) {
+    let drop = false;
+    const uncertaintyNotes: string[] = f.uncertainty ? [f.uncertainty] : [];
+    for (const ev of f.evidence) {
+      if (typeof ev.value !== 'number') continue;
+      const outcome = checkMetricBounds(ev.source, ev.value, cohort);
+      if (outcome.kind === 'impossible') {
+        logger.warn('metric_impossible_value_dropped');
+        drop = true;
+        break;
+      }
+      if (outcome.kind === 'out_of_range') {
+        uncertaintyNotes.push(outcome.note);
+      }
+    }
+    if (!drop) {
+      kept.push(
+        uncertaintyNotes.length > 0 ? { ...f, uncertainty: uncertaintyNotes.join('; ') } : f,
+      );
+    }
+  }
+  return kept;
+}
+
+/**
+ * Pass 2: draft the structured report. Appends any coercion and citation
+ * warnings to `validationWarnings` rather than failing on them.
+ */
+async function runPass2(
+  ctx: AnalysisContext,
+  findings: Finding[],
+  validationWarnings: ValidationWarning[],
+): Promise<PassOutcome<StructuredReport>> {
+  const { res, caseId, signal, tokenStats } = ctx;
+  sse(res, { type: 'progress', pass: 2, message: 'Drafting structured report…' });
+
+  const pass2 = await callPass(
+    {
+      model: ctx.model,
+      max_completion_tokens: 4096,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: pass2SystemPrompt(ctx.caseCohort) },
+        { role: 'user', content: untrustedJson('validated-findings', findings) },
+      ],
+    },
+    signal,
+  );
+
+  if (!pass2) return null;
+
+  tokenStats.pass2In = pass2.tokensIn;
+  tokenStats.pass2Out = pass2.tokensOut;
+  tokenStats.pass2CacheRead = pass2.cacheReadTokens;
+
+  if (pass2.truncated) {
+    logger.error(
+      {
+        tokensIn: tokenStats.pass2In,
+        tokensOut: tokenStats.pass2Out,
+        findingCount: findings.length,
+      },
+      'pass2_truncated',
+    );
+    sse(res, {
+      type: 'error',
+      message:
+        'Pass 2 response was truncated - too many findings to fit in the report. Try with fewer screenshots.',
+    });
+    return null;
+  }
+
+  const parseOutcome = parsePass2Output(pass2.text);
+  if (!parseOutcome.ok) {
+    logger.error({ caseId }, 'pass2_parse_error');
+    sse(res, { type: 'error', message: 'Pass 2 produced invalid structured report JSON' });
+    return null;
+  }
+  const structuredReport: StructuredReport = parseOutcome.report;
+  if (parseOutcome.coerced) {
+    logger.warn({ warningCount: parseOutcome.warnings.length, caseId }, 'pass2_output_coerced');
+    for (const w of parseOutcome.warnings) {
+      validationWarnings.push({
+        stage: 'citation_check',
+        section: 'summary',
+        quote: '',
+        reason: `Pass 2 output coerced: ${w}`,
+      });
+    }
+  }
+
+  // Deterministic citation pre-check - collected as advisory warnings, not a hard block.
+  const localCheck = validateCitations(structuredReport, findings);
+  if (!localCheck.valid) {
+    logger.warn(
+      { warningCount: localCheck.rejections.length, caseId },
+      'pass2_citation_check_warnings',
+    );
+    for (const r of localCheck.rejections) {
+      validationWarnings.push({
+        stage: 'citation_check',
+        section: r.section,
+        quote: r.quote,
+        reason: r.reason,
+      });
+    }
+  }
+
+  sse(res, { type: 'progress', pass: 2, message: 'Structured report drafted' });
+  sse(res, {
+    type: 'stage_complete',
+    pass: 2,
+    tokensIn: tokenStats.pass2In,
+    tokensOut: tokenStats.pass2Out,
+  });
+
+  return structuredReport;
+}
+
+/**
+ * Pass 3: skeptical validator. A truncated or unparseable response is treated
+ * as a failed validation rather than an error, so the run continues with the
+ * problem recorded as a warning.
+ */
+async function runPass3(
+  ctx: AnalysisContext,
+  structuredReport: StructuredReport,
+  findings: Finding[],
+  validationWarnings: ValidationWarning[],
+): Promise<PassOutcome<true>> {
+  const { res, caseId, signal, tokenStats } = ctx;
+  sse(res, { type: 'progress', pass: 3, message: 'Validating report sections…' });
+
+  const pass3 = await callPass(
+    {
+      model: NANO_MODEL,
+      max_completion_tokens: 4096,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: pass3SystemPrompt() },
+        {
+          role: 'user',
+          content: [
+            untrustedJson('structured-report', structuredReport),
+            untrustedJson('validated-findings', findings),
+          ].join('\n\n'),
+        },
+      ],
+    },
+    signal,
+  );
+
+  if (!pass3) return null;
+
+  tokenStats.pass3In = pass3.tokensIn;
+  tokenStats.pass3Out = pass3.tokensOut;
+  tokenStats.pass3CacheRead = pass3.cacheReadTokens;
+
+  let validationResult: z.infer<typeof pass3ResponseSchema>;
+  if (pass3.truncated) {
+    logger.warn({ caseId, tokensOut: tokenStats.pass3Out }, 'pass3_truncated');
+    validationResult = {
+      valid: false,
+      rejections: [{ quote: '', reason: 'Validator response was truncated' }],
+    };
+  } else {
+    try {
+      validationResult = pass3ResponseSchema.parse(JSON.parse(pass3.text));
+    } catch {
+      logger.warn({ caseId }, 'pass3_json_parse_error');
+      validationResult = {
+        valid: false,
+        rejections: [{ quote: '', reason: 'Validator returned invalid JSON' }],
+      };
+    }
+  }
+
+  if (!validationResult.valid) {
+    logger.warn(
+      { warningCount: validationResult.rejections.length, caseId },
+      'pass3_validation_warnings',
+    );
+    for (const r of validationResult.rejections) {
+      if (isNonActionableRejection(r.reason)) continue;
+      const w: ValidationWarning = { stage: 'pass3', quote: r.quote, reason: r.reason };
+      if (r.section && (REPORT_SECTION_KEYS as readonly string[]).includes(r.section))
+        w.section = r.section as ReportSectionKey;
+      validationWarnings.push(w);
+    }
+  }
+
+  sse(res, {
+    type: 'progress',
+    pass: 3,
+    message:
+      validationWarnings.length > 0
+        ? `Validation produced ${validationWarnings.length} warning(s)`
+        : 'Validation passed',
+  });
+  if (validationWarnings.length > 0) {
+    sse(res, { type: 'validation_warnings', warnings: validationWarnings });
+  }
+  sse(res, {
+    type: 'stage_complete',
+    pass: 3,
+    tokensIn: tokenStats.pass3In,
+    tokensOut: tokenStats.pass3Out,
+    warningCount: validationWarnings.length,
+  });
+
+  return true;
+}
+
+/**
+ * Pass 3b: advisory cross-check against the optional reference pack. Skipped
+ * entirely when no pack is loaded, in which case the client is told so. Its
+ * token use folds into the pass 3 totals, so the 3b stage_complete reports the
+ * delta rather than the running total.
+ */
+async function runPass3b(
+  ctx: AnalysisContext,
+  structuredReport: StructuredReport,
+  findings: Finding[],
+): Promise<PassOutcome<ReferenceFlag[]>> {
+  const { res, caseId, signal, tokenStats, caseCohort } = ctx;
+
+  const referenceDocs = getReferenceStatus().enabled
+    ? getReferenceDocsForCohortAndType(caseCohort, 'hsat').filter((doc) =>
+        isReferenceRuleActive(doc.id),
+      )
+    : [];
+  const compactRules = compactRulesForPrompt(referenceDocs);
+
+  if (compactRules.length === 0) {
+    sse(res, {
+      type: 'warning',
+      code: 'reference_pack_unavailable',
+      message: 'Deterministic reference checks are disabled for this analysis.',
+    });
+    return [];
+  }
+
+  sse(res, {
+    type: 'progress',
+    pass: 3,
+    message: `Reference cross-check (${compactRules.length} rules)…`,
+  });
+  const baseIn = tokenStats.pass3In;
+  const baseOut = tokenStats.pass3Out;
+  let referenceFlags: ReferenceFlag[] = [];
+
+  try {
+    const pass3b = await callPass(
+      {
+        model: NANO_MODEL,
+        max_completion_tokens: 1024,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: pass3bReferenceCheckPrompt() },
+          {
+            role: 'user',
+            content: [
+              untrustedJson('cohort', caseCohort),
+              untrustedJson('reference-rules', compactRules),
+              untrustedJson('structured-report', structuredReport),
+              untrustedJson('validated-findings', findings),
+            ].join('\n\n'),
+          },
+        ],
+      },
+      signal,
+    );
+
+    if (!pass3b) return null;
+
+    tokenStats.pass3In += pass3b.tokensIn;
+    tokenStats.pass3Out += pass3b.tokensOut;
+    tokenStats.pass3CacheRead = (tokenStats.pass3CacheRead ?? 0) + pass3b.cacheReadTokens;
+
+    const parsedFlags = pass3bResponseSchema.safeParse(JSON.parse(pass3b.text));
+    if (parsedFlags.success) {
+      // A flag citing a rule that was never supplied is a fabrication, so only
+      // the ones matching a supplied rule id are kept.
+      const knownRuleIds = new Set(compactRules.map((r) => r.ruleId));
+      const accepted = parsedFlags.data.flags.filter((f) => knownRuleIds.has(f.ruleId));
+      referenceFlags = accepted.map((f) => ({
+        ruleId: f.ruleId,
+        quote: f.quote,
+        issue: f.issue,
+        severity: f.severity,
+        ...(f.section ? { section: f.section } : {}),
+      }));
+      if (accepted.length < parsedFlags.data.flags.length) {
+        logger.warn(
+          { dropped: parsedFlags.data.flags.length - accepted.length, caseId },
+          'pass3b_flags_dropped_unknown_rule_id',
+        );
+      }
+    } else {
+      logger.warn({ issueCount: parsedFlags.error.issues.length, caseId }, 'pass3b_parse_error');
+    }
+  } catch (err) {
+    logger.warn({ ...errorLogFields(err), caseId }, 'pass3b_failed_continuing');
+  }
+
+  sse(res, { type: 'reference_flags', flags: referenceFlags });
+  sse(res, {
+    type: 'stage_complete',
+    pass: '3b',
+    tokensIn: tokenStats.pass3In - baseIn,
+    tokensOut: tokenStats.pass3Out - baseOut,
+    flagCount: referenceFlags.length,
+  });
+
+  return referenceFlags;
+}
+
+/**
+ * Write the draft, its audit trail and token usage, then emit `done`. The
+ * update is conditional on the case's `updatedAt`, so a case edited while the
+ * analysis was running keeps the newer state and the stale draft is discarded.
+ */
+function persistAnalysis(
+  ctx: AnalysisContext,
+  c: Case,
+  findings: Finding[],
+  structuredReport: StructuredReport,
+  referenceFlags: ReferenceFlag[],
+  validationWarnings: ValidationWarning[],
+): void {
+  const { res, caseId, model, tokenStats } = ctx;
+  const now = nextCaseUpdatedAt(c.updatedAt);
+  const narrative = structuredReport.impression;
+  const findingsPendingReview = findings.map(
+    ({
+      reviewerDecision: _decision,
+      reviewedAt: _reviewedAt,
+      editedClaim: _editedClaim,
+      ...finding
+    }) => finding,
+  );
+  const persisted = updateCaseFindings(
+    caseId,
+    findingsPendingReview,
+    narrative,
+    model,
+    now,
+    structuredReport,
+    referenceFlags,
+    validationWarnings,
+    c.updatedAt,
+  );
+  if (!persisted) {
+    sse(res, {
+      type: 'error',
+      message: 'Case changed while analysis was running; the stale draft was not saved.',
+    });
+    return;
+  }
+  updateCaseTokenStats(caseId, tokenStats, now);
+  if (c.createdBy) {
+    const totalIn = tokenStats.pass1In + tokenStats.pass2In + tokenStats.pass3In;
+    const totalOut = tokenStats.pass1Out + tokenStats.pass2Out + tokenStats.pass3Out;
+    insertAnalysisAuditRecord(caseId, c.createdBy, totalIn, totalOut);
+  }
+  insertAuditRecord({
+    id: randomUUID(),
+    caseId,
+    action: 'analysis_completed',
+    metadata: {
+      promptVersion: PROMPT_VERSION,
+      modelVersion: model,
+      findingCount: findingsPendingReview.length,
+      referenceFlagCount: referenceFlags.length,
+      validationWarningCount: validationWarnings.length,
+      tokenStats,
+    },
+    createdAt: now,
+  });
+
+  sse(res, {
+    type: 'done',
+    findings: findingsPendingReview,
+    narrative,
+    structuredReport,
+    referenceFlags,
+    validationWarnings,
+    modelVersion: model,
+    promptVersion: PROMPT_VERSION,
+    tokenStats,
+  });
+}
+
 export async function runAnalysis(
   caseId: string,
   res: Response,
@@ -450,464 +971,39 @@ export async function runAnalysis(
     });
   }
 
-  const tokenStats: TokenStats = {
-    pass1In: 0,
-    pass1Out: 0,
-    pass2In: 0,
-    pass2Out: 0,
-    pass3In: 0,
-    pass3Out: 0,
+  const ctx: AnalysisContext = {
+    caseId,
+    res,
+    signal,
+    model,
+    caseCohort: detectCohortAndType(casePackageJson).cohort,
+    isDocumentsOnly,
+    tokenStats: {
+      pass1In: 0,
+      pass1Out: 0,
+      pass2In: 0,
+      pass2Out: 0,
+      pass3In: 0,
+      pass3Out: 0,
+    },
   };
-  const { cohort: caseCohort } = detectCohortAndType(casePackageJson);
 
   try {
-    // ── Pass 1: structured fact extraction ────────────────────────────────
-    sse(res, { type: 'progress', pass: 1, message: 'Extracting findings…' });
+    const findings = await runPass1(ctx, casePackageJson);
+    if (!findings) return;
 
-    const pass1UserContent = await buildPass1UserContent(casePackageJson, caseId);
-
-    const pass1 = await callPass(
-      {
-        model,
-        max_completion_tokens: 16384,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: isDocumentsOnly
-              ? pass1SystemPromptDocumentsOnly(caseCohort)
-              : pass1SystemPrompt(caseCohort),
-          },
-          { role: 'user', content: pass1UserContent },
-        ],
-      },
-      signal,
-    );
-
-    if (!pass1) {
-      res.end();
-      return;
-    }
-
-    tokenStats.pass1In = pass1.tokensIn;
-    tokenStats.pass1Out = pass1.tokensOut;
-    tokenStats.pass1CacheRead = pass1.cacheReadTokens;
-
-    if (pass1.truncated) {
-      logger.error(
-        { tokensIn: tokenStats.pass1In, tokensOut: tokenStats.pass1Out },
-        'pass1_truncated',
-      );
-      sse(res, {
-        type: 'error',
-        message:
-          'Pass 1 response was truncated - too many findings or images. Try with fewer screenshots.',
-      });
-      res.end();
-      return;
-    }
-
-    const pass1Text = pass1.text;
-    let rawFindings: Finding[];
-    try {
-      const parsed = pass1ResponseSchema.parse(JSON.parse(pass1Text));
-      rawFindings = parsed.findings as Finding[];
-    } catch {
-      logger.error({ caseId }, 'pass1_parse_error');
-      sse(res, { type: 'error', message: 'Pass 1 produced invalid JSON - please try again' });
-      res.end();
-      return;
-    }
-
-    // Hard validator: reject findings without evidence
-    const evidenceFiltered = rawFindings.filter((f) => f.evidence.length > 0);
-    if (evidenceFiltered.length < rawFindings.length) {
-      logger.warn(
-        { dropped: rawFindings.length - evidenceFiltered.length },
-        'pass1_findings_dropped_no_evidence',
-      );
-    }
-
-    // Deterministic metric bounds check - runs before Pass 2 so impossible
-    // values never reach the structured report.
-    const boundsCheckCohort = caseCohort;
-    const validatedFindings: Finding[] = [];
-    for (const f of evidenceFiltered) {
-      let drop = false;
-      const uncertaintyNotes: string[] = f.uncertainty ? [f.uncertainty] : [];
-      for (const ev of f.evidence) {
-        if (typeof ev.value !== 'number') continue;
-        const outcome = checkMetricBounds(ev.source, ev.value, boundsCheckCohort);
-        if (outcome.kind === 'impossible') {
-          logger.warn('metric_impossible_value_dropped');
-          drop = true;
-          break;
-        }
-        if (outcome.kind === 'out_of_range') {
-          uncertaintyNotes.push(outcome.note);
-        }
-      }
-      if (!drop) {
-        validatedFindings.push(
-          uncertaintyNotes.length > 0 ? { ...f, uncertainty: uncertaintyNotes.join('; ') } : f,
-        );
-      }
-    }
-    if (validatedFindings.length < evidenceFiltered.length) {
-      logger.warn(
-        { dropped: evidenceFiltered.length - validatedFindings.length },
-        'metric_impossible_values_dropped',
-      );
-    }
-
-    // Remap LLM-generated IDs to stable sequential F-001, F-002, … so Pass 2/3
-    // can cite them reliably and the report never shows raw UUIDs.
-    const idMap = new Map(
-      validatedFindings.map((f, i) => [f.id, `F-${String(i + 1).padStart(3, '0')}`]),
-    );
-    for (const f of validatedFindings) {
-      f.id = idMap.get(f.id)!;
-    }
-
-    sse(res, {
-      type: 'progress',
-      pass: 1,
-      message: `Extracted ${validatedFindings.length} findings`,
-    });
-    sse(res, {
-      type: 'stage_complete',
-      pass: 1,
-      tokensIn: tokenStats.pass1In,
-      tokensOut: tokenStats.pass1Out,
-      findingCount: validatedFindings.length,
-    });
-
-    // ── Pass 2: structured report draft ────────────────────────────────────
-    sse(res, { type: 'progress', pass: 2, message: 'Drafting structured report…' });
-
-    const pass2 = await callPass(
-      {
-        model,
-        max_completion_tokens: 4096,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: pass2SystemPrompt(caseCohort) },
-          { role: 'user', content: untrustedJson('validated-findings', validatedFindings) },
-        ],
-      },
-      signal,
-    );
-
-    if (!pass2) {
-      res.end();
-      return;
-    }
-
-    tokenStats.pass2In = pass2.tokensIn;
-    tokenStats.pass2Out = pass2.tokensOut;
-    tokenStats.pass2CacheRead = pass2.cacheReadTokens;
-
-    if (pass2.truncated) {
-      logger.error(
-        {
-          tokensIn: tokenStats.pass2In,
-          tokensOut: tokenStats.pass2Out,
-          findingCount: validatedFindings.length,
-        },
-        'pass2_truncated',
-      );
-      sse(res, {
-        type: 'error',
-        message:
-          'Pass 2 response was truncated - too many findings to fit in the report. Try with fewer screenshots.',
-      });
-      res.end();
-      return;
-    }
-
-    const pass2Raw = pass2.text;
-    const parseOutcome = parsePass2Output(pass2Raw);
+    // Accumulated across passes 2 and 3, then persisted with the draft.
     const validationWarnings: ValidationWarning[] = [];
-    if (!parseOutcome.ok) {
-      logger.error({ caseId }, 'pass2_parse_error');
-      sse(res, { type: 'error', message: 'Pass 2 produced invalid structured report JSON' });
-      res.end();
-      return;
-    }
-    const structuredReport: StructuredReport = parseOutcome.report;
-    if (parseOutcome.coerced) {
-      logger.warn({ warningCount: parseOutcome.warnings.length, caseId }, 'pass2_output_coerced');
-      for (const w of parseOutcome.warnings) {
-        validationWarnings.push({
-          stage: 'citation_check',
-          section: 'summary',
-          quote: '',
-          reason: `Pass 2 output coerced: ${w}`,
-        });
-      }
-    }
 
-    // Deterministic citation pre-check - collected as advisory warnings, not a hard block.
-    const localCheck = validateCitations(structuredReport, validatedFindings);
-    if (!localCheck.valid) {
-      logger.warn(
-        { warningCount: localCheck.rejections.length, caseId },
-        'pass2_citation_check_warnings',
-      );
-      for (const r of localCheck.rejections) {
-        validationWarnings.push({
-          stage: 'citation_check',
-          section: r.section,
-          quote: r.quote,
-          reason: r.reason,
-        });
-      }
-    }
+    const structuredReport = await runPass2(ctx, findings, validationWarnings);
+    if (!structuredReport) return;
 
-    sse(res, { type: 'progress', pass: 2, message: 'Structured report drafted' });
-    sse(res, {
-      type: 'stage_complete',
-      pass: 2,
-      tokensIn: tokenStats.pass2In,
-      tokensOut: tokenStats.pass2Out,
-    });
+    if (!(await runPass3(ctx, structuredReport, findings, validationWarnings))) return;
 
-    // ── Pass 3: skeptical validator ────────────────────────────────────────
-    sse(res, { type: 'progress', pass: 3, message: 'Validating report sections…' });
+    const referenceFlags = await runPass3b(ctx, structuredReport, findings);
+    if (!referenceFlags) return;
 
-    const pass3 = await callPass(
-      {
-        model: NANO_MODEL,
-        max_completion_tokens: 4096,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: pass3SystemPrompt() },
-          {
-            role: 'user',
-            content: [
-              untrustedJson('structured-report', structuredReport),
-              untrustedJson('validated-findings', validatedFindings),
-            ].join('\n\n'),
-          },
-        ],
-      },
-      signal,
-    );
-
-    if (!pass3) {
-      res.end();
-      return;
-    }
-
-    tokenStats.pass3In = pass3.tokensIn;
-    tokenStats.pass3Out = pass3.tokensOut;
-    tokenStats.pass3CacheRead = pass3.cacheReadTokens;
-
-    const pass3Text = pass3.text;
-    let validationResult: z.infer<typeof pass3ResponseSchema>;
-    if (pass3.truncated) {
-      logger.warn({ caseId, tokensOut: tokenStats.pass3Out }, 'pass3_truncated');
-      validationResult = {
-        valid: false,
-        rejections: [{ quote: '', reason: 'Validator response was truncated' }],
-      };
-    } else {
-      try {
-        validationResult = pass3ResponseSchema.parse(JSON.parse(pass3Text));
-      } catch {
-        logger.warn({ caseId }, 'pass3_json_parse_error');
-        validationResult = {
-          valid: false,
-          rejections: [{ quote: '', reason: 'Validator returned invalid JSON' }],
-        };
-      }
-    }
-
-    if (!validationResult.valid) {
-      logger.warn(
-        { warningCount: validationResult.rejections.length, caseId },
-        'pass3_validation_warnings',
-      );
-      for (const r of validationResult.rejections) {
-        if (isNonActionableRejection(r.reason)) continue;
-        const w: ValidationWarning = { stage: 'pass3', quote: r.quote, reason: r.reason };
-        if (r.section && (REPORT_SECTION_KEYS as readonly string[]).includes(r.section))
-          w.section = r.section as ReportSectionKey;
-        validationWarnings.push(w);
-      }
-    }
-
-    sse(res, {
-      type: 'progress',
-      pass: 3,
-      message:
-        validationWarnings.length > 0
-          ? `Validation produced ${validationWarnings.length} warning(s)`
-          : 'Validation passed',
-    });
-    if (validationWarnings.length > 0) {
-      sse(res, { type: 'validation_warnings', warnings: validationWarnings });
-    }
-    sse(res, {
-      type: 'stage_complete',
-      pass: 3,
-      tokensIn: tokenStats.pass3In,
-      tokensOut: tokenStats.pass3Out,
-      warningCount: validationWarnings.length,
-    });
-
-    // ── Pass 3b: reference cross-check (advisory) ──────────────────────────
-    const referenceDocs = getReferenceStatus().enabled
-      ? getReferenceDocsForCohortAndType(caseCohort, 'hsat').filter((doc) =>
-          isReferenceRuleActive(doc.id),
-        )
-      : [];
-    const compactRules = compactRulesForPrompt(referenceDocs);
-    let referenceFlags: ReferenceFlag[] = [];
-
-    if (compactRules.length > 0) {
-      sse(res, {
-        type: 'progress',
-        pass: 3,
-        message: `Reference cross-check (${compactRules.length} rules)…`,
-      });
-      const pass3bTokenBaseIn = tokenStats.pass3In;
-      const pass3bTokenBaseOut = tokenStats.pass3Out;
-      try {
-        const pass3b = await callPass(
-          {
-            model: NANO_MODEL,
-            max_completion_tokens: 1024,
-            response_format: { type: 'json_object' },
-            messages: [
-              { role: 'system', content: pass3bReferenceCheckPrompt() },
-              {
-                role: 'user',
-                content: [
-                  untrustedJson('cohort', caseCohort),
-                  untrustedJson('reference-rules', compactRules),
-                  untrustedJson('structured-report', structuredReport),
-                  untrustedJson('validated-findings', validatedFindings),
-                ].join('\n\n'),
-              },
-            ],
-          },
-          signal,
-        );
-
-        if (!pass3b) {
-          res.end();
-          return;
-        }
-
-        tokenStats.pass3In += pass3b.tokensIn;
-        tokenStats.pass3Out += pass3b.tokensOut;
-        tokenStats.pass3CacheRead = (tokenStats.pass3CacheRead ?? 0) + pass3b.cacheReadTokens;
-
-        const pass3bText = pass3b.text;
-        const parsedFlags = pass3bResponseSchema.safeParse(JSON.parse(pass3bText));
-        if (parsedFlags.success) {
-          const knownRuleIds = new Set(compactRules.map((r) => r.ruleId));
-          const accepted = parsedFlags.data.flags.filter((f) => knownRuleIds.has(f.ruleId));
-          referenceFlags = accepted.map((f) => ({
-            ruleId: f.ruleId,
-            quote: f.quote,
-            issue: f.issue,
-            severity: f.severity,
-            ...(f.section ? { section: f.section } : {}),
-          }));
-          if (accepted.length < parsedFlags.data.flags.length) {
-            logger.warn(
-              { dropped: parsedFlags.data.flags.length - accepted.length, caseId },
-              'pass3b_flags_dropped_unknown_rule_id',
-            );
-          }
-        } else {
-          logger.warn(
-            { issueCount: parsedFlags.error.issues.length, caseId },
-            'pass3b_parse_error',
-          );
-        }
-      } catch (err) {
-        logger.warn({ ...errorLogFields(err), caseId }, 'pass3b_failed_continuing');
-      }
-      sse(res, { type: 'reference_flags', flags: referenceFlags });
-      sse(res, {
-        type: 'stage_complete',
-        pass: '3b',
-        tokensIn: tokenStats.pass3In - pass3bTokenBaseIn,
-        tokensOut: tokenStats.pass3Out - pass3bTokenBaseOut,
-        flagCount: referenceFlags.length,
-      });
-    } else {
-      sse(res, {
-        type: 'warning',
-        code: 'reference_pack_unavailable',
-        message: 'Deterministic reference checks are disabled for this analysis.',
-      });
-    }
-
-    // ── Persist ────────────────────────────────────────────────────────────
-    const now = nextCaseUpdatedAt(c.updatedAt);
-    const narrative = structuredReport.impression;
-    const findingsPendingReview = validatedFindings.map(
-      ({
-        reviewerDecision: _decision,
-        reviewedAt: _reviewedAt,
-        editedClaim: _editedClaim,
-        ...finding
-      }) => finding,
-    );
-    const persisted = updateCaseFindings(
-      caseId,
-      findingsPendingReview,
-      narrative,
-      model,
-      now,
-      structuredReport,
-      referenceFlags,
-      validationWarnings,
-      c.updatedAt,
-    );
-    if (!persisted) {
-      sse(res, {
-        type: 'error',
-        message: 'Case changed while analysis was running; the stale draft was not saved.',
-      });
-      return;
-    }
-    updateCaseTokenStats(caseId, tokenStats, now);
-    if (c.createdBy) {
-      const totalIn = tokenStats.pass1In + tokenStats.pass2In + tokenStats.pass3In;
-      const totalOut = tokenStats.pass1Out + tokenStats.pass2Out + tokenStats.pass3Out;
-      insertAnalysisAuditRecord(caseId, c.createdBy, totalIn, totalOut);
-    }
-    insertAuditRecord({
-      id: randomUUID(),
-      caseId,
-      action: 'analysis_completed',
-      metadata: {
-        promptVersion: PROMPT_VERSION,
-        modelVersion: model,
-        findingCount: findingsPendingReview.length,
-        referenceFlagCount: referenceFlags.length,
-        validationWarningCount: validationWarnings.length,
-        tokenStats,
-      },
-      createdAt: now,
-    });
-
-    sse(res, {
-      type: 'done',
-      findings: findingsPendingReview,
-      narrative,
-      structuredReport,
-      referenceFlags,
-      validationWarnings,
-      modelVersion: model,
-      promptVersion: PROMPT_VERSION,
-      tokenStats,
-    });
+    persistAnalysis(ctx, c, findings, structuredReport, referenceFlags, validationWarnings);
   } catch (err) {
     const isAbort =
       signal.aborted ||

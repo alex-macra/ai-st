@@ -13,6 +13,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { Textarea, Chip, Popover } from '../ui';
+import { fmt } from '../ui/utils';
 import type {
   StructuredReport,
   ReportSectionKey,
@@ -73,11 +74,6 @@ function isPopulated(value: unknown): boolean {
     return Object.values(value as Record<string, unknown>).some(isPopulated);
   }
   return true;
-}
-
-function fmt(n: number | undefined | null, suffix = '', decimals = 1): string | null {
-  if (n === undefined || n === null) return null;
-  return `${Number.isInteger(n) ? n : n.toFixed(decimals)}${suffix}`;
 }
 
 function isEdfBacked(

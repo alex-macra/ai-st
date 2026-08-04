@@ -12,6 +12,7 @@ import type {
 } from '@contracts/types';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 import { stripInlineCitations } from '../utils';
+import { fmt as fmtOrNull } from '../ui/utils';
 
 interface Props {
   c: Case;
@@ -19,9 +20,9 @@ interface Props {
 }
 
 // ── utilities ─────────────────────────────────────────────────────────────────
+/** A printed report needs a placeholder in the cell, not an omitted row. */
 function fmt(n: number | undefined | null, suffix = '', digits = 1): string {
-  if (n === undefined || n === null) return '-';
-  return `${Number.isInteger(n) ? n : n.toFixed(digits)}${suffix}`;
+  return fmtOrNull(n, suffix, digits) ?? '-';
 }
 
 function fmtSec(sec: number): string {
@@ -59,6 +60,26 @@ const SEVERITY: Record<SeverityLabel, { bg: string; text: string; border: string
 
 // ── SVG charts ────────────────────────────────────────────────────────────────
 
+/**
+ * Every chart below draws into the same fixed-width viewBox and scales to the
+ * column. Only the height differs, so the four of them share this frame rather
+ * than each restating the svg attributes and the 400pt width.
+ */
+const CHART_W = 400;
+
+function ChartFrame({ height, children }: { height: number; children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox={`0 0 ${CHART_W} ${height}`}
+      width="100%"
+      height={height}
+      style={{ display: 'block', marginTop: '5pt' }}
+    >
+      {children}
+    </svg>
+  );
+}
+
 function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined }) {
   const isPeds = cohort === 'pediatric';
   const maxVal = isPeds ? 15 : 40;
@@ -77,7 +98,7 @@ function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined
         { label: 'Severe', start: 30, end: 40, color: '#FFCDD2' },
       ];
 
-  const W = 400,
+  const W = CHART_W,
     H = 38,
     barH = 20,
     yBar = 6;
@@ -85,12 +106,7 @@ function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined
   const ticks = isPeds ? [0, 1, 5, 10, 15] : [0, 5, 15, 30, 40];
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      style={{ display: 'block', marginTop: '5pt' }}
-    >
+    <ChartFrame height={H}>
       {bands.map((b) => {
         const x = (b.start / maxVal) * W;
         const w = ((b.end - b.start) / maxVal) * W;
@@ -134,7 +150,7 @@ function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined
           {v}
         </text>
       ))}
-    </svg>
+    </ChartFrame>
   );
 }
 
@@ -149,7 +165,7 @@ function SpO2Bar({
 }) {
   const minVal = 78,
     maxVal = 100;
-  const W = 400,
+  const W = CHART_W,
     H = 44,
     barH = 16,
     yBar = 10;
@@ -174,12 +190,7 @@ function SpO2Bar({
   );
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      style={{ display: 'block', marginTop: '5pt' }}
-    >
+    <ChartFrame height={H}>
       {[78, 82, 86, 90, 94, 98].map((v) => (
         <text key={v} x={xOf(v)} y={8} fontSize="6" textAnchor="middle" fill="#999">
           {v}%
@@ -227,7 +238,7 @@ function SpO2Bar({
           </text>
         </g>
       ))}
-    </svg>
+    </ChartFrame>
   );
 }
 
@@ -255,7 +266,7 @@ function PositionBar({
   );
   if (raw.length === 0) return null;
 
-  const W = 400,
+  const W = CHART_W,
     H = 34,
     barH = 18,
     yBar = 2;
@@ -269,12 +280,7 @@ function PositionBar({
   });
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      style={{ display: 'block', marginTop: '5pt' }}
-    >
+    <ChartFrame height={H}>
       {segs.map((s) => (
         <g key={s.label}>
           <rect
@@ -313,7 +319,7 @@ function PositionBar({
             {s.label} {s.pct.toFixed(0)}%
           </text>
         ))}
-    </svg>
+    </ChartFrame>
   );
 }
 
@@ -342,7 +348,7 @@ function HrRangeChart({
   const minV = Math.floor(Math.min(...allVals) - 5);
   const maxV = Math.ceil(Math.max(...allVals) + 5);
   const range = maxV - minV;
-  const W = 400,
+  const W = CHART_W,
     BAR_LEFT = 36;
   const barW = W - BAR_LEFT;
   const H = hasWake ? 58 : 34;
@@ -361,12 +367,7 @@ function HrRangeChart({
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(minV + f * range));
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      style={{ display: 'block', marginTop: '5pt' }}
-    >
+    <ChartFrame height={H}>
       {ticks.map((t) => (
         <g key={t}>
           <line x1={xOf(t)} y1={0} x2={xOf(t)} y2={H - 10} stroke="#eee" strokeWidth="0.5" />
@@ -419,7 +420,7 @@ function HrRangeChart({
           </g>
         );
       })}
-    </svg>
+    </ChartFrame>
   );
 }
 
