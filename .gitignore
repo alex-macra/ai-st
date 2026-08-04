@@ -63,3 +63,10 @@ e2e/.auth/*
 Thumbs.db
 .vscode/
 *.swp
+
+# Local AI tooling
+.agents/
+.claude/
+.codex/
+CLAUDE.md
+AGENTS.md
