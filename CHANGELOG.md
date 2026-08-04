@@ -19,6 +19,9 @@ While the version stays below `1.0.0`, any release may change interfaces.
 - `CITATION.cff`, so the project can be cited from its GitHub page.
 - An explicit `license` field on each package manifest.
 - `docs/fresh-repo-handoff.md`, recording what a re-publication would need.
+- Randomised tests comparing the shared run-length scan against a reference
+  implementation written by a different method, plus the window and degenerate-
+  input properties the three detectors built on it must hold.
 
 ### Changed
 
