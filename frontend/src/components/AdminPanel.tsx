@@ -52,17 +52,26 @@ function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  // Fetches only. `loading` starts true, so the effect just resolves it;
+  // raising it synchronously in an effect cascades a render before the request
+  // is even sent. The Refresh button raises it from a handler, where that is fine.
+  const load = useCallback(
+    () =>
+      adminDashboard()
+        .then(setData)
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
+        .finally(() => setLoading(false)),
+    [],
+  );
+
+  function refresh() {
     setLoading(true);
     setError(null);
-    adminDashboard()
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false));
-  }, []);
+    void load();
+  }
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   if (loading) return <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>;
@@ -77,7 +86,7 @@ function DashboardTab() {
     <div>
       <div className="flex justify-end mb-4">
         <button
-          onClick={load}
+          onClick={refresh}
           className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
         >
           <RefreshCw size={12} /> Refresh
@@ -108,9 +117,10 @@ function UsersTab() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Fetches only; it never raises the spinner. The two callers decide that: the
+  // effect leaves `loading` at its initial true, and a page change or an admin
+  // toggle raises it from the handler, where a synchronous setState is fine.
   const load = useCallback((pg: number) => {
-    setLoading(true);
-    setError(null);
     adminUsers(pg, PAGE_SIZE)
       .then((r) => {
         setRows(r.users);
@@ -118,6 +128,12 @@ function UsersTab() {
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
+  }, []);
+
+  const goToPage = useCallback((pg: number) => {
+    setLoading(true);
+    setError(null);
+    setPage(pg);
   }, []);
 
   useEffect(() => {
@@ -133,6 +149,7 @@ function UsersTab() {
     setBusyId(u.id);
     try {
       await setUserAdmin(u.id, next);
+      setLoading(true);
       load(page);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update user');
@@ -199,7 +216,7 @@ function UsersTab() {
           {totalPages > 1 && (
             <div className="mt-4 flex items-center justify-end gap-3">
               <span className="text-xs text-slate-500 tabular-nums">{total} total</span>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination page={page} totalPages={totalPages} onPageChange={goToPage} />
             </div>
           )}
         </div>

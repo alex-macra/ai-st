@@ -1,6 +1,6 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText } from 'lucide-react';
 import { Alert, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
 import { getCases, deleteCase, clearCaseAnalysis } from '../api';
@@ -18,21 +18,30 @@ export function CaseList({ onSelect, refreshKey }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(
+    () =>
+      getCases()
+        .then(setCases)
+        .catch((err: unknown) =>
+          setError(err instanceof Error ? err.message : 'Failed to load cases'),
+        )
+        .finally(() => setLoading(false)),
+    [],
+  );
+
+  /** Refresh button: raising the spinner from a handler is safe, unlike an effect. */
+  function reload() {
     setLoading(true);
     setError(null);
-    try {
-      setCases(await getCases());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load cases');
-    } finally {
-      setLoading(false);
-    }
+    void load();
   }
 
+  // `loading` starts true, so the effect only resolves it. A refreshKey change
+  // keeps the current list on screen until the new one arrives rather than
+  // flashing a spinner over data that is about to be replaced.
   useEffect(() => {
     void load();
-  }, [refreshKey]);
+  }, [refreshKey, load]);
 
   async function handleDelete(c: Case) {
     if (!window.confirm(`Delete case ${c.id.slice(0, 8)}? This cannot be undone.`)) return;
@@ -75,7 +84,7 @@ export function CaseList({ onSelect, refreshKey }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Cases</h2>
-        <button className="btn-ghost p-1.5" onClick={() => void load()} title="Refresh">
+        <button className="btn-ghost p-1.5" onClick={reload} title="Refresh">
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>

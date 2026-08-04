@@ -114,9 +114,10 @@ export function AuditTrail({ caseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // `loading` starts true and is only ever resolved here. Raising it
+  // synchronously would cascade a render before the request is even sent.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     getAuditLog(caseId)
       .then(({ auditLog, tokenStats: ts }) => {
         if (!cancelled) {

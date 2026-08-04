@@ -38,10 +38,14 @@ export function QuotaCard({
   footnote,
   className,
 }: QuotaCardProps) {
-  const [, tick] = useState(0);
+  // The clock is state rather than a Date.now() call in the render body. Reading
+  // the clock while rendering makes the output depend on when React happens to
+  // re-render, so the countdown could jump on an unrelated parent update; here
+  // it only moves when the interval says so.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (windowEndsAt === undefined) return;
-    const timer = window.setInterval(() => tick((value) => value + 1), 60_000);
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, [windowEndsAt]);
 
@@ -76,9 +80,7 @@ export function QuotaCard({
               ? 'Unlimited'
               : `${remaining?.toLocaleString()} ${unitLabel.trim()} remaining`)}
         </span>
-        {windowEndsAt !== undefined && (
-          <span>resets in {countdown(windowEndsAt - Date.now())}</span>
-        )}
+        {windowEndsAt !== undefined && <span>resets in {countdown(windowEndsAt - now)}</span>}
       </div>
       {footnote && <div className="mt-2 text-xs">{footnote}</div>}
     </section>

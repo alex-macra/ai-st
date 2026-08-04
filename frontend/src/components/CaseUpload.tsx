@@ -45,11 +45,11 @@ export function CaseUpload({ onUploaded }: Props) {
 
   const hasAnyFile = edf !== null || pdf !== null || screenshots.length > 0;
 
+  // Advances the progress caption while an upload runs. The reset to step 0
+  // belongs to handleSubmit, which is what starts an upload -- doing it here
+  // would set state synchronously on every render where uploading is false.
   useEffect(() => {
-    if (!uploading) {
-      setUploadStepIdx(0);
-      return;
-    }
+    if (!uploading) return;
     const id = setInterval(() => {
       setUploadStepIdx((i) => Math.min(i + 1, UPLOAD_STEPS.length - 1));
     }, 2500);
@@ -59,6 +59,7 @@ export function CaseUpload({ onUploaded }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!hasAnyFile) return;
+    setUploadStepIdx(0);
     setUploading(true);
     try {
       const result = await uploadCase(
