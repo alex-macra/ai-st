@@ -1,7 +1,7 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
-import { REPORT_SECTION_KEYS } from './shared/types.js';
-import type { Case, Finding, ReportSectionKey, StructuredReport } from './shared/types.js';
+import { REPORT_SECTION_KEYS } from './types.js';
+import type { Case, Finding, ReportSectionKey, StructuredReport } from './types.js';
 
 function hasContent(value: unknown): boolean {
   if (value === undefined || value === null) return false;
@@ -13,13 +13,13 @@ function hasContent(value: unknown): boolean {
   return true;
 }
 
-export function populatedSectionKeys(report: StructuredReport): ReportSectionKey[] {
+export function populatedReportSections(report: StructuredReport): ReportSectionKey[] {
   return REPORT_SECTION_KEYS.filter((key) => hasContent(report[key]));
 }
 
 export function unreviewedSectionKeys(c: Case): ReportSectionKey[] {
   if (!c.structuredReport) return [];
-  return populatedSectionKeys(c.structuredReport).filter((key) => !c.sectionReviews?.[key]);
+  return populatedReportSections(c.structuredReport).filter((key) => !c.sectionReviews?.[key]);
 }
 
 export function reviewedFindingsForActionPlan(c: Case): Finding[] {
@@ -40,7 +40,7 @@ export function reviewedFindingsForActionPlan(c: Case): Finding[] {
 export function reviewedReportForActionPlan(c: Case): Record<string, unknown> {
   if (!c.structuredReport) return {};
   const report: Record<string, unknown> = {};
-  for (const key of populatedSectionKeys(c.structuredReport)) {
+  for (const key of populatedReportSections(c.structuredReport)) {
     const review = c.sectionReviews?.[key];
     if (!review || review.decision === 'reject' || review.decision === 'artefact') continue;
     report[key] =
@@ -50,4 +50,14 @@ export function reviewedReportForActionPlan(c: Case): Record<string, unknown> {
   }
   report['citations'] = c.structuredReport.citations;
   return report;
+}
+
+/** True when every finding and every populated report section has been adjudicated. */
+export function reviewIsComplete(c: Case): boolean {
+  if (c.findings.length === 0 || c.findings.some((finding) => !finding.reviewerDecision))
+    return false;
+  if (!c.structuredReport) return true;
+  return populatedReportSections(c.structuredReport).every(
+    (key) => c.sectionReviews?.[key] !== undefined,
+  );
 }

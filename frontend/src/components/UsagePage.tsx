@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button, QuotaCard } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 
 interface Props {
   user: User;

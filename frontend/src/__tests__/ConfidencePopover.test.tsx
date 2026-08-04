@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConfidencePopover } from '../components/ConfidencePopover';
-import type { Finding } from '../shared/types';
+import type { Finding } from '@contracts/types';
 
 const baseFinding: Finding = {
   id: 'F-test-001',

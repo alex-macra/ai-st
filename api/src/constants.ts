@@ -22,20 +22,17 @@ export const CHARTS_DIR = process.env['CHARTS_DIR'] ?? '../preprocessor/data/cha
 export const SLICES_DIR = process.env['SLICES_DIR'] ?? '../preprocessor/data/slices';
 export const SCREENSHOTS_DIR = process.env['SCREENSHOTS_DIR'] ?? '../data/screenshots';
 
-export const CASE_STATUSES = ['draft', 'pending_review', 'signed_off'] as const;
-export type CaseStatus = (typeof CASE_STATUSES)[number];
-
-export const FINDING_CONFIDENCES = ['high', 'medium', 'low'] as const;
-export type FindingConfidence = (typeof FINDING_CONFIDENCES)[number];
-
-export const EVIDENCE_TYPES = [
-  'edf_metric',
-  'event_table',
-  'report_page',
-  'screenshot_window',
-  'pdf_metric',
-] as const;
-export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+// These belong to the wire contract, so they are defined in shared/types.ts and
+// re-exported here for the existing call sites. This file reads process.env at
+// module scope and must never be reachable from the browser bundle.
+export {
+  CASE_STATUSES,
+  FINDING_CONFIDENCES,
+  EVIDENCE_TYPES,
+  type CaseStatus,
+  type FindingConfidence,
+  type EvidenceType,
+} from './shared/types.js';
 
 // Conservative prompt-size budget for text candidates and attached images.
 export const MAX_INPUT_TOKENS = 35_000;

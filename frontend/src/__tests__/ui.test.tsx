@@ -8,7 +8,7 @@ import { useDarkMode } from '../ui/theme';
 import { Tabs } from '../ui/navigation';
 import { AccountPanel, Popover } from '../ui/overlays';
 import { SignOffPanel } from '../components/SignOffPanel';
-import type { Case } from '../shared/types';
+import type { Case } from '@contracts/types';
 
 afterEach(() => {
   window.localStorage.clear();

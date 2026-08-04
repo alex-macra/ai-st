@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronUp, X, HelpCircle, Pencil, Activity } from '
 import { Textarea, Chip } from '../ui';
 import { EvidencePanel } from './EvidencePanel';
 import { ConfidencePopover } from './ConfidencePopover';
-import type { Finding, FindingConfidence, ReviewerDecision, EventSlice } from '../shared/types';
+import type { Finding, FindingConfidence, ReviewerDecision, EventSlice } from '@contracts/types';
 
 interface Props {
   finding: Finding;

@@ -1,6 +1,6 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { EvidenceRef, EventSlice } from '../shared/types';
+import type { EvidenceRef, EventSlice } from '@contracts/types';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 
 interface Props {

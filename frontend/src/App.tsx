@@ -11,7 +11,7 @@ import { AccountPanel } from './components/AccountPanel';
 import { AccountPage } from './components/AccountPage';
 import { UsagePage } from './components/UsagePage';
 import { AdminPanel } from './components/AdminPanel';
-import type { Case, User } from './shared/types';
+import type { Case, AuthenticatedUser as User } from '@contracts/types';
 import { getMe, logout, setUnauthorizedHandler, getCase } from './api';
 
 type View = 'list' | 'upload' | 'workspace' | 'account' | 'usage' | 'admin';

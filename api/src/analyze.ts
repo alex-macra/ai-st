@@ -59,7 +59,7 @@ import {
   reviewedFindingsForActionPlan,
   reviewedReportForActionPlan,
   unreviewedSectionKeys,
-} from './review.js';
+} from './shared/review.js';
 
 const client = getOpenAIClient();
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { Button, Input, DarkModeToggle, FormattedInput, LICENSE_KEY_RULE } from '../ui';
 import { activate, requestOtp, verifyOtp } from '../api';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 
 type Mode = 'choice' | 'activate' | 'login' | 'verify';
 

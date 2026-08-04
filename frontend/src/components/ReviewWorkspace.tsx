@@ -31,10 +31,10 @@ import type {
   ReportSectionKey,
   FindingConfidence,
   EventSlice,
-} from '../shared/types';
+} from '@contracts/types';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 import { buildPdfFilename, printWithFilename, stripInlineCitations } from '../utils';
-import { reviewIsComplete } from '../shared/review';
+import { reviewIsComplete } from '@contracts/review';
 
 interface Props {
   initialCase: Case;

@@ -1,6 +1,6 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { EventSlice, SignalSlice } from '../shared/types';
+import type { EventSlice, SignalSlice } from '@contracts/types';
 
 const WIDTH = 820;
 const LANE_H = 72;

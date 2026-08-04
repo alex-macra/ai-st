@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { ShieldCheck, FileDown } from 'lucide-react';
 import { Button, Input } from '../ui';
-import type { Case } from '../shared/types';
-import { populatedReportSections, reviewIsComplete } from '../shared/review';
+import type { Case } from '@contracts/types';
+import { populatedReportSections, reviewIsComplete } from '@contracts/review';
 import { buildPdfFilename, printWithFilename } from '../utils';
 
 interface Props {

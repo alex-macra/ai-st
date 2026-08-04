@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Popover, Badge, Chip, type BadgeVariant } from '../ui';
 import { ShieldCheck, AlertTriangle, AlertOctagon } from 'lucide-react';
-import type { Finding, FindingConfidence } from '../shared/types';
+import type { Finding, FindingConfidence } from '@contracts/types';
 
 const CONFIDENCE_VARIANT: Record<FindingConfidence, BadgeVariant> = {
   high: 'success',

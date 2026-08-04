@@ -8,9 +8,9 @@ import type {
   ReviewerDecision,
   TokenStats,
   ReportSectionKey,
-  User,
+  AuthenticatedUser as User,
   EventSlice,
-} from './shared/types';
+} from '@contracts/types';
 import { streamSSE, parseHttpError, errorMessage } from './apiClient';
 
 const BASE = '/api';

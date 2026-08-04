@@ -37,7 +37,7 @@ import type { ReportSectionKey } from '../shared/types.js';
 import { logger, hashIp, errorLogFields } from '../logger.js';
 import { runAnalysis, runActionPlan } from '../analyze.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
-import { reviewedFindingsForActionPlan, unreviewedSectionKeys } from '../review.js';
+import { reviewedFindingsForActionPlan, unreviewedSectionKeys } from '../shared/review.js';
 
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');

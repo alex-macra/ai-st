@@ -9,7 +9,7 @@ import type {
   StructuredReport,
   AuditRecord,
   EventSlice,
-} from '../shared/types';
+} from '@contracts/types';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 import { stripInlineCitations } from '../utils';
 

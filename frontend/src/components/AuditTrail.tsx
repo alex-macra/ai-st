@@ -11,7 +11,7 @@ import {
   Badge,
 } from '../ui';
 import { getAuditLog } from '../api';
-import type { AuditRecord, TokenStats } from '../shared/types';
+import type { AuditRecord, TokenStats } from '@contracts/types';
 import { MODEL_PRICING, DEFAULT_MODEL_PRICING } from '../constants';
 
 interface Props {

@@ -23,8 +23,8 @@ import type {
   PdfMetrics,
   EdfMetrics,
   EventSlice,
-} from '../shared/types';
-import { REPORT_SECTION_KEYS } from '../shared/types';
+} from '@contracts/types';
+import { REPORT_SECTION_KEYS } from '@contracts/types';
 import { stripInlineCitations } from '../utils';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 

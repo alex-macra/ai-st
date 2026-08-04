@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
 import { Button, Input } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 import { updateDisplayName } from '../api';
 
 const TIER_LABELS: Record<string, string> = {

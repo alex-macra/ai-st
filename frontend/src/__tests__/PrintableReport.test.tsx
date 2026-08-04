@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PrintableReport } from '../components/PrintableReport';
-import type { Case, EventSlice, Finding, StructuredReport } from '../shared/types';
+import type { Case, EventSlice, Finding, StructuredReport } from '@contracts/types';
 
 vi.mock('../api', () => ({
   getAuditLog: vi.fn(async () => ({ auditLog: [], tokenStats: null })),
@@ -48,6 +48,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     studyHash: 'a'.repeat(64),
     name: '2026-04-30-093000-study-01',
     status: 'signed_off',
+    cohort: 'adult',
     findings: [makeFinding()],
     structuredReport: fullReport(),
     sectionReviews: {

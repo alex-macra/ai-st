@@ -14,7 +14,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 import { StatCard, Pagination, Tabs, Button, type Tab as SharedTab } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 import {
   adminDashboard,
   adminUsers,

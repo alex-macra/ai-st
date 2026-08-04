@@ -16,7 +16,7 @@ import type {
   ArtifactCaveat,
   EvidenceReference,
   Finding,
-} from '../shared/types';
+} from '@contracts/types';
 import { stripInlineCitations } from '../utils';
 
 interface Props {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText } from 'lucide-react';
 import { Alert, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
 import { getCases, deleteCase, clearCaseAnalysis } from '../api';
-import type { Case } from '../shared/types';
+import type { Case } from '@contracts/types';
 
 interface Props {
   onSelect: (c: Case) => void;

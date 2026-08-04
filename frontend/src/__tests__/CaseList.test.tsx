@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { CaseList } from '../components/CaseList';
-import type { Case } from '../shared/types';
+import type { Case } from '@contracts/types';
 
 // Smoke coverage for the local EmptyState, Badge, and Alert contracts.
 
@@ -23,6 +23,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     studyHash: 'hash',
     name: 'Study 001',
     status: 'draft',
+    cohort: 'adult',
     findings: [],
     preprocessorVersion: '1',
     promptVersion: '1',
