@@ -251,7 +251,7 @@ def _compute_study_metrics(
     # Flow events carry rejection tags from candidate_windows post-processing
     # (P1 SpO2 coupling, P2 flat-interval gating, P4 merge, P5 amplitude floor).
     # Headline AHI/REI uses only untagged events; the full set stays in the
-    # candidate list so the validation scorer and clinician see everything.
+    # candidate list so the clinician sees everything.
     flow_label = find_channel(inventory, FLOW_LABELS)
     flow_flat_pct: float | None = None
     if flow_label:

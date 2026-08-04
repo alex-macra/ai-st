@@ -49,15 +49,15 @@ _EVENT_WEIGHTS: dict[str, float] = {
 # AASM 1B hypopnea coupling: a flow event qualifies only if a SpO2 desaturation
 # ends within [event.end - 5s, event.end + 30s]. HSAT has no EEG, so the
 # arousal arm of 1B is unavailable; the desat arm is the only filter we apply.
-# Uncoupled events stay in the candidate set (tagged) so the scorer still sees
-# them - only the headline AHI/REI uses the coupled subset.
+# Uncoupled events stay in the candidate set (tagged) so the clinician still
+# sees them - only the headline AHI/REI uses the coupled subset.
 _COUPLING_PRE_WINDOW_SEC = 5.0
 _COUPLING_POST_WINDOW_SEC = 30.0
-# Merge flow events separated by < this gap. Disabled (0.0) for now: the IoU-
-# based validation scorer is 1-to-1, so collapsing two real adjacent apneas
-# converts both into FN + FP. Coupling/artifact tagging does the headline
-# cleanup without sacrificing per-event sensitivity. Reintroduce only with
-# evidence that the detector splits real events at this rate.
+# Merge flow events separated by < this gap. Disabled (0.0) for now: merging is
+# not safe per-event, because collapsing two genuinely adjacent apneas reports
+# one event where there were two. Coupling and artifact tagging do the headline
+# cleanup without that cost. Reintroduce only with evidence that the detector
+# splits real events at a rate worth the trade.
 _FLOW_MERGE_GAP_SEC = 0.0
 # Amplitude floor: skip flow events whose local envelope is below this fraction
 # of the global 95th-percentile |signal|. Disabled by default (0.0): real apneas
@@ -67,7 +67,7 @@ _FLOW_MERGE_GAP_SEC = 0.0
 _AMPLITUDE_FLOOR_FRAC = 0.0
 
 # Tags written into CandidateWindow.notes to mark events excluded from headline
-# metrics but retained as candidates for the scorer / clinician review.
+# metrics but retained as candidates for clinician review.
 TAG_OVERLAPS_FLAT = "tag:overlaps_flat"
 TAG_UNCOUPLED_HYPOPNEA = "tag:uncoupled_hypopnea"
 TAG_POSITION_ARTIFACT = "tag:position_artifact"

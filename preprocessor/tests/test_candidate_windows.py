@@ -288,7 +288,7 @@ def test_post_process_apneas_bypass_coupling():
 
 
 def test_post_process_uncoupled_hypopnea_tagged_not_dropped():
-    """Uncoupled hypopneas stay in the candidate set so the validation scorer sees them,
+    """Uncoupled hypopneas stay in the candidate set so the clinician sees them,
     but get a tag so the headline AHI excludes them."""
     hypopnea = _flow(100, 115, mag=0.4)
     desats = [_desat(500, 510)]
@@ -306,7 +306,7 @@ def test_post_process_uncoupled_hypopnea_tagged_not_dropped():
 
 
 def test_post_process_tags_flow_event_overlapping_flat_interval():
-    """Flat-overlap events stay in candidates (so the scorer still sees them) but
+    """Flat-overlap events stay in candidates (so the clinician still sees them) but
     get a tag - they're excluded from the headline count via headline_flow_events."""
     flow = _flow(100, 115, mag=0.4)
     desats = [_desat(110, 120)]

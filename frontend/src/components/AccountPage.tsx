@@ -6,17 +6,6 @@ import { Button, Input } from '../ui';
 import type { AuthenticatedUser as User } from '@contracts/types';
 import { updateDisplayName } from '../api';
 
-const TIER_LABELS: Record<string, string> = {
-  starter: 'Starter',
-  pro: 'Pro',
-  unlimited: 'Unlimited',
-};
-const TIER_COLORS: Record<string, string> = {
-  starter: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  pro: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
-  unlimited: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-};
-
 interface Props {
   user: User;
   onBack: () => void;
@@ -24,10 +13,6 @@ interface Props {
 }
 
 export function AccountPage({ user, onBack, onUserUpdate }: Props) {
-  const tier = user.tier ?? 'starter';
-  const tierLabel = TIER_LABELS[tier] ?? tier;
-  const tierColor = TIER_COLORS[tier] ?? TIER_COLORS['starter']!;
-
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(user.name ?? '');
   const [saving, setSaving] = useState(false);
@@ -138,9 +123,6 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
               {user.email}
             </p>
           </div>
-          <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${tierColor}`}>
-            {tierLabel}
-          </span>
         </div>
       </div>
     </div>
