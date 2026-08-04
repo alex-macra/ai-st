@@ -18,6 +18,7 @@ While the version stays below `1.0.0`, any release may change interfaces.
 - `.editorconfig`, issue and pull request templates, and this changelog.
 - `CITATION.cff`, so the project can be cited from its GitHub page.
 - An explicit `license` field on each package manifest.
+- `docs/fresh-repo-handoff.md`, recording what a re-publication would need.
 
 ### Changed
 
@@ -42,6 +43,20 @@ While the version stays below `1.0.0`, any release may change interfaces.
   source names.
 - README states plainly that invitation keys are self-issued seats rather than a
   commercial licence, and that the inert `tier` column gates nothing.
+- The frontend imports the wire contract from the API through a `@contracts/*`
+  alias instead of maintaining its own copy of the types by hand. Three types had
+  drifted; `User` is now split into the persisted row and the `AuthenticatedUser`
+  payload the auth routes actually send.
+- Documentation states each policy once and links to it, rather than restating
+  the data policy and deployment responsibilities across five files.
+- Data-fetching effects no longer set loading state synchronously. A refresh in
+  the case list keeps the current list visible until the new one arrives instead
+  of flashing a spinner.
+
+### Fixed
+
+- `QuotaCard` read the clock during render, so an unrelated re-render could jump
+  the reset countdown. The clock is state, updated on its own interval.
 
 ### Security
 
@@ -52,6 +67,14 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ### Removed
 
+- `preprocessor/validation/`, an offline benchmarking harness reachable from no
+  entry point: no route, no CLI, no CI step. Its `xlrd` dependency went with it.
+- The tier badge on the account page, which rendered a chip for a column no
+  feature reads. The column and its README explanation stay.
+- Duplicated code: a hand-maintained copy of the wire types, a second copy of the
+  review helpers, three copies of the same signal run-length scan, four copies of
+  the SpO2 physiological clamp, and two definitions each of the apnea threshold,
+  the quality floor, and the metric formatter.
 - Dead code surfaced by the new linters: unused imports in the API, frontend,
   and preprocessor, and an unreferenced filename-sanitising helper.
 
