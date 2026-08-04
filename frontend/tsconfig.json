@@ -24,5 +24,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts"]
+  // The build config files are checked separately by tsconfig.node.json. They
+  // need Node's types; application code must not have them in scope.
+  "include": ["src"]
 }
