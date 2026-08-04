@@ -12,14 +12,12 @@ This alpha release is independently buildable from this repository. It includes 
 
 ## Capabilities
 
-- Accepts EDF, PDF, and image artifacts after signature validation.
-- Removes identifying EDF header fields before signal processing.
+- Accepts EDF, PDF, and image artifacts after signature validation, and strips identifying EDF header fields before signal processing.
 - Produces signal-quality metrics, candidate windows, and a compact evidence package.
-- Streams a multi-stage evidence extraction and report-drafting workflow over SSE.
-- Preserves claim-to-evidence links and a reviewer audit trail.
+- Streams a multi-stage evidence extraction and report-drafting workflow over SSE, preserving claim-to-evidence links and a reviewer audit trail.
 - Requires authentication for reference reads and administrator authorization for reference mutations.
-- Starts normally without a reference pack and visibly reports that deterministic reference validation is disabled.
-- Provides synthetic unit, integration, and three-service browser tests that make no live model call.
+- Starts normally without a reference pack, and says so rather than hiding that deterministic reference validation is off.
+- Ships synthetic unit, integration, and three-service browser tests that make no live model call.
 
 ## Screenshots
 
@@ -52,64 +50,35 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and data flow, and [SAFETY
 
 ## Run with Docker
 
-The fastest way to evaluate the application. This needs only Docker, not a local
-Node, Python, or C/C++ toolchain.
+The fastest way to evaluate the application. Needs only Docker, not a local Node,
+Python, or C/C++ toolchain.
 
 ```bash
 cp api/.env.example api/.env    # then set JWT_SECRET to a real 32-byte value
 docker compose up --build
-```
-
-The web interface is published on `http://127.0.0.1:5173` and proxies `/api` to
-the API container, so the browser sees a single origin. The API refuses to start
-and names the missing variable if `JWT_SECRET` is absent or too short.
-
-Generate a local invitation once the stack is healthy:
-
-```bash
 docker compose run --rm tools scripts/generateLicenses.ts 1 starter
 ```
 
-Case data, the SQLite database, and generated evidence live in the `evidence`
-volume. `docker compose down -v` deletes them.
+The web interface is published on `http://127.0.0.1:5173` and proxies `/api` to the API container, so the browser sees a single origin. The API refuses to start, and names the variable, if `JWT_SECRET` is absent or too short.
 
-This stack is an evaluation aid, not a hardened deployment: it terminates plain
-HTTP on loopback and has no TLS, secret manager, backup, or retention policy.
-Read [SECURITY.md](SECURITY.md) before exposing it anywhere.
+Case data, the SQLite database, and generated evidence live in the `evidence` volume; `docker compose down -v` deletes them.
+
+This stack is an evaluation aid, not a hardened deployment: plain HTTP on loopback, no TLS, secret manager, backup, or retention policy. Read [SECURITY.md](SECURITY.md) before exposing it anywhere.
 
 ## Quick start
 
-To run the services directly on the host instead.
-
-Prerequisites:
-
-- Node.js 22
-- Python 3.12
-- A C/C++ build toolchain supported by `better-sqlite3`
-
-Install dependencies and create a local API configuration:
+To run the services directly on the host instead. Needs Node.js 22, Python 3.12,
+and a C/C++ toolchain supported by `better-sqlite3`.
 
 ```bash
-./scripts/setup.sh
+./scripts/setup.sh                                    # installs deps, writes api/.env
+npm --prefix api run license:generate -- 1 starter    # mint an invitation
+./scripts/dev.sh                                      # all three services on loopback
 ```
 
-Edit `api/.env`. A model API key is needed only when running real analysis. The services can boot and expose health checks without one.
+Use the generated invitation with `/api/auth/activate` or the activation form. A model API key is needed only for real analysis; the services boot and serve health checks without one.
 
-Generate a local invitation:
-
-```bash
-npm --prefix api run license:generate -- 1 starter
-```
-
-Start all three services on loopback:
-
-```bash
-./scripts/dev.sh
-```
-
-Use the generated invitation with `/api/auth/activate` or the activation form.
-
-The `license` naming here is historical and has nothing to do with the Apache-2.0 licence of the software itself. These keys are seats, not entitlements: you mint them yourself against your own database, nothing contacts a licensing service, and the `tier` column that defaults to `starter` is inert because no feature reads it. There is no paid tier and no gated functionality. The API request field is still `licenseKey`, and the `licenses` table still carries that name, for compatibility with existing deployments.
+The `license` naming here is historical and unrelated to the software's own licence. These keys are seats you mint against your own database: nothing contacts a licensing service, there is no paid tier, and the `tier` column is inert because no feature reads it. The `licenseKey` field and `licenses` table keep their names for deployment compatibility.
 
 ## Configuration
 
@@ -136,27 +105,11 @@ The accepted file format and validation rules are documented in [docs/reference-
 
 ## Checks
 
-```bash
-npm run check:boundary
-npm run lint
-preprocessor/.venv/bin/ruff check preprocessor
-npm --prefix api run typecheck
-npm --prefix api test
-npm --prefix api run build
-npm --prefix frontend run typecheck
-npm --prefix frontend test
-npm --prefix frontend run build
-preprocessor/.venv/bin/pytest -q preprocessor/tests
-npm run test:e2e
-```
-
-The boundary check rejects sensitive artifact types, symlinks, machine-specific paths, private source markers, non-example email addresses, and secret-like values.
+The full check list is in [CONTRIBUTING.md](CONTRIBUTING.md#checks). The one worth knowing about is `npm run check:boundary`, which rejects sensitive artifact types, symlinks, machine-specific paths, private source markers, non-example email addresses, and secret-like values before they can be published.
 
 ## Data handling
 
-Do not commit or upload real patient data to issues or pull requests. Clinical inputs, generated reports, databases, and private reference material are ignored and rejected by CI. Use deterministic synthetic fixtures only.
-
-The current local SQLite and filesystem storage are intended for controlled evaluation. Operators are responsible for access control, encryption, retention, backups, consent, jurisdiction-specific privacy obligations, and deletion procedures.
+Never use real patient artifacts here; CI rejects them. See [SAFETY.md](SAFETY.md#data-governance) for the data policy and [SECURITY.md](SECURITY.md#deployment-responsibility) for what a self-hoster owns.
 
 ## Compatibility and trademarks
 

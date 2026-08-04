@@ -4,12 +4,9 @@ Thank you for helping improve Somnoscribe. Contributions must preserve the evide
 
 ## Before opening a change
 
-- Read [SAFETY.md](SAFETY.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
-- Search existing issues and pull requests.
-- Use synthetic, deterministic fixtures only.
-- Do not add clinical PDFs, EDFs, databases, generated reports, private reference material, copied standards, institutional documents, or real identifiers.
+- Read [SAFETY.md](SAFETY.md) and [ARCHITECTURE.md](ARCHITECTURE.md), then search existing issues and pull requests.
+- Follow the data policy in [SAFETY.md](SAFETY.md#data-governance): synthetic deterministic fixtures only, no clinical artifacts or real identifiers, reference packs outside this repository.
 - Do not add symlinks or machine-specific absolute paths.
-- Keep optional reference packs outside this repository.
 
 If provenance or redistribution rights are unclear, do not submit the material. Describe the needed interface or schema with a non-clinical example instead.
 
@@ -19,43 +16,33 @@ If provenance or redistribution rights are unclear, do not submit the material. 
 ./scripts/setup.sh
 ```
 
+## Checks
+
 Run the focused tests while developing, then the full release checks:
 
 ```bash
 npm run check:boundary
-npm run lint
+npm run lint && npm run format:check
 preprocessor/.venv/bin/ruff check preprocessor
-npm --prefix api run typecheck
-npm --prefix api test
-npm --prefix api run build
-npm --prefix frontend run typecheck
-npm --prefix frontend test
-npm --prefix frontend run build
+preprocessor/.venv/bin/ruff format --check preprocessor
+npm --prefix api run typecheck && npm --prefix api test && npm --prefix api run build
+npm --prefix frontend run typecheck && npm --prefix frontend test && npm --prefix frontend run build
 preprocessor/.venv/bin/pytest -q preprocessor/tests
 npm run test:e2e
 ```
 
-Browser tests use a guarded synthetic model adapter and must not require a live model key.
+Browser tests use a guarded synthetic model adapter and must not require a live model key. They serve `api/dist`, so run the API build first after changing API source.
 
 ## Formatting
 
-Formatting is automated and enforced in CI. Prettier owns TypeScript, JavaScript,
-CSS, and Markdown; `ruff format` owns Python. Run both before opening a pull
-request:
+Prettier owns TypeScript, JavaScript, CSS, and Markdown; `ruff format` owns Python. Both are enforced in CI, so an unformatted file fails the build.
 
 ```bash
 npm run format
 cd preprocessor && ruff format . && ruff check --fix .
 ```
 
-CI runs the checking form of each (`npm run format:check`, `ruff format --check .`),
-so an unformatted file fails the build. Because the formatters decide layout,
-review comments should be about behaviour rather than style, and you should never
-need to hand-align anything.
-
-Lint is separate and is limited to correctness rules: unused code, unsafe
-patterns, import order, and the rules of hooks. `npm run lint` and `ruff check .`
-must both pass with no warnings.
+Because the formatters decide layout, review comments should be about behaviour, not style. Lint is separate and covers correctness only: unused code, unsafe patterns, import order, and the rules of hooks.
 
 ## Pull requests
 

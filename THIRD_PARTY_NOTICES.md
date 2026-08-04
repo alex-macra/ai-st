@@ -38,9 +38,8 @@ Primary Python runtime dependencies include:
 | Matplotlib       | Matplotlib license |
 | pypdf            | BSD-3-Clause       |
 
-Development tooling includes Playwright (Apache-2.0), TypeScript (Apache-2.0), Vite (MIT), Vitest (MIT), Tailwind CSS (MIT), pytest (MIT), and HTTPX (BSD-3-Clause).
-Transitive build data and tooling include caniuse-lite (CC-BY-4.0) and Lightning CSS (MPL-2.0).
+Development tooling includes Playwright (Apache-2.0), TypeScript (Apache-2.0), Vite (MIT), Vitest (MIT), Tailwind CSS (MIT), pytest (MIT), and HTTPX (BSD-3-Clause). Transitive build data and tooling include caniuse-lite (CC-BY-4.0) and Lightning CSS (MPL-2.0).
 
-Some installed binary wheels can contain separately licensed runtime libraries. Container or binary distributors must review the exact artifacts they redistribute, not only this source inventory.
+Installed binary wheels can contain separately licensed runtime libraries, so container and binary distributors must review the artifacts they actually ship, not only this source inventory.
 
-SOMNOtouch and DOMINO compatibility names and the no-endorsement statement are covered in [NOTICE](NOTICE). No vendor software, manual, clinical standard, external dataset, or reference pack is redistributed here.
+No vendor software, manual, clinical standard, external dataset, or reference pack is redistributed here. The SOMNOtouch and DOMINO compatibility names and the no-endorsement statement are in [NOTICE](NOTICE).

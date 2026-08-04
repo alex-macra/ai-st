@@ -15,9 +15,9 @@ It is not intended to:
 
 ## Human review is mandatory
 
-Model output can be incorrect, incomplete, internally inconsistent, overconfident, or based on a preprocessing error. Evidence links reduce risk but do not establish correctness. A qualified reviewer must inspect the source artifacts, adjudicate every material claim and populated section, and apply the full clinical context before relying on any output.
+Model output can be incorrect, incomplete, internally inconsistent, overconfident, or built on a preprocessing error. Evidence links reduce risk; they do not establish correctness. A qualified reviewer must inspect the source artifacts, adjudicate every material claim and populated section, and apply the full clinical context before relying on any output.
 
-Sign-off records workflow completion; it is not a certification of medical validity.
+Sign-off records workflow completion. It is not a certification of medical validity.
 
 ## Known limitations
 
@@ -38,19 +38,9 @@ The interface and `/api/references/status` expose whether rules loaded. Analysis
 
 ## Data governance
 
-Never use real patient artifacts in public issues, pull requests, fixtures, demos, or CI. Evaluate with deterministic synthetic data unless an appropriately governed private environment, legal basis, consent process, and data-handling program are in place.
+Never use real patient artifacts in public issues, pull requests, fixtures, demos, or CI. That covers clinical PDFs and EDFs, databases, generated reports, private reference material, copied standards, institutional documents, and real identifiers. Evaluate with deterministic synthetic data unless an appropriately governed private environment, legal basis, consent process, and data-handling program are in place.
 
-Self-hosters are responsible for authentication policy, least privilege, TLS, encryption at rest, backups, retention, deletion, audit access, incident response, regional privacy requirements, vendor agreements, and model-provider data controls.
-
-## Deployment safeguards
-
-- Keep default loopback binding unless a deliberate network boundary is configured.
-- Use a strong production `JWT_SECRET` and TLS termination.
-- Configure exact browser origins and the real reverse-proxy hop count.
-- Keep reference packs and clinical artifacts outside source control.
-- Restrict filesystem permissions for the database, temporary uploads, and screenshots.
-- Review logs and monitoring exports for sensitive-data leakage.
-- Test restore and deletion procedures before handling governed data.
+What a self-hoster owns, and the safeguards to configure before exposing a deployment, are in [SECURITY.md](SECURITY.md#deployment-responsibility).
 
 ## Test mode
 

@@ -53,53 +53,45 @@ Long model operations use SSE messages framed as `data: <json>\n\n`. Existing pr
 
 ## Application-owned modules
 
-The API uses direct public dependencies behind small local boundaries:
+The API uses direct public dependencies behind small local boundaries: `jsonwebtoken` (restricted to HS256), `better-sqlite3` (connection and migrations), `openai` (non-streaming calls inside an SSE workflow), `pino` (structured, redacted logs with hashed IPs), Zod (request, model-output, and reference-pack validation), and Helmet plus Express Rate Limit behind adapters that preserve response headers and error shapes.
 
-- `jsonwebtoken` for restricted HS256 session tokens.
-- `better-sqlite3` for connection and migration logic.
-- `openai` for non-streaming model calls inside an SSE workflow.
-- `pino` for structured, redacted logs and hashed IP addresses.
-- Zod for request, model-output, and reference-pack validation.
-- Helmet and Express Rate Limit behind adapters that preserve response headers and error shapes.
-
-The frontend owns its HTTP/SSE client, semantic design tokens, primitives, overlays, navigation widgets, and theme persistence. These modules have no package-time or runtime dependency on a sibling repository.
+The frontend owns its HTTP/SSE client, semantic design tokens, primitives, overlays, navigation widgets, and theme persistence. It imports the wire contract types from the API's `src/shared/`, which is type-only and pulls in no server code. Neither side depends on a sibling repository.
 
 ## Upload lifecycle
 
-1. Authentication and rate limits run before upload processing.
-2. Multer writes randomized filenames into a per-request directory with mode `0700` under the configured private temporary root.
+1. Authentication and rate limits run before any upload processing.
+2. Multer writes randomized filenames into a per-request directory with mode `0700` under the private temporary root.
 3. The API enforces aggregate and per-artifact limits, then validates file signatures rather than trusting extensions or MIME labels.
-4. Only normalized filenames are forwarded to the preprocessor or persisted as screenshot metadata.
+4. Only normalized filenames reach the preprocessor or screenshot metadata.
 5. The preprocessor de-identifies EDF header fields before downstream parsing.
-6. The API stores the compact package and an artifact hash, never the original upload filename.
-7. Temporary request files are deleted in `finally`; partially persisted screenshot directories are removed on failure.
+6. The API stores the compact package and an artifact hash, never the original filename.
+7. Temporary request files are deleted in `finally`; partially written screenshot directories are removed on failure.
 
-The preprocessor uses its own temporary directory context and does not retain incoming source files.
+The preprocessor uses its own temporary directory context and retains no source files.
 
 ## Analysis lifecycle
 
-1. Pass 1 extracts findings that must each carry at least one evidence reference.
-2. Deterministic bounds checks remove impossible numeric values before drafting.
-3. Pass 2 builds a typed structured report and section citations.
+1. Pass 1 extracts findings, each of which must carry at least one evidence reference.
+2. Deterministic bounds checks drop impossible numeric values before drafting.
+3. Pass 2 builds a typed structured report with section citations.
 4. A local citation check records unsupported sections as visible warnings.
-5. Pass 3 performs an additional unsupported-claim review.
-6. Pass 3b runs only when a valid external reference pack is enabled.
-7. Findings, report, warnings, flags, token use, and audit metadata are persisted.
-8. A reviewer confirms, rejects, edits, or marks uncertainty and must review populated sections before sign-off.
+5. Pass 3 reviews for unsupported claims; pass 3b runs only with a valid external reference pack.
+6. Findings, report, warnings, flags, token use, and audit metadata are persisted.
+7. A reviewer confirms, rejects, edits, or marks uncertainty, and must review every populated section before sign-off.
 
-Public prompts do not bundle a clinical reference source. They prohibit adding external thresholds, guideline claims, or treatment recommendations that are absent from supplied evidence or a validated optional rule.
+Public prompts bundle no clinical reference source, and forbid thresholds, guideline claims, or treatment recommendations absent from the supplied evidence or a validated optional rule.
 
 ## Optional references
 
-`REFERENCE_DIR` is resolved at process startup. The loader accepts direct regular Markdown files only, rejects symlink directories and entries, limits each file to 256 KiB, validates strict metadata, rejects duplicate IDs, and loads all-or-nothing.
+`REFERENCE_DIR` resolves at startup. The loader takes direct regular Markdown files only, rejects symlinked directories and entries, caps each file at 256 KiB, validates metadata strictly, rejects duplicate IDs, and loads all-or-nothing.
 
-If the variable is absent, startup succeeds with reference validation disabled. Status is explicit through the API and each analysis emits `reference_pack_unavailable`. See [docs/reference-pack-schema.md](docs/reference-pack-schema.md).
+Without the variable, startup succeeds with reference validation disabled: the API reports it and every analysis emits `reference_pack_unavailable`. See [docs/reference-pack-schema.md](docs/reference-pack-schema.md).
 
 ## Authentication and authorization
 
-Invitation keys and OTP values use cryptographic randomness. Activation burns an invitation transactionally. Sessions use HTTP-only cookies with SameSite=Lax; production adds Secure. JWT verification restricts algorithms to HS256.
+Invitation keys and OTP values use cryptographic randomness, and activation burns an invitation transactionally. Sessions use HTTP-only SameSite=Lax cookies, plus Secure in production. JWT verification is restricted to HS256.
 
-Case and reference reads require authentication. Administrative account and reference mutations require the administrator role. Authenticated mutating methods enforce the configured browser origin policy. API logs exclude raw email addresses, filenames, clinical bodies, model payload fragments, and OTP values.
+Case and reference reads require authentication; account and reference mutations require the administrator role. Authenticated mutating methods enforce the configured browser origin policy. Logs exclude raw email addresses, filenames, clinical bodies, model payload fragments, and OTP values.
 
 ## Network defaults
 
@@ -111,4 +103,4 @@ The browser smoke journey sets `SOMNOSCRIBE_SYNTHETIC_LLM=true` with `NODE_ENV=t
 
 ## Persistence limits
 
-SQLite and local artifact storage are appropriate for controlled single-node evaluation, not a claim of multi-tenant production readiness. There is no built-in encryption-at-rest, key management, retention scheduler, high-availability topology, or regulated audit export. Operators must provide those controls where required.
+SQLite and local artifact storage suit controlled single-node evaluation, not multi-tenant production. There is no built-in encryption-at-rest, key management, retention scheduler, high-availability topology, or regulated audit export; see [SECURITY.md](SECURITY.md#deployment-responsibility) for what an operator must supply instead.
