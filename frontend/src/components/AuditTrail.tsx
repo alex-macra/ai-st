@@ -21,6 +21,7 @@ interface Props {
 const ACTION_LABELS: Record<string, string> = {
   case_created: 'Case created',
   analysis_completed: 'Analysis completed',
+  analysis_cleared: 'Analysis cleared',
   action_plan_generated: 'Action plan generated',
   signed_off: 'Signed off',
   finding_confirm: 'Finding confirmed',
@@ -28,11 +29,17 @@ const ACTION_LABELS: Record<string, string> = {
   finding_uncertain: 'Finding marked uncertain',
   finding_edit: 'Finding edited',
   finding_artefact: 'Finding marked as artefact',
+  section_confirm: 'Report section confirmed',
+  section_reject: 'Report section rejected',
+  section_uncertain: 'Report section marked uncertain',
+  section_edit: 'Report section edited',
+  section_artefact: 'Report section marked as artefact',
 };
 
 // Unmapped actions fall back to gray.
 const ACTION_TONE: Record<string, TimelineDotTone> = {
   analysis_completed: 'info',
+  analysis_cleared: 'warning',
   action_plan_generated: 'info',
   signed_off: 'success',
   finding_confirm: 'success',
@@ -40,6 +47,11 @@ const ACTION_TONE: Record<string, TimelineDotTone> = {
   finding_artefact: 'danger',
   finding_uncertain: 'warning',
   finding_edit: 'warning',
+  section_confirm: 'success',
+  section_reject: 'danger',
+  section_artefact: 'danger',
+  section_uncertain: 'warning',
+  section_edit: 'warning',
 };
 
 function actionLabel(action: string): string {
@@ -74,7 +86,22 @@ function metaBadges(meta: Record<string, unknown>): ReactNode {
   if (typeof meta['findingId'] === 'string') {
     items.push(<MetaBadge key="finding" label="finding" value={meta['findingId']} mono />);
   }
+  if (typeof meta['sectionKey'] === 'string') {
+    items.push(<MetaBadge key="section" label="section" value={meta['sectionKey']} mono />);
+  }
   return items.length > 0 ? <>{items}</> : null;
+}
+
+/**
+ * `actorId` is the fixed `operator` constant — there are no accounts, so it
+ * names nobody. Sign-off is the one action a person attests to, and the name
+ * they typed is on the record. Prefer it, exactly as `PrintableReport` does, so
+ * the trail and the printed report cannot disagree about who signed.
+ */
+function actorOf(r: AuditRecord): string | undefined {
+  const reviewerName = r.metadata?.['reviewerName'];
+  if (typeof reviewerName === 'string' && reviewerName.length > 0) return reviewerName;
+  return r.actorId;
 }
 
 function buildEvents(records: AuditRecord[]): TimelineEvent[] {
@@ -86,7 +113,8 @@ function buildEvents(records: AuditRecord[]): TimelineEvent[] {
       title: actionLabel(r.action),
       timestamp: r.createdAt,
     };
-    if (r.actorId) event.actor = r.actorId;
+    const actor = actorOf(r);
+    if (actor) event.actor = actor;
     if (badges) event.meta = badges;
     const tone = ACTION_TONE[r.action];
     if (tone) event.tone = tone;

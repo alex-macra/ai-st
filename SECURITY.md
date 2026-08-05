@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The current `0.1.x` alpha line receives security fixes. Pre-release builds are for evaluation and may change without notice.
+The current `0.2.x` alpha line receives security fixes. Earlier lines, including `0.1.x`, do not. Pre-release builds are for evaluation and may change without notice.
 
 ## Report privately
 

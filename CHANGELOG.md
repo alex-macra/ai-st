@@ -8,6 +8,23 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ## [Unreleased]
 
+### Removed
+
+- `docs/fresh-repo-handoff.md`. It was a one-off internal checklist for moving
+  the tree into this repository, which has happened; publishing it exposed
+  process notes that tell a reader of the project nothing about using it.
+
+### Fixed
+
+- The audit trail attributed sign-off to `operator`, the fixed internal actor,
+  and never showed the reviewer name it had stored. The name was persisted and
+  printed on the report, so the record was intact — the review tab just would
+  not show it. Report-section decisions also appeared as raw `section confirm`
+  next to humanised labels, and did not say which section they applied to.
+- The supported-versions statement in [SECURITY.md](SECURITY.md) still named the
+  `0.1.x` line.
+- The root and frontend lockfiles still declared `0.1.0-alpha.1`.
+
 ## [0.2.0-alpha.1] - 2026-08-05
 
 Somnoscribe no longer has accounts. A fresh clone now reaches a drafted report
