@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -23,7 +25,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     modelVersion: 'none',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -116,18 +118,14 @@ describe('cases API', () => {
     it('rejects invalid status', async () => {
       const c = makeCase();
       insertCase(c);
-      const res = await request
-        .patch(`/api/cases/${c.id}/status`)
-        .send({ status: 'invalid' });
+      const res = await request.patch(`/api/cases/${c.id}/status`).send({ status: 'invalid' });
       expect(res.status).toBe(400);
     });
 
     it('cannot bypass review gates by setting signed_off directly', async () => {
       const c = makeCase({ status: 'draft' });
       insertCase(c);
-      const res = await request
-        .patch(`/api/cases/${c.id}/status`)
-        .send({ status: 'signed_off' });
+      const res = await request.patch(`/api/cases/${c.id}/status`).send({ status: 'signed_off' });
       expect(res.status).toBe(409);
       expect(res.body).toMatchObject({ code: 'SIGN_OFF_REQUIRES_REVIEW' });
 
@@ -139,18 +137,14 @@ describe('cases API', () => {
       const c = makeCase({ status: 'signed_off' });
       insertCase(c);
 
-      const res = await request
-        .patch(`/api/cases/${c.id}/status`)
-        .send({ status: 'draft' });
+      const res = await request.patch(`/api/cases/${c.id}/status`).send({ status: 'draft' });
 
       expect(res.status).toBe(409);
       expect((await request.get(`/api/cases/${c.id}`)).body.case.status).toBe('signed_off');
     });
 
     it('returns 404 for unknown case', async () => {
-      const res = await request
-        .patch('/api/cases/ghost/status')
-        .send({ status: 'pending_review' });
+      const res = await request.patch('/api/cases/ghost/status').send({ status: 'pending_review' });
       expect(res.status).toBe(404);
     });
   });
@@ -181,7 +175,11 @@ describe('cases API', () => {
     });
 
     it('requires completed human review before action-plan generation', async () => {
-      const c = makeCase({ status: 'pending_review', findings: [finding], structuredReport: report });
+      const c = makeCase({
+        status: 'pending_review',
+        findings: [finding],
+        structuredReport: report,
+      });
       insertCase(c);
 
       const response = await request.post(`/api/cases/${c.id}/action-plan`).send({});
@@ -224,8 +222,8 @@ describe('cases API', () => {
       return makeCase({
         casePackage: JSON.stringify({
           schema_version: '0.4',
-          screenshot_metadata: [{ id: screenshotId, originalName: 'eeg.png' }]
-        })
+          screenshot_metadata: [{ id: screenshotId, originalName: 'eeg.png' }],
+        }),
       });
     }
 
@@ -240,7 +238,10 @@ describe('cases API', () => {
 
       const fetched = await request.get(`/api/cases/${c.id}`);
       expect(fetched.status).toBe(200);
-      const pkg = JSON.parse((fetched.body as { case: Case }).case.casePackage ?? '{}') as Record<string, unknown>;
+      const pkg = JSON.parse((fetched.body as { case: Case }).case.casePackage ?? '{}') as Record<
+        string,
+        unknown
+      >;
       expect(pkg['screenshot_metadata']).toEqual([]);
     });
 

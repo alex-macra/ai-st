@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -45,7 +47,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     modelVersion: 'none',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -58,8 +60,18 @@ const SNAKE_SLICES = [
     magnitude: 0.65,
     tags: [],
     signal_slices: [
-      { channel: 'Airflow', window_start_sec: 10.0, window_end_sec: 85.0, samples: [0.12, 0.09, null, 0.05] },
-      { channel: 'SpO2',    window_start_sec: 10.0, window_end_sec: 85.0, samples: [96.0, 95.5, 94.0] },
+      {
+        channel: 'Airflow',
+        window_start_sec: 10.0,
+        window_end_sec: 85.0,
+        samples: [0.12, 0.09, null, 0.05],
+      },
+      {
+        channel: 'SpO2',
+        window_start_sec: 10.0,
+        window_end_sec: 85.0,
+        samples: [96.0, 95.5, 94.0],
+      },
     ],
   },
 ];

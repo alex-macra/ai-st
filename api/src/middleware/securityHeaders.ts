@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -28,7 +30,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     }
     res.setHeader(
       'Permissions-Policy',
-      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()'
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()',
     );
     next();
   });

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
@@ -27,7 +29,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     modelVersion: 'gpt-5.4-mini',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -39,7 +41,7 @@ function reportWithSummary(): StructuredReport {
     oxygenation: {},
     positional: {},
     impression: 'Mild OSA.',
-    citations: {}
+    citations: {},
   };
 }
 
@@ -55,7 +57,14 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
   it('returns 400 for unknown section key', async () => {
     const c = makeCase();
     insertCase(c);
-    updateCaseFindings(c.id, [], null, c.modelVersion, new Date().toISOString(), reportWithSummary());
+    updateCaseFindings(
+      c.id,
+      [],
+      null,
+      c.modelVersion,
+      new Date().toISOString(),
+      reportWithSummary(),
+    );
 
     const res = await request
       .patch(`/api/cases/${c.id}/sections/notARealSection`)
@@ -83,7 +92,14 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
   it('returns 409 when case is signed off', async () => {
     const c = makeCase({ status: 'signed_off' });
     insertCase(c);
-    updateCaseFindings(c.id, [], null, c.modelVersion, new Date().toISOString(), reportWithSummary());
+    updateCaseFindings(
+      c.id,
+      [],
+      null,
+      c.modelVersion,
+      new Date().toISOString(),
+      reportWithSummary(),
+    );
     const res = await request
       .patch(`/api/cases/${c.id}/sections/summary`)
       .send({ decision: 'confirm' });
@@ -93,7 +109,14 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
   it('rejects edit decision without editedValue', async () => {
     const c = makeCase();
     insertCase(c);
-    updateCaseFindings(c.id, [], null, c.modelVersion, new Date().toISOString(), reportWithSummary());
+    updateCaseFindings(
+      c.id,
+      [],
+      null,
+      c.modelVersion,
+      new Date().toISOString(),
+      reportWithSummary(),
+    );
 
     const res = await request
       .patch(`/api/cases/${c.id}/sections/summary`)
@@ -105,7 +128,14 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
   it('persists section review and writes audit entry', async () => {
     const c = makeCase();
     insertCase(c);
-    updateCaseFindings(c.id, [], null, c.modelVersion, new Date().toISOString(), reportWithSummary());
+    updateCaseFindings(
+      c.id,
+      [],
+      null,
+      c.modelVersion,
+      new Date().toISOString(),
+      reportWithSummary(),
+    );
 
     const res = await request
       .patch(`/api/cases/${c.id}/sections/summary`)
@@ -116,13 +146,22 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
     expect(fetched.body.case.sectionReviews?.summary?.decision).toBe('confirm');
 
     const audit = await request.get(`/api/cases/${c.id}/audit`);
-    expect(audit.body.auditLog.some((r: { action: string }) => r.action === 'section_confirm')).toBe(true);
+    expect(
+      audit.body.auditLog.some((r: { action: string }) => r.action === 'section_confirm'),
+    ).toBe(true);
   });
 
   it('persists editedValue when decision is edit', async () => {
     const c = makeCase();
     insertCase(c);
-    updateCaseFindings(c.id, [], null, c.modelVersion, new Date().toISOString(), reportWithSummary());
+    updateCaseFindings(
+      c.id,
+      [],
+      null,
+      c.modelVersion,
+      new Date().toISOString(),
+      reportWithSummary(),
+    );
 
     const res = await request
       .patch(`/api/cases/${c.id}/sections/summary`)
@@ -132,7 +171,7 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
     const fetched = await request.get(`/api/cases/${c.id}`);
     expect(fetched.body.case.sectionReviews?.summary).toMatchObject({
       decision: 'edit',
-      editedValue: 'Mild OSA per reviewer rewrite.'
+      editedValue: 'Mild OSA per reviewer rewrite.',
     });
   });
 });

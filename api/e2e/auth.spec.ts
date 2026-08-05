@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
 // End-to-end exercise of the application auth boundary. Uses the DEV_OTP_BYPASS

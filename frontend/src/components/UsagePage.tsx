@@ -1,6 +1,8 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button, QuotaCard } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 
 interface Props {
   user: User;
@@ -28,11 +30,11 @@ function quotaFootnote(used: number, budget: number) {
 }
 
 export function UsagePage({ user, onBack }: Props) {
-  const bud4h    = user.budget4h ?? 0;
-  const budWeek  = user.budgetWeek ?? 0;
-  const used4h   = user.tokens4h ?? 0;
+  const bud4h = user.budget4h ?? 0;
+  const budWeek = user.budgetWeek ?? 0;
+  const used4h = user.tokens4h ?? 0;
   const usedWeek = user.tokensWeek ?? 0;
-  const ends4h   = user.window4hEndsAt;
+  const ends4h = user.window4hEndsAt;
   const endsWeek = user.weekEndsAt;
 
   const footnote4h = quotaFootnote(used4h, bud4h);
@@ -59,7 +61,9 @@ export function UsagePage({ user, onBack }: Props) {
           />
         ) : (
           <div className="card p-5">
-            <p className="text-sm text-slate-400 dark:text-slate-500">No usage limits configured for your account.</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">
+              No usage limits configured for your account.
+            </p>
           </div>
         )}
 

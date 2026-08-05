@@ -1,18 +1,30 @@
 {
-  "name": "ai-st",
-  "version": "0.1.0-alpha.1",
+  "name": "somnoscribe",
+  "version": "0.1.0-alpha.2",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "private": true,
   "scripts": {
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:ui": "playwright test --project=chromium --ui",
+    "test:e2e:headed": "playwright test --project=chromium --headed",
     "test:e2e:report": "playwright show-report",
-    "check:boundary": "node scripts/check-public-boundary.mjs"
+    "screenshots": "playwright test --project=screenshots",
+    "check:boundary": "node scripts/check-public-boundary.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
-    "@types/node": "^26.1.2"
+    "@types/node": "^26.1.2",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.66.0"
   }
 }

@@ -1,8 +1,12 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
 test.use({ storageState: 'e2e/.auth/user.json' });
 
-const MOCK_USER = JSON.stringify({ user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null } });
+const MOCK_USER = JSON.stringify({
+  user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null },
+});
 const EMPTY_CASES = JSON.stringify({ cases: [] });
 
 test.describe('navigation', () => {
@@ -39,13 +43,13 @@ test.describe('navigation', () => {
     }
   });
 
-  test('AI-ST logo button navigates to case list from upload', async ({ page }) => {
+  test('Somnoscribe logo button navigates to case list from upload', async ({ page }) => {
     await page.getByRole('button', { name: 'Upload study' }).click();
     await expect(page.getByRole('heading', { name: 'Upload Sleep Study' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'AI-ST' }).click();
+    await page.getByRole('button', { name: 'Somnoscribe' }).click();
     await expect(page.getByText('No cases yet')).toBeVisible();
-    await expect(page.getByText('Upload a study to get started.')).toBeVisible();
+    await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
   });
 
   test('sign out redirects to auth screen', async ({ page }) => {

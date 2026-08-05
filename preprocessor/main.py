@@ -1,20 +1,23 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 import hashlib
 import logging
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import JSONResponse, Response
 
-from deidentify import deidentify_edf_header
-from edf_parser import parse_edf, extract_demographics, Demographics
-from signal_qc import run_signal_qc
 from candidate_windows import find_candidate_windows
-from evidence_packager import package_evidence
+from chart_renderer import CHART_RENDERER_VERSION, render_window
 from const import SCHEMA_VERSION
-from chart_renderer import render_window, CHART_RENDERER_VERSION
+from deidentify import deidentify_edf_header
+from demo_study import demo_edf_bytes, demo_study_summary
+from edf_parser import extract_demographics, parse_edf
+from evidence_packager import package_evidence
+from parsers.domino_pdf import ParseFailure, metrics_to_dict, parse_domino_pdf
+from signal_qc import run_signal_qc
 from signal_slicer import build_signal_slices
-from parsers.domino_pdf import parse_domino_pdf, ParseFailure, metrics_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +28,28 @@ MAX_PDF_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_SCREENSHOT_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_SCREENSHOTS = 100
 
-app = FastAPI(title="AI-ST Preprocessor", version=PREPROCESSOR_VERSION)
+app = FastAPI(title="Somnoscribe Preprocessor", version=PREPROCESSOR_VERSION)
 
 
 @app.get("/healthz")
 async def healthz():
     return {"ok": True, "version": PREPROCESSOR_VERSION, "chartRendererVersion": CHART_RENDERER_VERSION}
+
+
+@app.get("/demo/study.edf")
+async def demo_study():
+    """The synthetic demo recording. Generated from a fixed seed, never a person."""
+    return Response(
+        content=demo_edf_bytes(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="somnoscribe-demo-study.edf"'},
+    )
+
+
+@app.get("/demo/summary")
+async def demo_summary():
+    """What the generator put into the demo recording."""
+    return demo_study_summary()
 
 
 @app.post("/ingest")

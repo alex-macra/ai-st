@@ -1,15 +1,10 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
 import { Button, Input } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 import { updateDisplayName } from '../api';
-
-const TIER_LABELS: Record<string, string> = { starter: 'Starter', pro: 'Pro', unlimited: 'Unlimited' };
-const TIER_COLORS: Record<string, string> = {
-  starter: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-  pro: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
-  unlimited: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-};
 
 interface Props {
   user: User;
@@ -18,10 +13,6 @@ interface Props {
 }
 
 export function AccountPage({ user, onBack, onUserUpdate }: Props) {
-  const tier = user.tier ?? 'starter';
-  const tierLabel = TIER_LABELS[tier] ?? tier;
-  const tierColor = TIER_COLORS[tier] ?? TIER_COLORS['starter']!;
-
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(user.name ?? '');
   const [saving, setSaving] = useState(false);
@@ -29,7 +20,10 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
 
   async function handleSave() {
     const trimmed = nameInput.trim();
-    if (!trimmed) { setError('Name cannot be empty'); return; }
+    if (!trimmed) {
+      setError('Name cannot be empty');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -59,7 +53,9 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
       </div>
 
       <div className="card p-5 space-y-4">
-        <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Account</h2>
+        <h2 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+          Account
+        </h2>
 
         {/* Display name row */}
         <div className="flex items-center justify-between gap-3">
@@ -71,7 +67,10 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
                   type="text"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleSave(); if (e.key === 'Escape') handleCancel(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSave();
+                    if (e.key === 'Escape') handleCancel();
+                  }}
                   maxLength={100}
                   autoFocus
                   className="flex-1 min-w-0"
@@ -95,14 +94,19 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
               </div>
             ) : (
               <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                {user.name ?? <span className="text-slate-400 dark:text-slate-500 italic">Not set</span>}
+                {user.name ?? (
+                  <span className="text-slate-400 dark:text-slate-500 italic">Not set</span>
+                )}
               </p>
             )}
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
           {!editing && (
             <button
-              onClick={() => { setNameInput(user.name ?? ''); setEditing(true); }}
+              onClick={() => {
+                setNameInput(user.name ?? '');
+                setEditing(true);
+              }}
               aria-label="Edit display name"
               className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded"
             >
@@ -115,11 +119,10 @@ export function AccountPage({ user, onBack, onUserUpdate }: Props) {
         <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div className="space-y-0.5 min-w-0">
             <p className="text-xs text-slate-400 dark:text-slate-500">Email</p>
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{user.email}</p>
+            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+              {user.email}
+            </p>
           </div>
-          <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${tierColor}`}>
-            {tierLabel}
-          </span>
         </div>
       </div>
     </div>

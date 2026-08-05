@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
 import supertest from 'supertest';
 import { createApp } from '../app.js';
@@ -72,7 +74,9 @@ describe('publication security baseline', () => {
     const auth = mintAuthCookie();
 
     expect((await supertest(app).delete('/api/cases').set('Cookie', auth.cookie)).status).toBe(403);
-    expect((await supertest(app).post('/api/cases/clear-all').set('Cookie', auth.cookie)).status).toBe(403);
+    expect(
+      (await supertest(app).post('/api/cases/clear-all').set('Cookie', auth.cookie)).status,
+    ).toBe(403);
   });
 
   it('classifies malformed and oversized JSON as client errors', async () => {

@@ -1,49 +1,56 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../tailwind.config.cjs";
 
 /* Application-owned semantic tokens for the clinical review interface. */
 :root {
   color-scheme: light;
 
-  --ui-bg:          248 250 252;
-  --ui-bg-raised:   255 255 255;
-  --ui-bg-muted:    241 245 249;
-  --ui-bg-subtle:   226 232 240;
+  --ui-bg: 248 250 252;
+  --ui-bg-raised: 255 255 255;
+  --ui-bg-muted: 241 245 249;
+  --ui-bg-subtle: 226 232 240;
 
-  --ui-text:        15 23 42;
-  --ui-text-muted:  71 85 105;
+  --ui-text: 15 23 42;
+  --ui-text-muted: 71 85 105;
   --ui-text-subtle: 100 116 139;
 
-  --ui-border:      226 232 240;
+  --ui-border: 226 232 240;
 
-  --ui-accent:             15 118 110;
-  --ui-accent-solid:       15 118 110;
+  --ui-accent: 15 118 110;
+  --ui-accent-solid: 15 118 110;
   --ui-accent-solid-hover: 17 94 89;
-  --ui-accent-fg:          255 255 255;
+  --ui-accent-fg: 255 255 255;
 }
 
 html.dark {
   color-scheme: dark;
 
-  --ui-bg:          2 6 23;
-  --ui-bg-raised:   15 23 42;
-  --ui-bg-muted:    30 41 59;
-  --ui-bg-subtle:   51 65 85;
+  --ui-bg: 2 6 23;
+  --ui-bg-raised: 15 23 42;
+  --ui-bg-muted: 30 41 59;
+  --ui-bg-subtle: 51 65 85;
 
-  --ui-text:        248 250 252;
-  --ui-text-muted:  203 213 225;
+  --ui-text: 248 250 252;
+  --ui-text-muted: 203 213 225;
   --ui-text-subtle: 148 163 184;
 
-  --ui-border:      30 41 59;
+  --ui-border: 30 41 59;
 
-  --ui-accent:             94 234 212;
-  --ui-accent-solid:       15 118 110;
+  --ui-accent: 94 234 212;
+  --ui-accent-solid: 15 118 110;
   --ui-accent-solid-hover: 13 148 136;
-  --ui-accent-fg:          255 255 255;
+  --ui-accent-fg: 255 255 255;
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+html[data-theme-switching],
+html[data-theme-switching] *,
+html[data-theme-switching] *::before,
+html[data-theme-switching] *::after {
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -79,7 +86,7 @@ html {
 
 @layer utilities {
   .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ui-bg;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ui-bg;
   }
 }
 
@@ -177,13 +184,21 @@ html {
 }
 
 @media print {
-  @page { margin: 18mm; }
-  html, body {
+  @page {
+    margin: 18mm;
+  }
+  html,
+  body {
     background: #fff !important;
     color: #000 !important;
   }
-  body * { visibility: hidden; }
-  .print-only, .print-only * { visibility: visible; }
+  body * {
+    visibility: hidden;
+  }
+  .print-only,
+  .print-only * {
+    visibility: visible;
+  }
   .print-only {
     display: block;
     position: absolute;
@@ -193,7 +208,14 @@ html {
     color: #000;
     background: #fff;
   }
-  .print-only a { color: #000; text-decoration: none; }
-  .page-break-before { page-break-before: always; }
-  .avoid-break { page-break-inside: avoid; }
+  .print-only a {
+    color: #000;
+    text-decoration: none;
+  }
+  .page-break-before {
+    page-break-before: always;
+  }
+  .avoid-break {
+    page-break-inside: avoid;
+  }
 }

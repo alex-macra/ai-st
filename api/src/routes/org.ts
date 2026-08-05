@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createRequire } from 'node:module';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -9,7 +11,7 @@ import {
   getOrgMembers,
   getUserById,
 } from '../db.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireNonDemoUser } from '../middleware/auth.js';
 import { logger } from '../logger.js';
 
 const require = createRequire(import.meta.url);
@@ -26,7 +28,7 @@ const joinSchema = z.object({
 export function createOrgRouter() {
   const router = express.Router();
 
-  router.post('/create', requireAuth, (req: Request, res: Response): void => {
+  router.post('/create', requireNonDemoUser, (req: Request, res: Response): void => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
@@ -47,7 +49,7 @@ export function createOrgRouter() {
     res.json({ organization: org });
   });
 
-  router.post('/join', requireAuth, (req: Request, res: Response): void => {
+  router.post('/join', requireNonDemoUser, (req: Request, res: Response): void => {
     const parsed = joinSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
@@ -73,7 +75,7 @@ export function createOrgRouter() {
     res.json({ organization: org });
   });
 
-  router.get('/me', requireAuth, (req: Request, res: Response): void => {
+  router.get('/me', requireNonDemoUser, (req: Request, res: Response): void => {
     const orgId = req.user!.organizationId;
     if (!orgId) {
       res.json({ organization: null, members: [] });

@@ -1,6 +1,8 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """Synthetic-signal tests for channel-aware quality-control behavior."""
+
 import numpy as np
-import pytest
 
 from edf_parser import ChannelInfo
 from signal_qc import _score_channel

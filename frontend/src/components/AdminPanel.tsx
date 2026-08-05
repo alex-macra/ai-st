@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import {
   ArrowLeft,
@@ -12,7 +14,7 @@ import {
   CalendarDays,
 } from 'lucide-react';
 import { StatCard, Pagination, Tabs, Button, type Tab as SharedTab } from '../ui';
-import type { User } from '../shared/types';
+import type { AuthenticatedUser as User } from '@contracts/types';
 import {
   adminDashboard,
   adminUsers,
@@ -50,25 +52,41 @@ function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  // Fetches only. `loading` starts true, so the effect just resolves it;
+  // raising it synchronously in an effect cascades a render before the request
+  // is even sent. The Refresh button raises it from a handler, where that is fine.
+  const load = useCallback(
+    () =>
+      adminDashboard()
+        .then(setData)
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
+        .finally(() => setLoading(false)),
+    [],
+  );
+
+  function refresh() {
     setLoading(true);
     setError(null);
-    adminDashboard()
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false));
-  }, []);
+    void load();
+  }
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (loading) return <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>;
-  if (error || !data) return <p className="text-sm text-red-500 py-8 text-center">{error ?? 'Failed to load dashboard.'}</p>;
+  if (error || !data)
+    return (
+      <p className="text-sm text-red-500 py-8 text-center">
+        {error ?? 'Failed to load dashboard.'}
+      </p>
+    );
 
   return (
     <div>
       <div className="flex justify-end mb-4">
         <button
-          onClick={load}
+          onClick={refresh}
           className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
         >
           <RefreshCw size={12} /> Refresh
@@ -79,7 +97,11 @@ function DashboardTab() {
         <StatCard label="Cases" value={data.cases} icon={<Activity size={16} />} />
         <StatCard label="Signed off" value={data.signedOff} icon={<FileCheck size={16} />} />
         <StatCard label="Pending review" value={data.pending} icon={<Hourglass size={16} />} />
-        <StatCard label="Tokens total" value={fmtTokens(data.tokensTotal)} icon={<Coins size={16} />} />
+        <StatCard
+          label="Tokens total"
+          value={fmtTokens(data.tokensTotal)}
+          icon={<Coins size={16} />}
+        />
         <StatCard label="Cases today" value={data.casesToday} icon={<CalendarDays size={16} />} />
       </div>
     </div>
@@ -95,28 +117,39 @@ function UsersTab() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Fetches only; it never raises the spinner. The two callers decide that: the
+  // effect leaves `loading` at its initial true, and a page change or an admin
+  // toggle raises it from the handler, where a synchronous setState is fine.
   const load = useCallback((pg: number) => {
-    setLoading(true);
-    setError(null);
     adminUsers(pg, PAGE_SIZE)
-      .then((r) => { setRows(r.users); setTotal(r.total); })
+      .then((r) => {
+        setRows(r.users);
+        setTotal(r.total);
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(page); }, [page, load]);
+  const goToPage = useCallback((pg: number) => {
+    setLoading(true);
+    setError(null);
+    setPage(pg);
+  }, []);
+
+  useEffect(() => {
+    load(page);
+  }, [page, load]);
 
   async function toggleAdmin(u: AdminUserRow) {
     const next = !u.isAdmin;
     const confirmed = window.confirm(
-      next
-        ? `Grant admin privileges to ${u.email}?`
-        : `Revoke admin privileges from ${u.email}?`
+      next ? `Grant admin privileges to ${u.email}?` : `Revoke admin privileges from ${u.email}?`,
     );
     if (!confirmed) return;
     setBusyId(u.id);
     try {
       await setUserAdmin(u.id, next);
+      setLoading(true);
       load(page);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update user');
@@ -129,9 +162,7 @@ function UsersTab() {
 
   return (
     <div>
-      {error && (
-        <p className="text-xs text-red-500 mb-3">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
       {loading ? (
         <p className="text-sm text-slate-400 py-8 text-center">Loading…</p>
       ) : (
@@ -149,10 +180,14 @@ function UsersTab() {
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800/60">
-                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 font-mono">{u.email}</td>
+                  <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 font-mono">
+                    {u.email}
+                  </td>
                   <td className="py-2 pr-3 text-slate-500">{u.displayName ?? '—'}</td>
                   <td className="py-2 pr-3 text-slate-400">{fmtDate(u.createdAt)}</td>
-                  <td className="py-2 pr-3 tabular-nums text-slate-500">{fmtTokens(u.tokensTotal)}</td>
+                  <td className="py-2 pr-3 tabular-nums text-slate-500">
+                    {fmtTokens(u.tokensTotal)}
+                  </td>
                   <td className="py-2">
                     <button
                       onClick={() => void toggleAdmin(u)}
@@ -171,7 +206,9 @@ function UsersTab() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400">No users.</td>
+                  <td colSpan={5} className="py-6 text-center text-slate-400">
+                    No users.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -179,7 +216,7 @@ function UsersTab() {
           {totalPages > 1 && (
             <div className="mt-4 flex items-center justify-end gap-3">
               <span className="text-xs text-slate-500 tabular-nums">{total} total</span>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              <Pagination page={page} totalPages={totalPages} onPageChange={goToPage} />
             </div>
           )}
         </div>
@@ -202,7 +239,7 @@ export function AdminPanel({ user, onBack }: Props) {
 
   const tabs: SharedTab[] = [
     { id: 'dashboard', label: tabLabel(<Activity size={13} />, 'Dashboard') },
-    { id: 'users',     label: tabLabel(<UsersIcon size={13} />, 'Users')     },
+    { id: 'users', label: tabLabel(<UsersIcon size={13} />, 'Users') },
   ];
 
   return (
@@ -213,7 +250,9 @@ export function AdminPanel({ user, onBack }: Props) {
         </Button>
         <div className="flex items-center gap-2">
           <Shield size={15} className="text-teal-600 dark:text-teal-400" />
-          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">AI-ST Admin</h1>
+          <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Somnoscribe Admin
+          </h1>
         </div>
         <span className="ml-auto text-xs text-slate-400 hidden sm:inline">{user.email}</span>
       </div>
@@ -238,7 +277,9 @@ export function AdminPanel({ user, onBack }: Props) {
       <Tabs
         tabs={tabs}
         active={tab}
-        onChange={(id) => { if (isTabId(id)) setTab(id); }}
+        onChange={(id) => {
+          if (isTabId(id)) setTab(id);
+        }}
         className="mb-6"
       />
 

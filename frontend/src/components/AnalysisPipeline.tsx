@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { Check, X, Loader2, Clock, ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -22,10 +24,10 @@ interface StageDef {
 }
 
 const STAGE_DEFS: StageDef[] = [
-  { id: 'pass1',  label: 'Pass 1',  subtitle: 'Fact Extraction'   },
-  { id: 'pass2',  label: 'Pass 2',  subtitle: 'Report Draft'      },
-  { id: 'pass3',  label: 'Pass 3',  subtitle: 'Validation'        },
-  { id: 'pass3b', label: 'Pass 3b', subtitle: 'Reference Check'   },
+  { id: 'pass1', label: 'Pass 1', subtitle: 'Fact Extraction' },
+  { id: 'pass2', label: 'Pass 2', subtitle: 'Report Draft' },
+  { id: 'pass3', label: 'Pass 3', subtitle: 'Validation' },
+  { id: 'pass3b', label: 'Pass 3b', subtitle: 'Reference Check' },
 ];
 
 function formatMs(ms: number): string {
@@ -38,10 +40,14 @@ function formatTokens(n: number): string {
 
 function StatusIcon({ status }: { status: StageStatus }) {
   switch (status) {
-    case 'running': return <Loader2 size={13} className="animate-spin text-teal-500" />;
-    case 'passed':  return <Check   size={13} className="text-teal-600 dark:text-teal-400" />;
-    case 'failed':  return <X       size={13} className="text-red-500" />;
-    case 'pending': return <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600" />;
+    case 'running':
+      return <Loader2 size={13} className="animate-spin text-teal-500" />;
+    case 'passed':
+      return <Check size={13} className="text-teal-600 dark:text-teal-400" />;
+    case 'failed':
+      return <X size={13} className="text-red-500" />;
+    case 'pending':
+      return <div className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600" />;
   }
 }
 
@@ -59,7 +65,8 @@ export function AnalysisPipeline({ stages, analyzing }: Props) {
   function toggle(id: StageId) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -73,10 +80,13 @@ export function AnalysisPipeline({ stages, analyzing }: Props) {
 
         const status: StageStatus = st?.status ?? 'pending';
         const isExpanded = expanded.has(def.id);
-        const hasDetails = status === 'passed' && st != null && (
-          st.tokensIn != null || st.findingCount != null ||
-          st.warningCount != null || st.flagCount != null
-        );
+        const hasDetails =
+          status === 'passed' &&
+          st != null &&
+          (st.tokensIn != null ||
+            st.findingCount != null ||
+            st.warningCount != null ||
+            st.flagCount != null);
 
         return (
           <div key={def.id}>
@@ -90,7 +100,9 @@ export function AnalysisPipeline({ stages, analyzing }: Props) {
               </div>
 
               <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{def.label}</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {def.label}
+                </span>
                 <span className="text-xs text-slate-400">-</span>
                 <span className="text-xs text-slate-500">{def.subtitle}</span>
                 {status === 'running' && st?.message && (
@@ -105,27 +117,36 @@ export function AnalysisPipeline({ stages, analyzing }: Props) {
                 </span>
               )}
 
-              {hasDetails && (
-                isExpanded
-                  ? <ChevronDown  size={11} className="text-slate-400 shrink-0" />
-                  : <ChevronRight size={11} className="text-slate-400 shrink-0" />
-              )}
+              {hasDetails &&
+                (isExpanded ? (
+                  <ChevronDown size={11} className="text-slate-400 shrink-0" />
+                ) : (
+                  <ChevronRight size={11} className="text-slate-400 shrink-0" />
+                ))}
             </div>
 
             {isExpanded && hasDetails && st && (
               <div className="ml-7 mt-0.5 mb-1 px-1.5 grid grid-cols-2 gap-x-6 gap-y-0.5 text-[10px] font-mono">
-                {st.tokensIn  != null && <span className="text-slate-400">in: {formatTokens(st.tokensIn)}</span>}
-                {st.tokensOut != null && <span className="text-slate-400">out: {formatTokens(st.tokensOut)}</span>}
+                {st.tokensIn != null && (
+                  <span className="text-slate-400">in: {formatTokens(st.tokensIn)}</span>
+                )}
+                {st.tokensOut != null && (
+                  <span className="text-slate-400">out: {formatTokens(st.tokensOut)}</span>
+                )}
                 {st.findingCount != null && (
                   <span className="col-span-2 text-slate-400">findings: {st.findingCount}</span>
                 )}
                 {st.warningCount != null && (
-                  <span className={`col-span-2 ${st.warningCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                  <span
+                    className={`col-span-2 ${st.warningCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}
+                  >
                     warnings: {st.warningCount}
                   </span>
                 )}
                 {st.flagCount != null && (
-                  <span className={`col-span-2 ${st.flagCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                  <span
+                    className={`col-span-2 ${st.flagCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}
+                  >
                     ref flags: {st.flagCount}
                   </span>
                 )}

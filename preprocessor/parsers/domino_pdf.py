@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Parse the structured numerics out of a DOMINO light Report print PDF.
 
@@ -7,7 +9,7 @@ lab's own scored AHI/RDI, T90, supine fraction, etc. We extract those
 numerics as a deterministic gold reference that Pass 3 can cross-check
 against the LLM's structured report.
 
-PHI rules (CLAUDE.md):
+PHI rules:
 - This parser MUST NOT return patient name, DOB, ID, weight, height, BMI,
   physician, scorer, clinic name, address, phone, or email. Every method
   here is whitelist-based extraction of clinical numerics, with regex
@@ -19,6 +21,7 @@ Variant support (v1):
 - "DOMINO light Report print" - the only variant we have a sample for.
   Anything else returns ParseFailure with reason="unsupported_pdf_variant".
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,6 +49,7 @@ class DominoMetrics:
     and a v1 parser is conservative about what it claims to have extracted.
     Pass 3 only cross-checks fields whose confidence is "extracted".
     """
+
     schema_version: str = SCHEMA_VERSION
     parsed: bool = True
     variant: str = SUPPORTED_VARIANT
@@ -177,7 +181,7 @@ def _extract_metrics(text: str) -> DominoMetrics:
     # DOMINO writes "AHI / RDI [/h]" and the corresponding cell is "X / Y".
     # The label and value are widely separated by other table cells, so we
     # search for the X / Y shape and pin it to the AHI/RDI label section.
-    if "AHI / RDI" in text:
+    if "AHI / RDI" in text:  # noqa: SIM102 - the section guard reads clearer kept separate from the pattern
         if match := re.search(
             r"(" + _DECIMAL + r")\s*/\s*(" + _DECIMAL + r")(?=\s*\n[^\n]*Flow Limitations)",
             text,
@@ -210,9 +214,7 @@ def _extract_metrics(text: str) -> DominoMetrics:
         if match := re.search(label + r"\s+(\d+)", text):
             set_field(attr, caster(match.group(1)))
 
-    if match := re.search(
-        r"Time\s*<\s*90\s*%\s+(" + _DECIMAL + r")\s*%", text
-    ):
+    if match := re.search(r"Time\s*<\s*90\s*%\s+(" + _DECIMAL + r")\s*%", text):
         set_field("time_below_90_pct", _to_float(match.group(1)))
 
     if match := re.search(r"Longest Desaturation \(s\)\s+(" + _DECIMAL + r")\s*s?", text):
@@ -241,9 +243,7 @@ def _extract_metrics(text: str) -> DominoMetrics:
         + r")",
         text,
     ):
-        prone, supine, left, right, upright = (
-            _to_float(match.group(i)) for i in range(1, 6)
-        )
+        prone, supine, left, right, upright = (_to_float(match.group(i)) for i in range(1, 6))
         set_field("prone_fraction_pct", prone)
         set_field("supine_fraction_pct", supine)
         set_field("left_fraction_pct", left)
@@ -257,14 +257,16 @@ def _extract_metrics(text: str) -> DominoMetrics:
     # DOMINO text order after the header:
     # "Obstructive\nMixed\nCentral\nTotal Apn.\nHypopnea\nA+H\nNumber (Index)\n"
     # followed by 6 values: Obstructive, Mixed(-), Central, Total Apn., Hypopnea, A+H
-    if match := re.search(
-        r"Obstructive\nMixed\nCentral\nTotal Apn\.\nHypopnea\nA\+H\nNumber \(Index\)\n"
-        r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)\n"   # Obstructive count (index)
-        r"[^\n]+\n"                                     # Mixed: skip
-        r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)\n"   # Central count (index)
-        r"(\d+)\s*\(\s*" + _DECIMAL + r"\s*\)\n"       # Total Apn count (index skipped)
-        r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)",      # Hypopnea count (index)
-        text,
+    if (
+        match := re.search(
+            r"Obstructive\nMixed\nCentral\nTotal Apn\.\nHypopnea\nA\+H\nNumber \(Index\)\n"
+            r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)\n"  # Obstructive count (index)
+            r"[^\n]+\n"  # Mixed: skip
+            r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)\n"  # Central count (index)
+            r"(\d+)\s*\(\s*" + _DECIMAL + r"\s*\)\n"  # Total Apn count (index skipped)
+            r"(\d+)\s*\(\s*(" + _DECIMAL + r")\s*\)",  # Hypopnea count (index)
+            text,
+        )
     ):
         set_field("obstructive_apnea_count", int(match.group(1)))
         set_field("obstructive_apnea_index", _to_float(match.group(2)))
@@ -296,12 +298,12 @@ def _extract_metrics(text: str) -> DominoMetrics:
     # DOMINO order: Acceleration, Deceleration, Arrhythmia, Max HR, Min HR, Avg HR.
     if match := re.search(
         r"Sleep Wake\n"
-        r"[^\n]+\n"                              # Acceleration (Index) wake
-        r"[^\n]+\n"                              # Deceleration (Index) wake
-        r"[^\n]+\n"                              # Arrhythmia (Index) wake
-        r"(\d+)\s*(?:\([^)]*\))?\s*\n"          # Maximum HR wake (timestamp stripped)
-        r"(\d+)\s*(?:\([^)]*\))?\s*\n"          # Minimum HR wake
-        r"(\d+)",                                # Average HR wake
+        r"[^\n]+\n"  # Acceleration (Index) wake
+        r"[^\n]+\n"  # Deceleration (Index) wake
+        r"[^\n]+\n"  # Arrhythmia (Index) wake
+        r"(\d+)\s*(?:\([^)]*\))?\s*\n"  # Maximum HR wake (timestamp stripped)
+        r"(\d+)\s*(?:\([^)]*\))?\s*\n"  # Minimum HR wake
+        r"(\d+)",  # Average HR wake
         text,
     ):
         set_field("hr_wake_max", int(match.group(1)))

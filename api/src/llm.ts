@@ -1,20 +1,72 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import OpenAI from 'openai';
 import type { Response } from 'express';
+import { OFFLINE_DEMO_MODEL_VERSION } from './shared/types.js';
 
-let client: OpenAI | undefined;
+export { OFFLINE_DEMO_MODEL_VERSION } from './shared/types.js';
+
+let client: { mode: Exclude<LlmMode, 'unconfigured'>; apiKey?: string; value: OpenAI } | undefined;
 
 type Environment = Record<string, string | undefined>;
 
+/**
+ * Raised instead of calling a provider when no model is configured. The API
+ * still boots, serves health checks, accepts uploads, and preprocesses studies
+ * in that state; only the analysis passes are unavailable.
+ */
+export class LlmNotConfiguredError extends Error {
+  constructor() {
+    super(
+      'No model provider is configured. Set OPENAI_API_KEY to analyse with a real model, ' +
+        'or set SOMNOSCRIBE_DEMO_MODE=true to run the offline demo model.',
+    );
+    this.name = 'LlmNotConfiguredError';
+  }
+}
+
 export function syntheticLlmEnabled(environment: Environment = process.env): boolean {
-  if (environment['AI_ST_SYNTHETIC_LLM'] !== 'true') return false;
+  if (environment['SOMNOSCRIBE_SYNTHETIC_LLM'] !== 'true') return false;
   if (environment['NODE_ENV'] !== 'test') {
-    throw new Error('AI_ST_SYNTHETIC_LLM may only be enabled when NODE_ENV=test');
+    throw new Error('SOMNOSCRIBE_SYNTHETIC_LLM may only be enabled when NODE_ENV=test');
   }
   return true;
 }
 
+export function publicDemoModeEnabled(environment: Environment = process.env): boolean {
+  return environment['SOMNOSCRIBE_DEMO_MODE'] === 'true';
+}
+
+/**
+ * The offline model. `SOMNOSCRIBE_DEMO_MODE` is the operator-facing switch;
+ * `SOMNOSCRIBE_SYNTHETIC_LLM` is the narrower one the browser suite uses, and it
+ * still refuses to run outside `NODE_ENV=test`.
+ */
+export function demoModeEnabled(environment: Environment = process.env): boolean {
+  if (syntheticLlmEnabled(environment)) return true;
+  return publicDemoModeEnabled(environment);
+}
+
+/**
+ * An empty or blank value is treated as absent. dotenv turns
+ * `OPENAI_API_KEY=` in a half-filled `.env` into `''`, which is not a usable
+ * credential and must not reach the provider constructor.
+ */
+export function configuredApiKey(environment: Environment = process.env): string | undefined {
+  const key = environment['OPENAI_API_KEY']?.trim();
+  return key === undefined || key === '' ? undefined : key;
+}
+
+export type LlmMode = 'demo' | 'openai' | 'unconfigured';
+
+export function llmMode(environment: Environment = process.env): LlmMode {
+  if (demoModeEnabled(environment)) return 'demo';
+  return configuredApiKey(environment) === undefined ? 'unconfigured' : 'openai';
+}
+
 function systemPromptFrom(params: unknown): string {
-  const messages = (params as { messages?: Array<{ role?: string; content?: unknown }> }).messages ?? [];
+  const messages =
+    (params as { messages?: Array<{ role?: string; content?: unknown }> }).messages ?? [];
   const system = messages.find((message) => message.role === 'system');
   return typeof system?.content === 'string' ? system.content : '';
 }
@@ -22,22 +74,28 @@ function systemPromptFrom(params: unknown): string {
 export function syntheticResponseFor(systemPrompt: string): string {
   if (systemPrompt.includes('clinical data extraction engine')) {
     return JSON.stringify({
-      findings: [{
-        id: 'F-001',
-        claim: 'Synthetic artifact is available for workflow verification; no clinical interpretation was performed.',
-        confidence: 'high',
-        evidence: [{
-          type: 'report_page',
-          source: 'synthetic-e2e-artifact',
-          value: 'present',
-        }],
-      }],
+      findings: [
+        {
+          id: 'F-001',
+          claim:
+            'Synthetic artifact is available for workflow verification; no clinical interpretation was performed.',
+          confidence: 'high',
+          evidence: [
+            {
+              type: 'report_page',
+              source: 'synthetic-e2e-artifact',
+              value: 'present',
+            },
+          ],
+        },
+      ],
     });
   }
 
   if (systemPrompt.includes('conservative report builder for home sleep study review')) {
     return JSON.stringify({
-      summary: 'Synthetic workflow verification completed; this output contains no clinical interpretation. (F-001)',
+      summary:
+        'Synthetic workflow verification completed; this output contains no clinical interpretation. (F-001)',
       studyQuality: { channelIssues: ['Synthetic test artifact; not a clinical recording.'] },
       respiratoryIndices: {},
       oxygenation: {},
@@ -59,14 +117,18 @@ export function syntheticResponseFor(systemPrompt: string): string {
     return JSON.stringify({ valid: true, rejections: [] });
   }
 
-  if (systemPrompt.includes('review-support assistant helping a licensed sleep medicine specialist')) {
+  if (
+    systemPrompt.includes('review-support assistant helping a licensed sleep medicine specialist')
+  ) {
     return JSON.stringify({
       priorityActions: [],
-      verifyNext: [{
-        action: 'Confirm that this case is synthetic before reviewing the workflow.',
-        rationale: 'The generated artifact is intended only to verify the release smoke path.',
-        findingIds: ['F-001'],
-      }],
+      verifyNext: [
+        {
+          action: 'Confirm that this case is synthetic before reviewing the workflow.',
+          rationale: 'The generated artifact is intended only to verify the release smoke path.',
+          findingIds: ['F-001'],
+        },
+      ],
       artifactCaveats: [],
       clinicalContext: {
         commonPresentation: 'Synthetic test mode does not provide clinical context.',
@@ -87,17 +149,19 @@ function createSyntheticClient(): OpenAI {
           id: 'synthetic-completion',
           object: 'chat.completion',
           created: 0,
-          model: 'synthetic-test-model',
-          choices: [{
-            index: 0,
-            finish_reason: 'stop',
-            logprobs: null,
-            message: {
-              role: 'assistant',
-              refusal: null,
-              content: syntheticResponseFor(systemPromptFrom(params)),
+          model: OFFLINE_DEMO_MODEL_VERSION,
+          choices: [
+            {
+              index: 0,
+              finish_reason: 'stop',
+              logprobs: null,
+              message: {
+                role: 'assistant',
+                refusal: null,
+                content: syntheticResponseFor(systemPromptFrom(params)),
+              },
             },
-          }],
+          ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }),
       },
@@ -105,17 +169,33 @@ function createSyntheticClient(): OpenAI {
   } as unknown as OpenAI;
 }
 
-export function getOpenAIClient(): OpenAI {
-  client ??= syntheticLlmEnabled()
-    ? createSyntheticClient()
-    : new OpenAI({ apiKey: process.env['OPENAI_API_KEY'] ?? 'not-configured' });
-  return client;
+/**
+ * Resolve a client for one explicitly selected mode. Multi-pass jobs pass the
+ * mode captured when they begin, so changing an environment flag cannot turn
+ * a demo job into a provider request between passes.
+ */
+export function getOpenAIClient(mode: LlmMode = llmMode()): OpenAI {
+  if (mode === 'unconfigured') throw new LlmNotConfiguredError();
+  const apiKey = mode === 'openai' ? configuredApiKey() : undefined;
+  if (mode === 'openai' && !apiKey) throw new LlmNotConfiguredError();
+  if (client?.mode === mode && client.apiKey === apiKey) return client.value;
+
+  // Never reuse an OpenAI client for a demo-mode request (or vice versa).
+  const value = mode === 'demo' ? createSyntheticClient() : new OpenAI({ apiKey });
+  client = { mode, ...(apiKey ? { apiKey } : {}), value };
+  return value;
+}
+
+/** Test seam: the client is cached, and each suite configures its own mode. */
+export function resetOpenAIClient(): void {
+  client = undefined;
 }
 
 export function writeSSE(res: Response, data: unknown, requestId?: string): void {
-  const payload = requestId !== undefined && data && typeof data === 'object' && !Array.isArray(data)
-    ? { requestId, ...data }
-    : data;
+  const payload =
+    requestId !== undefined && data && typeof data === 'object' && !Array.isArray(data)
+      ? { requestId, ...data }
+      : data;
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
@@ -137,8 +217,8 @@ export function extractUsage(usage: UsageLike | null | undefined): {
     inputTokens: usage?.prompt_tokens ?? usage?.input_tokens ?? 0,
     outputTokens: usage?.completion_tokens ?? usage?.output_tokens ?? 0,
     cacheReadTokens:
-      usage?.prompt_tokens_details?.cached_tokens
-      ?? usage?.input_tokens_details?.cached_tokens
-      ?? 0,
+      usage?.prompt_tokens_details?.cached_tokens ??
+      usage?.input_tokens_details?.cached_tokens ??
+      0,
   };
 }

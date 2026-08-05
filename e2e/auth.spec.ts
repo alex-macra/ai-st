@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
 // No storageState - these tests verify the unauthenticated UI.
@@ -8,8 +10,26 @@ test.describe('auth screen', () => {
     await page.goto('/');
   });
 
-  test('shows AI-ST branding and choice buttons', async ({ page }) => {
-    await expect(page.getByText('AI-ST Sleep Study Review Assistant')).toBeVisible();
+  // This suite runs against the offline model adapter, so the banner is
+  // correct here — and it must reach the sign-in screen, before any session
+  // exists, or someone could work through a whole case without seeing it.
+  test('declares the offline model before anyone signs in', async ({ page }) => {
+    await expect(page.getByRole('status')).toContainText(/report text is generated offline/i);
+  });
+
+  // The whole point of the demo user is that nothing has to be arranged first.
+  // If this ever needs a key, a code, or a seeded account, it has stopped being
+  // a demo.
+  test('demo user signs in from the first screen with nothing prepared', async ({ page }) => {
+    await page.getByRole('button', { name: /Continue as demo user/ }).click();
+
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await expect(page.getByText('demo@example.test')).toBeVisible();
+  });
+
+  test('shows Somnoscribe branding and choice buttons', async ({ page }) => {
+    await expect(page.getByText('Somnoscribe Sleep Study Review Assistant')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Activate with license key' })).toBeVisible();
   });
@@ -68,6 +88,7 @@ test.describe('auth screen', () => {
       window.localStorage.setItem('dark-mode', 'false');
     });
     await page.reload();
+    await expect(page.getByRole('button', { name: 'Continue as demo user' })).toBeVisible();
     await expect(page).toHaveScreenshot('auth-screen.png', {
       animations: 'disabled',
       caret: 'hide',

@@ -1,8 +1,19 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import { getAuditLog } from '../api';
-import type { ActionPlan, Case, PdfMetrics, StructuredReport, AuditRecord, EventSlice } from '../shared/types';
+import type {
+  ActionPlan,
+  Case,
+  PdfMetrics,
+  StructuredReport,
+  AuditRecord,
+  EventSlice,
+} from '@contracts/types';
 import { EventWaveformSnapshot } from './EventWaveformSnapshot';
 import { stripInlineCitations } from '../utils';
+import { fmt as fmtOrNull } from '../ui/utils';
+import { isOfflineActionPlan, isOfflineReport, isSyntheticInput } from '../provenance';
 
 interface Props {
   c: Case;
@@ -10,9 +21,9 @@ interface Props {
 }
 
 // ── utilities ─────────────────────────────────────────────────────────────────
+/** A printed report needs a placeholder in the cell, not an omitted row. */
 function fmt(n: number | undefined | null, suffix = '', digits = 1): string {
-  if (n === undefined || n === null) return '-';
-  return `${Number.isInteger(n) ? n : n.toFixed(digits)}${suffix}`;
+  return fmtOrNull(n, suffix, digits) ?? '-';
 }
 
 function fmtSec(sec: number): string {
@@ -26,28 +37,49 @@ type SeverityLabel = 'Normal' | 'Mild' | 'Moderate' | 'Severe';
 
 function ahiClassification(ahi: number, cohort?: string): { label: SeverityLabel; detail: string } {
   if (cohort === 'pediatric') {
-    if (ahi < 1)  return { label: 'Normal',   detail: 'No significant obstructive SDB' };
-    if (ahi < 5)  return { label: 'Mild',     detail: 'Mild pediatric obstructive SDB' };
+    if (ahi < 1) return { label: 'Normal', detail: 'No significant obstructive SDB' };
+    if (ahi < 5) return { label: 'Mild', detail: 'Mild pediatric obstructive SDB' };
     if (ahi < 10) return { label: 'Moderate', detail: 'Moderate pediatric obstructive SDB' };
-    return         { label: 'Severe',   detail: 'Severe pediatric obstructive SDB' };
+    return { label: 'Severe', detail: 'Severe pediatric obstructive SDB' };
   }
-  if (ahi < 5)  return { label: 'Normal',   detail: 'No significant sleep-disordered breathing' };
-  if (ahi < 15) return { label: 'Mild',     detail: 'Mild sleep-disordered breathing' };
+  if (ahi < 5) return { label: 'Normal', detail: 'No significant sleep-disordered breathing' };
+  if (ahi < 15) return { label: 'Mild', detail: 'Mild sleep-disordered breathing' };
   if (ahi < 30) return { label: 'Moderate', detail: 'Moderate sleep-disordered breathing' };
-  return         { label: 'Severe',   detail: 'Severe sleep-disordered breathing' };
+  return { label: 'Severe', detail: 'Severe sleep-disordered breathing' };
 }
 
 // ── design tokens ─────────────────────────────────────────────────────────────
 const ACCENT = '#1B3A6B';
 
-const SEVERITY: Record<SeverityLabel, { bg: string; text: string; border: string; badge: string }> = {
-  Normal:   { bg: '#E8F5E9', text: '#1B5E20', border: '#43A047', badge: '#2E7D32' },
-  Mild:     { bg: '#FFFDE7', text: '#5D4037', border: '#FBC02D', badge: '#F9A825' },
-  Moderate: { bg: '#FFF3E0', text: '#BF360C', border: '#EF6C00', badge: '#E65100' },
-  Severe:   { bg: '#FFEBEE', text: '#7F0000', border: '#E53935', badge: '#B71C1C' },
-};
+const SEVERITY: Record<SeverityLabel, { bg: string; text: string; border: string; badge: string }> =
+  {
+    Normal: { bg: '#E8F5E9', text: '#1B5E20', border: '#43A047', badge: '#2E7D32' },
+    Mild: { bg: '#FFFDE7', text: '#5D4037', border: '#FBC02D', badge: '#F9A825' },
+    Moderate: { bg: '#FFF3E0', text: '#BF360C', border: '#EF6C00', badge: '#E65100' },
+    Severe: { bg: '#FFEBEE', text: '#7F0000', border: '#E53935', badge: '#B71C1C' },
+  };
 
 // ── SVG charts ────────────────────────────────────────────────────────────────
+
+/**
+ * Every chart below draws into the same fixed-width viewBox and scales to the
+ * column. Only the height differs, so the four of them share this frame rather
+ * than each restating the svg attributes and the 400pt width.
+ */
+const CHART_W = 400;
+
+function ChartFrame({ height, children }: { height: number; children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox={`0 0 ${CHART_W} ${height}`}
+      width="100%"
+      height={height}
+      style={{ display: 'block', marginTop: '5pt' }}
+    >
+      {children}
+    </svg>
+  );
+}
 
 function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined }) {
   const isPeds = cohort === 'pediatric';
@@ -55,31 +87,48 @@ function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined
 
   const bands = isPeds
     ? [
-        { label: 'Normal', start: 0,  end: 1,  color: '#C8E6C9' },
-        { label: 'Mild',   start: 1,  end: 5,  color: '#FFF9C4' },
-        { label: 'Mod',    start: 5,  end: 10, color: '#FFE0B2' },
+        { label: 'Normal', start: 0, end: 1, color: '#C8E6C9' },
+        { label: 'Mild', start: 1, end: 5, color: '#FFF9C4' },
+        { label: 'Mod', start: 5, end: 10, color: '#FFE0B2' },
         { label: 'Severe', start: 10, end: 15, color: '#FFCDD2' },
       ]
     : [
-        { label: 'Normal', start: 0,  end: 5,  color: '#C8E6C9' },
-        { label: 'Mild',   start: 5,  end: 15, color: '#FFF9C4' },
-        { label: 'Mod',    start: 15, end: 30, color: '#FFE0B2' },
+        { label: 'Normal', start: 0, end: 5, color: '#C8E6C9' },
+        { label: 'Mild', start: 5, end: 15, color: '#FFF9C4' },
+        { label: 'Mod', start: 15, end: 30, color: '#FFE0B2' },
         { label: 'Severe', start: 30, end: 40, color: '#FFCDD2' },
       ];
 
-  const W = 400, H = 38, barH = 20, yBar = 6;
+  const W = CHART_W,
+    H = 38,
+    barH = 20,
+    yBar = 6;
   const markerX = (Math.min(ahi, maxVal) / maxVal) * W;
   const ticks = isPeds ? [0, 1, 5, 10, 15] : [0, 5, 15, 30, 40];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', marginTop: '5pt' }}>
+    <ChartFrame height={H}>
       {bands.map((b) => {
         const x = (b.start / maxVal) * W;
         const w = ((b.end - b.start) / maxVal) * W;
         return (
           <g key={b.label}>
-            <rect x={x} y={yBar} width={w} height={barH} fill={b.color} stroke="#ccc" strokeWidth="0.5" />
-            <text x={x + w / 2} y={yBar + barH / 2 + 4} fontSize="7" textAnchor="middle" fill="#555">
+            <rect
+              x={x}
+              y={yBar}
+              width={w}
+              height={barH}
+              fill={b.color}
+              stroke="#ccc"
+              strokeWidth="0.5"
+            />
+            <text
+              x={x + w / 2}
+              y={yBar + barH / 2 + 4}
+              fontSize="7"
+              textAnchor="middle"
+              fill="#555"
+            >
               {b.label}
             </text>
           </g>
@@ -89,23 +138,38 @@ function AhiScaleBar({ ahi, cohort }: { ahi: number; cohort?: string | undefined
         points={`${markerX},${yBar - 1} ${markerX - 5},${yBar - 7} ${markerX + 5},${yBar - 7}`}
         fill={ACCENT}
       />
-      <line x1={markerX} y1={yBar} x2={markerX} y2={yBar + barH} stroke={ACCENT} strokeWidth="1.5" />
+      <line
+        x1={markerX}
+        y1={yBar}
+        x2={markerX}
+        y2={yBar + barH}
+        stroke={ACCENT}
+        strokeWidth="1.5"
+      />
       {ticks.map((v) => (
         <text key={v} x={(v / maxVal) * W} y={H} fontSize="6.5" textAnchor="middle" fill="#777">
           {v}
         </text>
       ))}
-    </svg>
+    </ChartFrame>
   );
 }
 
 function SpO2Bar({
-  mean, baseline, nadir,
+  mean,
+  baseline,
+  nadir,
 }: {
-  mean?: number | undefined; baseline?: number | undefined; nadir?: number | undefined;
+  mean?: number | undefined;
+  baseline?: number | undefined;
+  nadir?: number | undefined;
 }) {
-  const minVal = 78, maxVal = 100;
-  const W = 400, H = 44, barH = 16, yBar = 10;
+  const minVal = 78,
+    maxVal = 100;
+  const W = CHART_W,
+    H = 44,
+    barH = 16,
+    yBar = 10;
 
   function xOf(v: number) {
     return ((Math.min(Math.max(v, minVal), maxVal) - minVal) / (maxVal - minVal)) * W;
@@ -118,25 +182,42 @@ function SpO2Bar({
   ];
 
   const markers = [
-    { val: nadir,    label: 'nadir',    color: '#C62828', dash: true  },
-    { val: mean,     label: 'mean',     color: ACCENT,    dash: false },
+    { val: nadir, label: 'nadir', color: '#C62828', dash: true },
+    { val: mean, label: 'mean', color: ACCENT, dash: false },
     { val: baseline, label: 'baseline', color: '#2E7D32', dash: false },
-  ].filter((mk): mk is { val: number; label: string; color: string; dash: boolean } =>
-    mk.val !== undefined && mk.val !== null
+  ].filter(
+    (mk): mk is { val: number; label: string; color: string; dash: boolean } =>
+      mk.val !== undefined && mk.val !== null,
   );
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', marginTop: '5pt' }}>
+    <ChartFrame height={H}>
       {[78, 82, 86, 90, 94, 98].map((v) => (
-        <text key={v} x={xOf(v)} y={8} fontSize="6" textAnchor="middle" fill="#999">{v}%</text>
+        <text key={v} x={xOf(v)} y={8} fontSize="6" textAnchor="middle" fill="#999">
+          {v}%
+        </text>
       ))}
       {zones.map((z) => {
         const x = xOf(z.from);
         const w = xOf(z.to) - x;
         return (
           <g key={z.label}>
-            <rect x={x} y={yBar} width={w} height={barH} fill={z.color} stroke="#ccc" strokeWidth="0.5" />
-            <text x={x + w / 2} y={yBar + barH / 2 + 4} fontSize="7" textAnchor="middle" fill="#555">
+            <rect
+              x={x}
+              y={yBar}
+              width={w}
+              height={barH}
+              fill={z.color}
+              stroke="#ccc"
+              strokeWidth="0.5"
+            />
+            <text
+              x={x + w / 2}
+              y={yBar + barH / 2 + 4}
+              fontSize="7"
+              textAnchor="middle"
+              fill="#555"
+            >
               {z.label}
             </text>
           </g>
@@ -145,9 +226,12 @@ function SpO2Bar({
       {markers.map((mk) => (
         <g key={mk.label}>
           <line
-            x1={xOf(mk.val)} y1={yBar}
-            x2={xOf(mk.val)} y2={yBar + barH}
-            stroke={mk.color} strokeWidth="1.5"
+            x1={xOf(mk.val)}
+            y1={yBar}
+            x2={xOf(mk.val)}
+            y2={yBar + barH}
+            stroke={mk.color}
+            strokeWidth="1.5"
             strokeDasharray={mk.dash ? '3,2' : ''}
           />
           <text x={xOf(mk.val)} y={H} fontSize="6.5" textAnchor="middle" fill={mk.color}>
@@ -155,28 +239,38 @@ function SpO2Bar({
           </text>
         </g>
       ))}
-    </svg>
+    </ChartFrame>
   );
 }
 
 function PositionBar({
-  supine, left, right, prone, upright,
+  supine,
+  left,
+  right,
+  prone,
+  upright,
 }: {
-  supine?: number | undefined; left?: number | undefined; right?: number | undefined;
-  prone?: number | undefined; upright?: number | undefined;
+  supine?: number | undefined;
+  left?: number | undefined;
+  right?: number | undefined;
+  prone?: number | undefined;
+  upright?: number | undefined;
 }) {
   const raw = [
-    { label: 'Supine',  pct: supine,  color: '#90CAF9' },
-    { label: 'Left',    pct: left,    color: '#A5D6A7' },
-    { label: 'Right',   pct: right,   color: '#FFCC80' },
-    { label: 'Prone',   pct: prone,   color: '#CE93D8' },
+    { label: 'Supine', pct: supine, color: '#90CAF9' },
+    { label: 'Left', pct: left, color: '#A5D6A7' },
+    { label: 'Right', pct: right, color: '#FFCC80' },
+    { label: 'Prone', pct: prone, color: '#CE93D8' },
     { label: 'Upright', pct: upright, color: '#F48FB1' },
-  ].filter((s): s is { label: string; pct: number; color: string } =>
-    s.pct !== undefined && s.pct > 0
+  ].filter(
+    (s): s is { label: string; pct: number; color: string } => s.pct !== undefined && s.pct > 0,
   );
   if (raw.length === 0) return null;
 
-  const W = 400, H = 34, barH = 18, yBar = 2;
+  const W = CHART_W,
+    H = 34,
+    barH = 18,
+    yBar = 2;
 
   let offset = 0;
   const segs = raw.map((s) => {
@@ -187,43 +281,76 @@ function PositionBar({
   });
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', marginTop: '5pt' }}>
+    <ChartFrame height={H}>
       {segs.map((s) => (
         <g key={s.label}>
-          <rect x={s.x} y={yBar} width={s.w} height={barH} fill={s.color} stroke="#fff" strokeWidth="0.5" />
+          <rect
+            x={s.x}
+            y={yBar}
+            width={s.w}
+            height={barH}
+            fill={s.color}
+            stroke="#fff"
+            strokeWidth="0.5"
+          />
           {s.w > 32 && (
-            <text x={s.x + s.w / 2} y={yBar + barH / 2 + 4} fontSize="7" textAnchor="middle" fill="#333">
+            <text
+              x={s.x + s.w / 2}
+              y={yBar + barH / 2 + 4}
+              fontSize="7"
+              textAnchor="middle"
+              fill="#333"
+            >
               {s.label} {s.pct.toFixed(0)}%
             </text>
           )}
         </g>
       ))}
-      {segs.filter((s) => s.w <= 32).map((s, i) => (
-        <text key={s.label} x={W - 5} y={H - i * 8} fontSize="6.5" textAnchor="end" fill={s.color}>
-          {s.label} {s.pct.toFixed(0)}%
-        </text>
-      ))}
-    </svg>
+      {segs
+        .filter((s) => s.w <= 32)
+        .map((s, i) => (
+          <text
+            key={s.label}
+            x={W - 5}
+            y={H - i * 8}
+            fontSize="6.5"
+            textAnchor="end"
+            fill={s.color}
+          >
+            {s.label} {s.pct.toFixed(0)}%
+          </text>
+        ))}
+    </ChartFrame>
   );
 }
 
 function HrRangeChart({
-  sleepMin, sleepMean, sleepMax,
-  wakeMin, wakeMean, wakeMax,
+  sleepMin,
+  sleepMean,
+  sleepMax,
+  wakeMin,
+  wakeMean,
+  wakeMax,
 }: {
-  sleepMin?: number | undefined; sleepMean?: number | undefined; sleepMax?: number | undefined;
-  wakeMin?: number | undefined; wakeMean?: number | undefined; wakeMax?: number | undefined;
+  sleepMin?: number | undefined;
+  sleepMean?: number | undefined;
+  sleepMax?: number | undefined;
+  wakeMin?: number | undefined;
+  wakeMean?: number | undefined;
+  wakeMax?: number | undefined;
 }) {
   if (!sleepMean) return null;
 
   const hasWake = wakeMean !== undefined;
-  const allVals = [sleepMin, sleepMean, sleepMax, wakeMin, wakeMean, wakeMax]
-    .filter((v): v is number => v !== undefined);
+  const allVals = [sleepMin, sleepMean, sleepMax, wakeMin, wakeMean, wakeMax].filter(
+    (v): v is number => v !== undefined,
+  );
 
   const minV = Math.floor(Math.min(...allVals) - 5);
   const maxV = Math.ceil(Math.max(...allVals) + 5);
   const range = maxV - minV;
-  const W = 400, BAR_LEFT = 36;
+  const W = CHART_W,
+    BAR_LEFT = 36;
   const barW = W - BAR_LEFT;
   const H = hasWake ? 58 : 34;
 
@@ -232,18 +359,22 @@ function HrRangeChart({
   }
 
   const rows = [
-    { label: 'Sleep', min: sleepMin, mean: sleepMean, max: sleepMax, y: 2,  color: ACCENT },
-    ...(hasWake ? [{ label: 'Wake', min: wakeMin, mean: wakeMean, max: wakeMax, y: 30, color: '#5C85B5' }] : []),
+    { label: 'Sleep', min: sleepMin, mean: sleepMean, max: sleepMax, y: 2, color: ACCENT },
+    ...(hasWake
+      ? [{ label: 'Wake', min: wakeMin, mean: wakeMean, max: wakeMax, y: 30, color: '#5C85B5' }]
+      : []),
   ];
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(minV + f * range));
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', marginTop: '5pt' }}>
+    <ChartFrame height={H}>
       {ticks.map((t) => (
         <g key={t}>
           <line x1={xOf(t)} y1={0} x2={xOf(t)} y2={H - 10} stroke="#eee" strokeWidth="0.5" />
-          <text x={xOf(t)} y={H - 1} fontSize="6" textAnchor="middle" fill="#aaa">{t}</text>
+          <text x={xOf(t)} y={H - 1} fontSize="6" textAnchor="middle" fill="#aaa">
+            {t}
+          </text>
         </g>
       ))}
       {rows.map((row) => {
@@ -253,25 +384,44 @@ function HrRangeChart({
         const meanX = xOf(row.mean);
         return (
           <g key={row.label}>
-            <text x={0} y={row.y + 11} fontSize="7" fill="#666" fontWeight="bold">{row.label}</text>
+            <text x={0} y={row.y + 11} fontSize="7" fill="#666" fontWeight="bold">
+              {row.label}
+            </text>
             <line
-              x1={minX} y1={row.y + 10} x2={maxX} y2={row.y + 10}
-              stroke={row.color} strokeWidth="5" strokeLinecap="round" opacity="0.3"
+              x1={minX}
+              y1={row.y + 10}
+              x2={maxX}
+              y2={row.y + 10}
+              stroke={row.color}
+              strokeWidth="5"
+              strokeLinecap="round"
+              opacity="0.3"
             />
             <circle cx={meanX} cy={row.y + 10} r="5" fill={row.color} />
-            <text x={meanX} y={row.y + 13} fontSize="6" textAnchor="middle" fill="#fff" fontWeight="bold">
+            <text
+              x={meanX}
+              y={row.y + 13}
+              fontSize="6"
+              textAnchor="middle"
+              fill="#fff"
+              fontWeight="bold"
+            >
               {Math.round(row.mean)}
             </text>
             {row.min !== undefined && (
-              <text x={minX} y={row.y + 22} fontSize="6" textAnchor="middle" fill="#999">{Math.round(row.min)}</text>
+              <text x={minX} y={row.y + 22} fontSize="6" textAnchor="middle" fill="#999">
+                {Math.round(row.min)}
+              </text>
             )}
             {row.max !== undefined && (
-              <text x={maxX} y={row.y + 22} fontSize="6" textAnchor="middle" fill="#999">{Math.round(row.max)}</text>
+              <text x={maxX} y={row.y + 22} fontSize="6" textAnchor="middle" fill="#999">
+                {Math.round(row.max)}
+              </text>
             )}
           </g>
         );
       })}
-    </svg>
+    </ChartFrame>
   );
 }
 
@@ -280,7 +430,16 @@ const sectionStyle: React.CSSProperties = { marginTop: '10pt' };
 
 function ReviewerNote({ text }: { text: string }) {
   return (
-    <p style={{ margin: '3pt 0 0 0', fontSize: '8pt', color: '#666', fontStyle: 'italic', borderLeft: '2pt solid #ccc', paddingLeft: '5pt' }}>
+    <p
+      style={{
+        margin: '3pt 0 0 0',
+        fontSize: '8pt',
+        color: '#666',
+        fontStyle: 'italic',
+        borderLeft: '2pt solid #ccc',
+        paddingLeft: '5pt',
+      }}
+    >
       Reviewer note: {text}
     </p>
   );
@@ -320,9 +479,17 @@ const valueCell: React.CSSProperties = {
 
 // ── MetricPair ────────────────────────────────────────────────────────────────
 function MetricPair({
-  l1, v1, l2, v2, shade,
+  l1,
+  v1,
+  l2,
+  v2,
+  shade,
 }: {
-  l1: string; v1: string; l2?: string; v2?: string; shade?: boolean;
+  l1: string;
+  v1: string;
+  l2?: string;
+  v2?: string;
+  shade?: boolean;
 }) {
   return (
     <tr style={shade ? { background: '#f5f7fa' } : {}}>
@@ -367,8 +534,8 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
     <section style={{ marginTop: '14pt', paddingTop: '6pt', borderTop: `1.5pt solid ${ACCENT}` }}>
       <div style={{ ...sectionTitleStyle, marginTop: '0' }}>AI-Assisted Action Plan</div>
       <p style={{ fontSize: '7.5pt', color: '#888', margin: '0 0 8pt 0', fontStyle: 'italic' }}>
-        AI-generated draft for clinician review · {plan.modelVersion} · prompt {plan.promptVersion} ·{' '}
-        {new Date(plan.generatedAt).toLocaleString()}
+        AI-generated draft for clinician review · {plan.modelVersion} · prompt {plan.promptVersion}{' '}
+        · {new Date(plan.generatedAt).toLocaleString()}
       </p>
 
       {plan.priorityActions.length > 0 && (
@@ -377,7 +544,9 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
           {plan.priorityActions.map((a, i) => (
             <div key={i} style={item}>
               <span style={num}>{i + 1}.</span>
-              <span style={{ fontSize: '9pt', fontWeight: 'bold' }}>{stripInlineCitations(a.action)}</span>
+              <span style={{ fontSize: '9pt', fontWeight: 'bold' }}>
+                {stripInlineCitations(a.action)}
+              </span>
               <div style={rationale}>{stripInlineCitations(a.rationale)}</div>
             </div>
           ))}
@@ -402,7 +571,8 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
           <div style={subhead}>Artefact Caveats</div>
           {plan.artifactCaveats.map((a, i) => (
             <div key={i} style={{ fontSize: '8.5pt', color: '#555', marginBottom: '3pt' }}>
-              <span style={num}>·</span>{stripInlineCitations(a.concern)}
+              <span style={num}>·</span>
+              {stripInlineCitations(a.concern)}
             </div>
           ))}
         </div>
@@ -410,16 +580,24 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
 
       <div style={{ marginBottom: '8pt' }}>
         <div style={subhead}>Clinical Context</div>
-        <p style={{ fontSize: '9pt', margin: '0 0 3pt 0' }}>{stripInlineCitations(plan.clinicalContext.commonPresentation)}</p>
+        <p style={{ fontSize: '9pt', margin: '0 0 3pt 0' }}>
+          {stripInlineCitations(plan.clinicalContext.commonPresentation)}
+        </p>
         {plan.clinicalContext.treatmentEvidence && (
-          <p style={{ fontSize: '9pt', margin: '3pt 0 0 0' }}>{stripInlineCitations(plan.clinicalContext.treatmentEvidence)}</p>
+          <p style={{ fontSize: '9pt', margin: '3pt 0 0 0' }}>
+            {stripInlineCitations(plan.clinicalContext.treatmentEvidence)}
+          </p>
         )}
         {plan.clinicalContext.rareButRelevant.length > 0 && (
           <div style={{ marginTop: '4pt' }}>
-            <span style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic' }}>Rare but relevant: </span>
+            <span style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic' }}>
+              Rare but relevant:{' '}
+            </span>
             <ul style={{ margin: '2pt 0 0 14pt', padding: '0', fontSize: '8.5pt', color: '#444' }}>
               {plan.clinicalContext.rareButRelevant.map((r, i) => (
-                <li key={i} style={{ marginBottom: '1.5pt' }}>{stripInlineCitations(r)}</li>
+                <li key={i} style={{ marginBottom: '1.5pt' }}>
+                  {stripInlineCitations(r)}
+                </li>
               ))}
             </ul>
           </div>
@@ -439,7 +617,16 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
                       padding: '2pt 4pt 2pt 0',
                       fontWeight: 'bold',
                       color: '#444',
-                      width: i === 0 ? '3%' : i === 1 ? '32%' : i === 2 ? '8%' : i === 3 ? '12%' : 'auto',
+                      width:
+                        i === 0
+                          ? '3%'
+                          : i === 1
+                            ? '32%'
+                            : i === 2
+                              ? '8%'
+                              : i === 3
+                                ? '12%'
+                                : 'auto',
                     }}
                   >
                     {h}
@@ -449,10 +636,22 @@ function ActionPlanSection({ plan }: { plan: ActionPlan }) {
             </thead>
             <tbody>
               {plan.evidenceReferences.map((ref, i) => (
-                <tr key={i} style={{ borderBottom: '0.25pt solid #e0e0e0', background: i % 2 === 0 ? '#fff' : '#f5f7fa' }}>
-                  <td style={{ padding: '1.5pt 4pt 1.5pt 0', color: '#aaa', fontFamily: 'monospace' }}>{i + 1}</td>
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: '0.25pt solid #e0e0e0',
+                    background: i % 2 === 0 ? '#fff' : '#f5f7fa',
+                  }}
+                >
+                  <td
+                    style={{ padding: '1.5pt 4pt 1.5pt 0', color: '#aaa', fontFamily: 'monospace' }}
+                  >
+                    {i + 1}
+                  </td>
                   <td style={{ padding: '1.5pt 4pt 1.5pt 0', fontWeight: 'bold' }}>{ref.name}</td>
-                  <td style={{ padding: '1.5pt 4pt 1.5pt 0', fontFamily: 'monospace' }}>{ref.year}</td>
+                  <td style={{ padding: '1.5pt 4pt 1.5pt 0', fontFamily: 'monospace' }}>
+                    {ref.year}
+                  </td>
                   <td style={{ padding: '1.5pt 4pt 1.5pt 0', color: '#555' }}>{ref.source}</td>
                   <td style={{ padding: '1.5pt 0 1.5pt 0', color: '#555' }}>{ref.relevance}</td>
                 </tr>
@@ -478,15 +677,25 @@ export function PrintableReport({ c, signalSlices }: Props) {
   const signOffEntry = audit.find((r) => r.action === 'signed_off');
   const signedAt = signOffEntry?.createdAt ?? c.updatedAt;
   const reviewer =
-    (signOffEntry?.metadata as Record<string, unknown> | undefined)?.reviewerName as string | undefined
-    ?? signOffEntry?.actorId
-    ?? '-';
+    ((signOffEntry?.metadata as Record<string, unknown> | undefined)?.reviewerName as
+      string | undefined) ??
+    signOffEntry?.actorId ??
+    '-';
 
   const rpt: StructuredReport | undefined = c.structuredReport;
   const m: PdfMetrics | null = c.pdfMetrics ?? null;
+  const syntheticInput = isSyntheticInput(c);
+  const offlineReport = isOfflineReport(c);
+  const offlinePlan = isOfflineActionPlan(c.actionPlan);
 
-  const summaryEdited = c.sectionReviews?.summary?.decision === 'edit' ? c.sectionReviews.summary.editedValue : undefined;
-  const impressionEdited = c.sectionReviews?.impression?.decision === 'edit' ? c.sectionReviews.impression.editedValue : undefined;
+  const summaryEdited =
+    c.sectionReviews?.summary?.decision === 'edit'
+      ? c.sectionReviews.summary.editedValue
+      : undefined;
+  const impressionEdited =
+    c.sectionReviews?.impression?.decision === 'edit'
+      ? c.sectionReviews.impression.editedValue
+      : undefined;
 
   const primaryAhi = m?.ahi ?? rpt?.respiratoryIndices?.ahi;
   const isPeds = c.cohort === 'pediatric';
@@ -494,7 +703,7 @@ export function PrintableReport({ c, signalSlices }: Props) {
   const sev = ahiClass ? SEVERITY[ahiClass.label] : null;
 
   const confirmedFindings = c.findings.filter(
-    (f) => f.reviewerDecision !== 'reject' && f.reviewerDecision !== 'artefact'
+    (f) => f.reviewerDecision !== 'reject' && f.reviewerDecision !== 'artefact',
   );
   const warningFlags = (() => {
     const all = c.referenceFlags?.filter((f) => f.severity === 'warning') ?? [];
@@ -510,7 +719,12 @@ export function PrintableReport({ c, signalSlices }: Props) {
   return (
     <div
       className="print-only"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10pt', lineHeight: 1.45, color: '#111' }}
+      style={{
+        fontFamily: 'Arial, Helvetica, sans-serif',
+        fontSize: '10pt',
+        lineHeight: 1.45,
+        color: '#111',
+      }}
     >
       {/* ── HEADER ────────────────────────────────────────────────────────────── */}
       <header
@@ -526,15 +740,31 @@ export function PrintableReport({ c, signalSlices }: Props) {
           <tbody>
             <tr>
               <td style={{ verticalAlign: 'bottom' }}>
-                <div style={{ fontSize: '16pt', fontWeight: 'bold', color: ACCENT, letterSpacing: '-0.2pt' }}>
+                <div
+                  style={{
+                    fontSize: '16pt',
+                    fontWeight: 'bold',
+                    color: ACCENT,
+                    letterSpacing: '-0.2pt',
+                  }}
+                >
                   Sleep Study Analysis Report
                 </div>
                 <div style={{ fontSize: '8pt', color: '#777', marginTop: '2pt' }}>
-                  AI-ST Sleep Study Review Assistant · Type III HSAT review
+                  Somnoscribe Sleep Study Review Assistant · Type III HSAT review
                 </div>
               </td>
-              <td style={{ verticalAlign: 'top', textAlign: 'right', fontSize: '8.5pt', color: '#444' }}>
-                <div><strong>Study:</strong> {c.name}</div>
+              <td
+                style={{
+                  verticalAlign: 'top',
+                  textAlign: 'right',
+                  fontSize: '8.5pt',
+                  color: '#444',
+                }}
+              >
+                <div>
+                  <strong>Study:</strong> {c.name}
+                </div>
                 {(c.demographics?.ageYears != null || c.demographics?.sex) && (
                   <div>
                     <strong>Patient:</strong>{' '}
@@ -546,9 +776,20 @@ export function PrintableReport({ c, signalSlices }: Props) {
                       .join(' · ')}
                   </div>
                 )}
-                <div><strong>Reviewer:</strong> {reviewer}</div>
-                <div><strong>Signed:</strong> {new Date(signedAt).toLocaleDateString()}</div>
-                <div style={{ marginTop: '3pt', fontFamily: 'monospace', fontSize: '7pt', color: '#aaa' }}>
+                <div>
+                  <strong>Reviewer:</strong> {reviewer}
+                </div>
+                <div>
+                  <strong>Signed:</strong> {new Date(signedAt).toLocaleDateString()}
+                </div>
+                <div
+                  style={{
+                    marginTop: '3pt',
+                    fontFamily: 'monospace',
+                    fontSize: '7pt',
+                    color: '#aaa',
+                  }}
+                >
                   {c.studyHash.slice(0, 16)}
                 </div>
               </td>
@@ -556,6 +797,39 @@ export function PrintableReport({ c, signalSlices }: Props) {
           </tbody>
         </table>
       </header>
+
+      {(syntheticInput || offlineReport || offlinePlan) && (
+        <section
+          style={{
+            marginBottom: '10pt',
+            padding: '6pt 8pt',
+            border: '1pt solid #a16207',
+            background: '#fef3c7',
+            color: '#713f12',
+            fontSize: '8.5pt',
+            fontWeight: 'bold',
+          }}
+        >
+          {syntheticInput && (
+            <p style={{ margin: 0 }}>
+              Synthetic demo study — the input recording was generated, not recorded from a person.
+              It has no clinical meaning and must not be used for patient care.
+            </p>
+          )}
+          {offlineReport && (
+            <p style={{ margin: syntheticInput ? '4pt 0 0' : 0 }}>
+              Offline-generated report — its text was generated by the built-in demo model. It has
+              no clinical meaning and must not be used for patient care.
+            </p>
+          )}
+          {offlinePlan && (
+            <p style={{ margin: syntheticInput || offlineReport ? '4pt 0 0' : 0 }}>
+              Offline-generated action plan — its text was generated by the built-in demo model. It
+              has no clinical meaning and must not be used for patient care.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* ── AHI SEVERITY BANNER ───────────────────────────────────────────────── */}
       {ahiClass && sev && primaryAhi !== undefined && (
@@ -618,7 +892,14 @@ export function PrintableReport({ c, signalSlices }: Props) {
                 {stripInlineCitations(summaryEdited ?? rpt.summary)}
               </p>
               {summaryEdited && (
-                <p style={{ margin: '0 0 5pt 0', fontSize: '8pt', color: '#999', textDecoration: 'line-through' }}>
+                <p
+                  style={{
+                    margin: '0 0 5pt 0',
+                    fontSize: '8pt',
+                    color: '#999',
+                    textDecoration: 'line-through',
+                  }}
+                >
                   {stripInlineCitations(rpt.summary)}
                 </p>
               )}
@@ -630,7 +911,14 @@ export function PrintableReport({ c, signalSlices }: Props) {
                 {stripInlineCitations(impressionEdited ?? rpt.impression)}
               </p>
               {impressionEdited && (
-                <p style={{ margin: '2pt 0 0 0', fontSize: '8pt', color: '#999', textDecoration: 'line-through' }}>
+                <p
+                  style={{
+                    margin: '2pt 0 0 0',
+                    fontSize: '8pt',
+                    color: '#999',
+                    textDecoration: 'line-through',
+                  }}
+                >
                   {stripInlineCitations(rpt.impression)}
                 </p>
               )}
@@ -647,9 +935,11 @@ export function PrintableReport({ c, signalSlices }: Props) {
             <tbody>
               <MetricPair
                 l1="Recording time"
-                v1={m?.total_recording_seconds != null
-                  ? fmtSec(m.total_recording_seconds)
-                  : (rpt?.studyQuality?.totalRecordingTime ?? '-')}
+                v1={
+                  m?.total_recording_seconds != null
+                    ? fmtSec(m.total_recording_seconds)
+                    : (rpt?.studyQuality?.totalRecordingTime ?? '-')
+                }
                 l2="Total sleep time"
                 v2={m?.total_sleep_time_seconds != null ? fmtSec(m.total_sleep_time_seconds) : '-'}
               />
@@ -705,13 +995,17 @@ export function PrintableReport({ c, signalSlices }: Props) {
                 <MetricPair
                   shade
                   l1="Obstructive apneas"
-                  v1={m?.obstructive_apnea_count != null
-                    ? `${m.obstructive_apnea_count} (${fmt(m.obstructive_apnea_index)}/h)`
-                    : '-'}
+                  v1={
+                    m?.obstructive_apnea_count != null
+                      ? `${m.obstructive_apnea_count} (${fmt(m.obstructive_apnea_index)}/h)`
+                      : '-'
+                  }
                   l2="Central apneas"
-                  v2={m?.central_apnea_count != null
-                    ? `${m.central_apnea_count} (${fmt(m.central_apnea_index)}/h)`
-                    : '-'}
+                  v2={
+                    m?.central_apnea_count != null
+                      ? `${m.central_apnea_count} (${fmt(m.central_apnea_index)}/h)`
+                      : '-'
+                  }
                 />
               )}
               {(m?.hypopnea_index != null || rpt.respiratoryIndices.odi4 != null) && (
@@ -805,8 +1099,10 @@ export function PrintableReport({ c, signalSlices }: Props) {
                 l2="Non-supine fraction"
                 v2={fmt(
                   m?.not_supine_fraction_pct ??
-                  (rpt?.positional?.supineTimePct != null ? 100 - rpt.positional.supineTimePct : undefined),
-                  '%'
+                    (rpt?.positional?.supineTimePct != null
+                      ? 100 - rpt.positional.supineTimePct
+                      : undefined),
+                  '%',
                 )}
               />
               {(m?.left_fraction_pct != null || m?.right_fraction_pct != null) && (
@@ -875,8 +1171,20 @@ export function PrintableReport({ c, signalSlices }: Props) {
                 </td>
                 {m?.hr_wake_mean != null && (
                   <>
-                    <td style={{ ...labelCell, paddingLeft: '10pt', fontWeight: 'bold', fontSize: '8pt', color: '#555' }} />
-                    <td style={{ ...valueCell, fontWeight: 'bold', fontSize: '8pt', color: '#555' }}>Wake</td>
+                    <td
+                      style={{
+                        ...labelCell,
+                        paddingLeft: '10pt',
+                        fontWeight: 'bold',
+                        fontSize: '8pt',
+                        color: '#555',
+                      }}
+                    />
+                    <td
+                      style={{ ...valueCell, fontWeight: 'bold', fontSize: '8pt', color: '#555' }}
+                    >
+                      Wake
+                    </td>
                   </>
                 )}
               </tr>
@@ -885,18 +1193,24 @@ export function PrintableReport({ c, signalSlices }: Props) {
               <MetricPair
                 l1="Mean HR [bpm]"
                 v1={fmt(m?.hr_average ?? rpt?.cardiac?.meanHr, '', 0)}
-                {...(m?.hr_wake_mean != null ? { l2: 'Mean HR [bpm]', v2: fmt(m.hr_wake_mean, '', 0) } : {})}
+                {...(m?.hr_wake_mean != null
+                  ? { l2: 'Mean HR [bpm]', v2: fmt(m.hr_wake_mean, '', 0) }
+                  : {})}
               />
               <MetricPair
                 shade
                 l1="Min HR [bpm]"
                 v1={fmt(m?.hr_minimum ?? rpt?.cardiac?.minHr, '', 0)}
-                {...(m?.hr_wake_min != null ? { l2: 'Min HR [bpm]', v2: fmt(m.hr_wake_min, '', 0) } : {})}
+                {...(m?.hr_wake_min != null
+                  ? { l2: 'Min HR [bpm]', v2: fmt(m.hr_wake_min, '', 0) }
+                  : {})}
               />
               <MetricPair
                 l1="Max HR [bpm]"
                 v1={fmt(m?.hr_maximum ?? rpt?.cardiac?.maxHr, '', 0)}
-                {...(m?.hr_wake_max != null ? { l2: 'Max HR [bpm]', v2: fmt(m.hr_wake_max, '', 0) } : {})}
+                {...(m?.hr_wake_max != null
+                  ? { l2: 'Max HR [bpm]', v2: fmt(m.hr_wake_max, '', 0) }
+                  : {})}
               />
             </tbody>
           </table>
@@ -920,7 +1234,9 @@ export function PrintableReport({ c, signalSlices }: Props) {
           <div style={sectionTitleStyle}>Study Quality</div>
           <ul style={{ margin: '0', paddingLeft: '14pt', fontSize: '9pt' }}>
             {rpt!.studyQuality.channelIssues.map((issue, i) => (
-              <li key={i} style={{ margin: '1.5pt 0' }}>{issue}</li>
+              <li key={i} style={{ margin: '1.5pt 0' }}>
+                {issue}
+              </li>
             ))}
           </ul>
         </section>
@@ -1007,27 +1323,30 @@ export function PrintableReport({ c, signalSlices }: Props) {
       {c.actionPlan && <ActionPlanSection plan={c.actionPlan} />}
 
       {/* ── WAVEFORM APPENDIX ─────────────────────────────────────────────────── */}
-      {signalSlices.length > 0 && (() => {
-        const PDF_WAVEFORM_CAP = 20;
-        const sorted = [...signalSlices].sort((a, b) => b.magnitude - a.magnitude);
-        const shown = sorted.slice(0, PDF_WAVEFORM_CAP);
-        const truncated = sorted.length > PDF_WAVEFORM_CAP;
-        return (
-          <section style={{ marginTop: '14pt', pageBreakBefore: 'always' }}>
-            <div style={sectionTitleStyle}>
-              Waveform Appendix — {shown.length} of {signalSlices.length} event{signalSlices.length !== 1 ? 's' : ''} (highest magnitude)
-            </div>
-            <p style={{ fontSize: '8pt', color: '#64748b', marginBottom: 8 }}>
-              30-second context window centred on each detected event. Bands mark event boundaries.
-              Provisional — clinician sign-off required before clinical use.
-              {truncated && ` ${sorted.length - PDF_WAVEFORM_CAP} lower-magnitude event${sorted.length - PDF_WAVEFORM_CAP !== 1 ? 's' : ''} omitted — visible in the interactive review tool.`}
-            </p>
-            {shown.map((ev, i) => (
-              <EventWaveformSnapshot key={ev.eventId} event={ev} index={i} />
-            ))}
-          </section>
-        );
-      })()}
+      {signalSlices.length > 0 &&
+        (() => {
+          const PDF_WAVEFORM_CAP = 20;
+          const sorted = [...signalSlices].sort((a, b) => b.magnitude - a.magnitude);
+          const shown = sorted.slice(0, PDF_WAVEFORM_CAP);
+          const truncated = sorted.length > PDF_WAVEFORM_CAP;
+          return (
+            <section style={{ marginTop: '14pt', pageBreakBefore: 'always' }}>
+              <div style={sectionTitleStyle}>
+                Waveform Appendix — {shown.length} of {signalSlices.length} event
+                {signalSlices.length !== 1 ? 's' : ''} (highest magnitude)
+              </div>
+              <p style={{ fontSize: '8pt', color: '#64748b', marginBottom: 8 }}>
+                30-second context window centred on each detected event. Bands mark event
+                boundaries. Provisional — clinician sign-off required before clinical use.
+                {truncated &&
+                  ` ${sorted.length - PDF_WAVEFORM_CAP} lower-magnitude event${sorted.length - PDF_WAVEFORM_CAP !== 1 ? 's' : ''} omitted — visible in the interactive review tool.`}
+              </p>
+              {shown.map((ev, i) => (
+                <EventWaveformSnapshot key={ev.eventId} event={ev} index={i} />
+              ))}
+            </section>
+          );
+        })()}
 
       {/* ── FOOTER ────────────────────────────────────────────────────────────── */}
       <footer
@@ -1043,6 +1362,9 @@ export function PrintableReport({ c, signalSlices }: Props) {
           <tbody>
             <tr>
               <td>
+                {syntheticInput && 'Synthetic input · '}
+                {offlineReport && 'Offline-generated report · '}
+                {offlinePlan && 'Offline-generated action plan · '}
                 AI-assisted draft · Reviewed and signed off by <strong>{reviewer}</strong> ·{' '}
                 {new Date(signedAt).toLocaleString()} · Not for autonomous diagnosis.
               </td>

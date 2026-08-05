@@ -1,3 +1,5 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Strip PHI from the EDF header before any downstream processing.
 
@@ -9,6 +11,7 @@ Signal headers and signal data are never touched, so mixed-sampling-rate
 files (e.g. SOMNOtouch RESP, with oximetry @ 25 Hz and snoring @ 200 Hz)
 round-trip without loss.
 """
+
 import shutil
 from pathlib import Path
 
@@ -40,13 +43,15 @@ TOP_CROP_PX = 40
 
 def deidentify_screenshot(image_bytes: bytes) -> bytes:
     """Crop the top strip from a screenshot to remove the DOMINO patient-info bar."""
-    from PIL import Image
     import io
+
+    from PIL import Image
+
     img = Image.open(io.BytesIO(image_bytes))
     width, height = img.size
     cropped = img.crop((0, TOP_CROP_PX, width, height))
     buf = io.BytesIO()
-    cropped.save(buf, format=img.format or 'PNG')
+    cropped.save(buf, format=img.format or "PNG")
     return buf.getvalue()
 
 
@@ -63,10 +68,7 @@ def deidentify_edf_header(edf_path: Path, out_dir: str) -> Path:
 
     file_size = clean_path.stat().st_size
     if file_size < _HEADER_MIN_BYTES:
-        raise ValueError(
-            f"EDF too small to contain a valid header "
-            f"({file_size} bytes < {_HEADER_MIN_BYTES})"
-        )
+        raise ValueError(f"EDF too small to contain a valid header ({file_size} bytes < {_HEADER_MIN_BYTES})")
 
     with open(clean_path, "r+b") as f:
         f.seek(_RECORDING_ID_OFFSET)

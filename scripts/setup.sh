@@ -13,7 +13,8 @@ echo "==> api: installing node deps"
 echo "==> api: ensuring .env"
 if [ ! -f api/.env ]; then
   cp api/.env.example api/.env
-  echo "    created api/.env from example - fill in OPENAI_API_KEY before starting"
+  echo "    created api/.env from example - no model key is needed to start"
+  echo "    set OPENAI_API_KEY for a real model or SOMNOSCRIBE_DEMO_MODE=true for offline analysis"
 fi
 
 echo "==> frontend: installing node deps"

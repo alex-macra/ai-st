@@ -1,13 +1,10 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../app.js';
-import {
-  getDb,
-  setUserAdmin,
-  insertCase,
-  insertAnalysisAuditRecord,
-} from '../db.js';
+import { getDb, setUserAdmin, insertCase, insertAnalysisAuditRecord } from '../db.js';
 import type { Case } from '../shared/types.js';
 import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
 
@@ -112,11 +109,15 @@ describe('admin API', () => {
       const target = mintAuthCookie();
       const r = authedSupertest(app, admin);
 
-      const grant = await r.patch(`/api/admin/users/${target.userId}/admin`).send({ isAdmin: true });
+      const grant = await r
+        .patch(`/api/admin/users/${target.userId}/admin`)
+        .send({ isAdmin: true });
       expect(grant.status).toBe(200);
       expect(grant.body.user.isAdmin).toBe(true);
 
-      const revoke = await r.patch(`/api/admin/users/${target.userId}/admin`).send({ isAdmin: false });
+      const revoke = await r
+        .patch(`/api/admin/users/${target.userId}/admin`)
+        .send({ isAdmin: false });
       expect(revoke.status).toBe(200);
       expect(revoke.body.user.isAdmin).toBe(false);
     });
@@ -191,7 +192,9 @@ describe('admin API', () => {
         metadata: string | null;
       }
       const row = getDb()
-        .prepare('SELECT actor_id, action, target_user_id, metadata FROM admin_audit_log ORDER BY created_at DESC LIMIT 1')
+        .prepare(
+          'SELECT actor_id, action, target_user_id, metadata FROM admin_audit_log ORDER BY created_at DESC LIMIT 1',
+        )
         .get() as AdminAuditRow | undefined;
       expect(row).toBeDefined();
       expect(row!.action).toBe('set_admin');
@@ -216,7 +219,9 @@ describe('admin API', () => {
 
       const text = res.text;
       const firstLine = text.split('\n')[0];
-      expect(firstLine).toBe('case_id,user_id,model,tokens_in,tokens_out,cache_read,cost_usd,created_at');
+      expect(firstLine).toBe(
+        'case_id,user_id,model,tokens_in,tokens_out,cache_read,cost_usd,created_at',
+      );
       expect(text).toContain(c.id);
     });
   });
@@ -247,7 +252,15 @@ describe('admin API', () => {
         expect(row).not.toHaveProperty('structured_report');
 
         const keys = Object.keys(row).sort();
-        expect(keys).toEqual(['cohort', 'created_at', 'id', 'signed_off_at', 'status', 'tokens_in', 'tokens_out']);
+        expect(keys).toEqual([
+          'cohort',
+          'created_at',
+          'id',
+          'signed_off_at',
+          'status',
+          'tokens_in',
+          'tokens_out',
+        ]);
       }
 
       // Defense in depth: no inserted PHI substring should survive serialization.

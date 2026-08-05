@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   upsertReferenceDoc,
@@ -11,7 +13,11 @@ function makeRefDoc(overrides: Partial<ReferenceDoc> = {}): ReferenceDoc {
   return {
     id: 'synthetic-source:example-definition',
     title: 'Synthetic source - example definition',
-    content: JSON.stringify({ rule: 'Synthetic example rule', page: 'example-1', appliesTo: 'example claims' }),
+    content: JSON.stringify({
+      rule: 'Synthetic example rule',
+      page: 'example-1',
+      appliesTo: 'example claims',
+    }),
     cohort: 'adult',
     type: 'hsat',
     license: 'institutional',
@@ -49,10 +55,18 @@ describe('reference rule storage', () => {
   });
 
   it('getReferenceDocsForCohortAndType matches cohort + type and includes generic', () => {
-    upsertReferenceDoc(makeRefDoc({ id: 'synthetic-source:adult-hsat', cohort: 'adult', type: 'hsat' }));
-    upsertReferenceDoc(makeRefDoc({ id: 'synthetic-source:peds-hsat', cohort: 'pediatric', type: 'hsat' }));
-    upsertReferenceDoc(makeRefDoc({ id: 'synthetic-source:generic-generic', cohort: 'generic', type: 'generic' }));
-    upsertReferenceDoc(makeRefDoc({ id: 'synthetic-source:adult-psg', cohort: 'adult', type: 'psg' }));
+    upsertReferenceDoc(
+      makeRefDoc({ id: 'synthetic-source:adult-hsat', cohort: 'adult', type: 'hsat' }),
+    );
+    upsertReferenceDoc(
+      makeRefDoc({ id: 'synthetic-source:peds-hsat', cohort: 'pediatric', type: 'hsat' }),
+    );
+    upsertReferenceDoc(
+      makeRefDoc({ id: 'synthetic-source:generic-generic', cohort: 'generic', type: 'generic' }),
+    );
+    upsertReferenceDoc(
+      makeRefDoc({ id: 'synthetic-source:adult-psg', cohort: 'adult', type: 'psg' }),
+    );
 
     const ids = getReferenceDocsForCohortAndType('adult', 'hsat').map((d) => d.id);
     expect(ids).toContain('synthetic-source:adult-hsat');
@@ -62,28 +76,34 @@ describe('reference rule storage', () => {
   });
 
   it('never returns restricted docs even when explicitly the only match', () => {
-    upsertReferenceDoc(makeRefDoc({
-      id: 'synthetic-restricted:excluded-rule',
-      cohort: 'adult',
-      type: 'hsat',
-      license: 'restricted',
-    }));
+    upsertReferenceDoc(
+      makeRefDoc({
+        id: 'synthetic-restricted:excluded-rule',
+        cohort: 'adult',
+        type: 'hsat',
+        license: 'restricted',
+      }),
+    );
     const ids = getReferenceDocsForCohortAndType('adult', 'hsat').map((d) => d.id);
     expect(ids).not.toContain('synthetic-restricted:excluded-rule');
   });
 
   it('pediatric rules are absent from adult cohort queries', () => {
     deleteReferenceDocsByPrefix('synthetic-pediatric:');
-    upsertReferenceDoc(makeRefDoc({
-      id: 'synthetic-pediatric:rule-one',
-      cohort: 'pediatric',
-      type: 'hsat',
-    }));
-    upsertReferenceDoc(makeRefDoc({
-      id: 'synthetic-pediatric:rule-two',
-      cohort: 'pediatric',
-      type: 'hsat',
-    }));
+    upsertReferenceDoc(
+      makeRefDoc({
+        id: 'synthetic-pediatric:rule-one',
+        cohort: 'pediatric',
+        type: 'hsat',
+      }),
+    );
+    upsertReferenceDoc(
+      makeRefDoc({
+        id: 'synthetic-pediatric:rule-two',
+        cohort: 'pediatric',
+        type: 'hsat',
+      }),
+    );
 
     const adultIds = getReferenceDocsForCohortAndType('adult', 'hsat').map((d) => d.id);
     expect(adultIds).not.toContain('synthetic-pediatric:rule-one');

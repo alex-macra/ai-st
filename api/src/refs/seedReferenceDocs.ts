@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseRulesMarkdown, type ParsedRulesFile } from './parseRulesMarkdown.js';
@@ -81,15 +83,17 @@ export function seedReferenceDocs(refsDir = process.env['REFERENCE_DIR']): Refer
   clearReferencePackDocs();
   const files = validateReferenceDirectory(refsDir);
   const now = new Date().toISOString();
-  const docs = files.flatMap(({ parsed }) => parsed.rules.map((rule) => ({
-    id: `${parsed.sourceRefId}:${rule.id}`,
-    title: parsed.sourceTitle,
-    content: JSON.stringify(rule),
-    cohort: parsed.cohort,
-    type: parsed.type,
-    license: parsed.license,
-    createdAt: now,
-  })));
+  const docs = files.flatMap(({ parsed }) =>
+    parsed.rules.map((rule) => ({
+      id: `${parsed.sourceRefId}:${rule.id}`,
+      title: parsed.sourceTitle,
+      content: JSON.stringify(rule),
+      cohort: parsed.cohort,
+      type: parsed.type,
+      license: parsed.license,
+      createdAt: now,
+    })),
+  );
 
   replaceReferencePackDocs(docs);
 

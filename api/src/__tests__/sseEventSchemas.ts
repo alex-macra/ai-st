@@ -1,8 +1,6 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { z } from 'zod';
-
-const baseEventSchema = z.object({
-  type: z.string(),
-});
 
 export const errorEventSchema = z.object({
   type: z.literal('error'),
@@ -34,6 +32,7 @@ export const doneEventSchema = z.object({
   referenceFlags: z.array(z.unknown()).optional(),
   validationWarnings: z.array(z.unknown()).optional(),
   modelVersion: z.string(),
+  analysisMode: z.enum(['demo', 'openai']),
 });
 
 export const sseEventSchema = z.discriminatedUnion('type', [

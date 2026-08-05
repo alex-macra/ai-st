@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -5,7 +7,12 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import supertest from 'supertest';
 import { isReferenceRuleActive, seedReferenceDocs } from '../refs/seedReferenceDocs.js';
-import { deleteReferenceDocsByPrefix, getReferenceDocsForCohortAndType, insertReferenceDoc, setUserAdmin } from '../db.js';
+import {
+  deleteReferenceDocsByPrefix,
+  getReferenceDocsForCohortAndType,
+  insertReferenceDoc,
+  setUserAdmin,
+} from '../db.js';
 import { createApp } from '../app.js';
 import { authedSupertest, mintAuthCookie } from './authHelper.js';
 
@@ -43,7 +50,7 @@ license: open
 `;
 
 function makeTmpDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
   writeFileSync(join(dir, 'adult.md'), ADULT_MD);
   writeFileSync(join(dir, 'pediatric.md'), PEDS_MD);
   return dir;
@@ -68,10 +75,9 @@ describe('reference pack loading', () => {
 
     expect(status).toEqual({ enabled: true, filesLoaded: 2, rulesLoaded: 3 });
     const adultRules = getReferenceDocsForCohortAndType('adult', 'hsat');
-    expect(adultRules.map((rule) => rule.id)).toEqual(expect.arrayContaining([
-      'synthetic-adult-hsat:rule-a',
-      'synthetic-adult-hsat:rule-b',
-    ]));
+    expect(adultRules.map((rule) => rule.id)).toEqual(
+      expect.arrayContaining(['synthetic-adult-hsat:rule-a', 'synthetic-adult-hsat:rule-b']),
+    );
   });
 
   it('is idempotent', () => {
@@ -79,8 +85,9 @@ describe('reference pack loading', () => {
     seedReferenceDocs(tmpDir);
     seedReferenceDocs(tmpDir);
 
-    const docs = getReferenceDocsForCohortAndType('adult', 'hsat')
-      .filter((doc) => doc.id.startsWith('synthetic-adult-hsat:'));
+    const docs = getReferenceDocsForCohortAndType('adult', 'hsat').filter((doc) =>
+      doc.id.startsWith('synthetic-adult-hsat:'),
+    );
     expect(docs).toHaveLength(2);
   });
 
@@ -91,8 +98,11 @@ describe('reference pack loading', () => {
 
     expect(seedReferenceDocs('')).toEqual({ enabled: false, filesLoaded: 0, rulesLoaded: 0 });
     expect(isReferenceRuleActive('synthetic-adult-hsat:rule-a')).toBe(false);
-    expect(getReferenceDocsForCohortAndType('adult', 'hsat')
-      .some((doc) => doc.id === 'synthetic-adult-hsat:rule-a')).toBe(false);
+    expect(
+      getReferenceDocsForCohortAndType('adult', 'hsat').some(
+        (doc) => doc.id === 'synthetic-adult-hsat:rule-a',
+      ),
+    ).toBe(false);
   });
 
   it('removes stale pack rules while preserving administrator-created references', () => {
@@ -118,20 +128,23 @@ describe('reference pack loading', () => {
   });
 
   it('rejects an unsupported license value', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
-    writeFileSync(join(tmpDir, 'invalid.md'), ADULT_MD.replace('license: open', 'license: unknown'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
+    writeFileSync(
+      join(tmpDir, 'invalid.md'),
+      ADULT_MD.replace('license: open', 'license: unknown'),
+    );
     expect(() => seedReferenceDocs(tmpDir)).toThrow(/invalid reference metadata/i);
   });
 
   it('rejects duplicate rule IDs before loading', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
     const duplicate = ADULT_MD.replace('`rule-b`', '`rule-a`');
     writeFileSync(join(tmpDir, 'duplicate.md'), duplicate);
     expect(() => seedReferenceDocs(tmpDir)).toThrow(/duplicate rule id/i);
   });
 
   it('rejects symlinked Markdown files', () => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ai-st-refs-test-'));
+    tmpDir = mkdtempSync(join(tmpdir(), 'somnoscribe-refs-test-'));
     const target = join(tmpDir, 'target.txt');
     writeFileSync(target, ADULT_MD);
     symlinkSync(target, join(tmpDir, 'linked.md'));
@@ -163,7 +176,11 @@ describe('reference API authorization', () => {
       type: 'generic',
       license: 'open',
     };
-    expect((await authedSupertest(app, user).post('/api/references').send(payload)).status).toBe(403);
-    expect((await authedSupertest(app, admin).post('/api/references').send(payload)).status).toBe(201);
+    expect((await authedSupertest(app, user).post('/api/references').send(payload)).status).toBe(
+      403,
+    );
+    expect((await authedSupertest(app, admin).post('/api/references').send(payload)).status).toBe(
+      201,
+    );
   });
 });

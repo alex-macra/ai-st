@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import type { ReferenceRule } from '../shared/types.js';
 import { z } from 'zod';
 
@@ -11,13 +13,20 @@ export interface ParsedRulesFile {
 }
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
-const metadataSchema = z.object({
-  ref_id: z.string().trim().min(1).max(100).regex(/^[a-z0-9][a-z0-9._-]*$/),
-  source: z.string().trim().min(1).max(500),
-  cohort: z.enum(['adult', 'pediatric', 'generic']),
-  type: z.enum(['hsat', 'psg', 'generic']),
-  license: z.enum(['open', 'institutional', 'restricted']),
-}).strict();
+const metadataSchema = z
+  .object({
+    ref_id: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[a-z0-9][a-z0-9._-]*$/),
+    source: z.string().trim().min(1).max(500),
+    cohort: z.enum(['adult', 'pediatric', 'generic']),
+    type: z.enum(['hsat', 'psg', 'generic']),
+    license: z.enum(['open', 'institutional', 'restricted']),
+  })
+  .strict();
 
 function parseFrontmatter(raw: string): { meta: Record<string, string>; body: string } {
   const m = raw.match(FRONTMATTER_RE);
@@ -39,14 +48,21 @@ function parseFrontmatter(raw: string): { meta: Record<string, string>; body: st
 
 const ID_LINE_RE = /^- \*\*id\*\*:\s*`([^`]+)`\s*$/;
 const FIELD_LINE_RE = /^\s+\*\*([a-z_]+)\*\*:\s*(.+)$/;
-const ruleIdSchema = z.string().trim().min(1).max(100).regex(/^[a-z0-9][a-z0-9._-]*$/);
+const ruleIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(/^[a-z0-9][a-z0-9._-]*$/);
 
 export function parseRulesMarkdown(raw: string): ParsedRulesFile {
   const { meta, body } = parseFrontmatter(raw);
 
   const parsedMetadata = metadataSchema.safeParse(meta);
   if (!parsedMetadata.success) {
-    throw new Error(`Invalid reference metadata: ${parsedMetadata.error.issues.map((issue) => issue.path.join('.') || issue.message).join(', ')}`);
+    throw new Error(
+      `Invalid reference metadata: ${parsedMetadata.error.issues.map((issue) => issue.path.join('.') || issue.message).join(', ')}`,
+    );
   }
   const sourceRefId = parsedMetadata.data.ref_id;
   const sourceTitle = parsedMetadata.data.source;
@@ -88,7 +104,8 @@ export function parseRulesMarkdown(raw: string): ParsedRulesFile {
     const value = (fieldMatch[2] ?? '').trim();
     if (key === 'rule' || key === 'pattern') current.rule = current.rule ?? value;
     else if (key === 'page') current.page = value;
-    else if (key === 'applies_to' || key === 'implication') current.appliesTo = current.appliesTo ?? value;
+    else if (key === 'applies_to' || key === 'implication')
+      current.appliesTo = current.appliesTo ?? value;
     else if (key === 'channel' && !current.appliesTo) current.appliesTo = `${value} channel`;
   }
   flush();

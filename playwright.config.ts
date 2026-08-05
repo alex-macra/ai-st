@@ -1,24 +1,27 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { defineConfig, devices } from '@playwright/test';
 import { chmodSync, existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const configuredRunRoot = process.env['AI_ST_E2E_ROOT'];
-const runRoot = configuredRunRoot ?? mkdtempSync(path.join(tmpdir(), 'ai-st-e2e-'));
+const configuredRunRoot = process.env['SOMNOSCRIBE_E2E_ROOT'];
+const runRoot = configuredRunRoot ?? mkdtempSync(path.join(tmpdir(), 'somnoscribe-e2e-'));
 if (!configuredRunRoot) chmodSync(runRoot, 0o700);
-const dbPath = process.env['AI_ST_E2E_DB'] ?? path.join(runRoot, 'cases.sqlite');
-const uploadPath = process.env['AI_ST_E2E_UPLOADS'] ?? path.join(runRoot, 'uploads');
-const artifactPath = process.env['AI_ST_E2E_ARTIFACTS'] ?? path.join(runRoot, 'artifacts');
+const dbPath = process.env['SOMNOSCRIBE_E2E_DB'] ?? path.join(runRoot, 'cases.sqlite');
+const uploadPath = process.env['SOMNOSCRIBE_E2E_UPLOADS'] ?? path.join(runRoot, 'uploads');
+const artifactPath = process.env['SOMNOSCRIBE_E2E_ARTIFACTS'] ?? path.join(runRoot, 'artifacts');
 const localPython = path.resolve('preprocessor/.venv/bin/python');
-const pythonBin = process.env['AI_ST_PYTHON_BIN'] ?? (existsSync(localPython) ? localPython : 'python3');
+const pythonBin =
+  process.env['SOMNOSCRIBE_PYTHON_BIN'] ?? (existsSync(localPython) ? localPython : 'python3');
 
-process.env['AI_ST_E2E_DB'] = dbPath;
-process.env['AI_ST_E2E_UPLOADS'] = uploadPath;
-process.env['AI_ST_E2E_ARTIFACTS'] = artifactPath;
-process.env['AI_ST_E2E_ROOT'] = runRoot;
+process.env['SOMNOSCRIBE_E2E_DB'] = dbPath;
+process.env['SOMNOSCRIBE_E2E_UPLOADS'] = uploadPath;
+process.env['SOMNOSCRIBE_E2E_ARTIFACTS'] = artifactPath;
+process.env['SOMNOSCRIBE_E2E_ROOT'] = runRoot;
 
 const baseEnvironment = Object.fromEntries(
-  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
 );
 
 export default defineConfig({
@@ -34,7 +37,17 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      // The screenshot capture is a documentation tool, not a test.
+      testIgnore: /screenshots\.spec\.ts/,
+    },
+    {
+      name: 'screenshots',
+      testMatch: /screenshots\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
   ],
   webServer: [
     {
@@ -51,7 +64,8 @@ export default defineConfig({
         DB_PATH: dbPath,
         PREPROCESSOR_URL: 'http://127.0.0.1:8001',
         CORS_ORIGINS: 'http://localhost:5173',
-        AI_ST_SYNTHETIC_LLM: 'true',
+        SOMNOSCRIBE_SYNTHETIC_LLM: 'true',
+        SOMNOSCRIBE_DEMO_MODE: 'true',
         OPENAI_API_KEY: 'not-used-in-synthetic-test-mode',
         JWT_SECRET: 'synthetic-e2e-secret-not-for-production',
         AUTH_RATE_LIMIT_MAX: '1000',

@@ -1,8 +1,11 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Discover EDF channels per-file - never assume a fixed channel set.
 SOMNOtouch RESP recordings vary: some have SpO2, some do not; flow channel
 names differ across firmware versions.
 """
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -47,6 +50,7 @@ class Demographics:
     Age in years is safe to surface (HIPAA Safe Harbor: ages ≤ 89 are not PHI).
     Sex is not PHI.
     """
+
     age_years: int | None
     sex: str | None  # 'M' | 'F' | 'X' | None
 

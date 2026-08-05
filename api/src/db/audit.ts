@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
 import { getDb } from './connection.js';
 import type { AuditRecord } from '../shared/types.js';
@@ -6,7 +8,7 @@ export function insertAuditRecord(r: AuditRecord): void {
   getDb()
     .prepare(
       `INSERT INTO audit_log (id, case_id, action, actor_id, metadata, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(
       r.id,
@@ -14,7 +16,7 @@ export function insertAuditRecord(r: AuditRecord): void {
       r.action,
       r.actorId ?? null,
       r.metadata ? JSON.stringify(r.metadata) : null,
-      r.createdAt
+      r.createdAt,
     );
 }
 
@@ -22,11 +24,11 @@ export function insertAnalysisAuditRecord(
   caseId: string,
   userId: string,
   tokensIn: number,
-  tokensOut: number
+  tokensOut: number,
 ): void {
   getDb()
     .prepare(
-      'INSERT INTO analysis_audit (id, case_id, user_id, tokens_in, tokens_out, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO analysis_audit (id, case_id, user_id, tokens_in, tokens_out, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     )
     .run(randomUUID(), caseId, userId, tokensIn, tokensOut, new Date().toISOString());
 }
@@ -42,7 +44,7 @@ export function insertAdminAuditRecord(r: AdminAuditRecord): void {
   getDb()
     .prepare(
       `INSERT INTO admin_audit_log (id, actor_id, action, target_user_id, metadata, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(
       randomUUID(),
@@ -50,7 +52,7 @@ export function insertAdminAuditRecord(r: AdminAuditRecord): void {
       r.action,
       r.targetUserId ?? null,
       r.metadata ? JSON.stringify(r.metadata) : null,
-      new Date().toISOString()
+      new Date().toISOString(),
     );
 }
 
@@ -72,6 +74,6 @@ export function getAuditLog(caseId: string): AuditRecord[] {
     action: r.action,
     ...(r.actor_id !== null ? { actorId: r.actor_id } : {}),
     ...(r.metadata !== null ? { metadata: JSON.parse(r.metadata) as Record<string, unknown> } : {}),
-    createdAt: r.created_at
+    createdAt: r.created_at,
   }));
 }

@@ -1,8 +1,10 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { ShieldCheck, FileDown } from 'lucide-react';
 import { Button, Input } from '../ui';
-import type { Case } from '../shared/types';
-import { populatedReportSections, reviewIsComplete } from '../shared/review';
+import type { Case } from '@contracts/types';
+import { populatedReportSections, reviewIsComplete } from '@contracts/review';
 import { buildPdfFilename, printWithFilename } from '../utils';
 
 interface Props {
@@ -19,7 +21,9 @@ export function SignOffPanel({ c, onSignOff }: Props) {
     return (
       <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
         <ShieldCheck size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-        <p className="text-xs font-medium text-green-800 dark:text-green-300 flex-1">Case signed off</p>
+        <p className="text-xs font-medium text-green-800 dark:text-green-300 flex-1">
+          Case signed off
+        </p>
         <Button
           size="sm"
           onClick={() => printWithFilename(buildPdfFilename(c))}
@@ -35,7 +39,7 @@ export function SignOffPanel({ c, onSignOff }: Props) {
   const total = c.findings.length;
   const reviewed = c.findings.filter((f) => f.reviewerDecision).length;
   const actioned = c.findings.filter(
-    (f) => f.reviewerDecision && f.reviewerDecision !== 'confirm'
+    (f) => f.reviewerDecision && f.reviewerDecision !== 'confirm',
   ).length;
 
   const sections = c.structuredReport ? populatedReportSections(c.structuredReport) : [];
@@ -66,7 +70,9 @@ export function SignOffPanel({ c, onSignOff }: Props) {
           value={reviewerName}
           onChange={(e) => setReviewerName(e.target.value)}
           disabled={saving || total === 0}
-          onKeyDown={(e) => { if (e.key === 'Enter') void handleSignOff(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void handleSignOff();
+          }}
         />
         <Button
           size="sm"
@@ -83,7 +89,8 @@ export function SignOffPanel({ c, onSignOff }: Props) {
         <p className="text-[10px] text-slate-400 dark:text-slate-500">
           {reviewed}/{total} findings reviewed
           {actioned > 0 && ` · ${actioned} marked for follow-up`}
-          {sections.length > 0 && ` · ${reviewedSections.length}/${sections.length} sections reviewed`}
+          {sections.length > 0 &&
+            ` · ${reviewedSections.length}/${sections.length} sections reviewed`}
         </p>
       )}
       {total > 0 && !reviewComplete && (
@@ -94,7 +101,11 @@ export function SignOffPanel({ c, onSignOff }: Props) {
       {total === 0 && (
         <p className="text-[10px] text-slate-400">Run analysis before signing off.</p>
       )}
-      {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

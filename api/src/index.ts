@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import 'dotenv/config';
 import { createApp } from './app.js';
 import { logger, errorLogFields } from './logger.js';
@@ -11,6 +13,7 @@ import {
   ALLOWED_MODELS,
 } from './constants.js';
 import { jwtSecretError, parseTrustProxy } from './env.js';
+import { purgeDemoDataForCurrentMode } from './demoData.js';
 
 const jwtErr = jwtSecretError();
 if (jwtErr) {
@@ -47,7 +50,7 @@ const app = createApp({
   rateLimitWindowMs: Number(process.env['RATE_LIMIT_WINDOW_MS'] ?? RATE_LIMIT_WINDOW_MS),
   rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? RATE_LIMIT_MAX),
   uploadRateLimitMax: Number(process.env['UPLOAD_RATE_LIMIT_MAX'] ?? UPLOAD_RATE_LIMIT_MAX),
-  trustProxy: parseTrustProxy(process.env['TRUST_PROXY'])
+  trustProxy: parseTrustProxy(process.env['TRUST_PROXY']),
 });
 
 try {
@@ -55,9 +58,18 @@ try {
 } catch (err) {
   logger.warn(
     { errorType: err instanceof Error ? err.name : 'UnknownError' },
-    'reference_docs_seed_failed'
+    'reference_docs_seed_failed',
   );
 }
+
+void purgeDemoDataForCurrentMode();
+const demoPurgeTimer = setInterval(
+  () => {
+    void purgeDemoDataForCurrentMode();
+  },
+  15 * 60 * 1_000,
+);
+demoPurgeTimer.unref();
 
 const server = app.listen(PORT, HOST, () => {
   logger.info({ host: HOST, port: PORT }, 'server_listening');

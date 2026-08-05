@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a change to Somnoscribe.
+labels: ['enhancement']
+body:
+  - type: checkboxes
+    id: data-policy
+    attributes:
+      label: Data policy
+      description: This repository accepts synthetic material only.
+      options:
+        - label: This request contains no patient data, real identifiers, copied clinical standards, institutional documents, or private reference material.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult or impossible today? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and review implications
+      description: |
+        Somnoscribe requires a human reviewer to adjudicate model output before
+        sign-off, and keeps claims linked to evidence. Explain how this proposal
+        preserves that boundary, or why it does not affect it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

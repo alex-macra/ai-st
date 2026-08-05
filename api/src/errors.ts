@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import type { Response } from 'express';
 
 export interface ApiErrorBody {
@@ -10,7 +12,7 @@ export function sendError(res: Response, status: number, code: string, message: 
   const body: ApiErrorBody = {
     code,
     message,
-    requestId: (res.locals as { requestId?: string }).requestId ?? ''
+    requestId: (res.locals as { requestId?: string }).requestId ?? '',
   };
   res.status(status).json(body);
 }

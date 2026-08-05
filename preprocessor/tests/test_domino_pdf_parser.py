@@ -1,4 +1,7 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """PHI-free tests for the DOMINO light Report print parser."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,9 +19,24 @@ def test_dataclass_defaults_are_phi_free():
     d = metrics_to_dict(m)
     # The whitelist dataclass cannot carry name/DOB/clinic by construction;
     # this test guards against future fields being added without thought.
-    forbidden = {"name", "first_name", "last_name", "dob", "date_of_birth",
-                 "patient_id", "physician", "scorer", "clinic", "hospital",
-                 "address", "phone", "email", "weight", "height", "bmi"}
+    forbidden = {
+        "name",
+        "first_name",
+        "last_name",
+        "dob",
+        "date_of_birth",
+        "patient_id",
+        "physician",
+        "scorer",
+        "clinic",
+        "hospital",
+        "address",
+        "phone",
+        "email",
+        "weight",
+        "height",
+        "bmi",
+    }
     assert forbidden.isdisjoint(d.keys())
 
 

@@ -2,7 +2,7 @@
 
 ## Intended use
 
-AI-ST is experimental clinician-assist software for exploring an evidence-linked review workflow. It can organize supported sleep-study artifacts, surface candidate observations, and record a human review decision.
+Somnoscribe is experimental clinician-assist software for exploring an evidence-linked review workflow. It can organize supported sleep-study artifacts, surface candidate observations, and record a human review decision.
 
 It is not intended to:
 
@@ -15,9 +15,9 @@ It is not intended to:
 
 ## Human review is mandatory
 
-Model output can be incorrect, incomplete, internally inconsistent, overconfident, or based on a preprocessing error. Evidence links reduce risk but do not establish correctness. A qualified reviewer must inspect the source artifacts, adjudicate every material claim and populated section, and apply the full clinical context before relying on any output.
+Model output can be incorrect, incomplete, internally inconsistent, overconfident, or built on a preprocessing error. Evidence links reduce risk; they do not establish correctness. A qualified reviewer must inspect the source artifacts, adjudicate every material claim and populated section, and apply the full clinical context before relying on any output.
 
-Sign-off records workflow completion; it is not a certification of medical validity.
+Sign-off records workflow completion. It is not a certification of medical validity.
 
 ## Known limitations
 
@@ -38,23 +38,19 @@ The interface and `/api/references/status` expose whether rules loaded. Analysis
 
 ## Data governance
 
-Never use real patient artifacts in public issues, pull requests, fixtures, demos, or CI. Evaluate with deterministic synthetic data unless an appropriately governed private environment, legal basis, consent process, and data-handling program are in place.
+Never use real patient artifacts in public issues, pull requests, fixtures, demos, or CI. That covers clinical PDFs and EDFs, databases, generated reports, private reference material, copied standards, institutional documents, and real identifiers. Evaluate with deterministic synthetic data unless an appropriately governed private environment, legal basis, consent process, and data-handling program are in place.
 
-Self-hosters are responsible for authentication policy, least privilege, TLS, encryption at rest, backups, retention, deletion, audit access, incident response, regional privacy requirements, vendor agreements, and model-provider data controls.
+What a self-hoster owns, and the safeguards to configure before exposing a deployment, are in [SECURITY.md](SECURITY.md#deployment-responsibility).
 
-## Deployment safeguards
+## Demo and test modes
 
-- Keep default loopback binding unless a deliberate network boundary is configured.
-- Use a strong production `JWT_SECRET` and TLS termination.
-- Configure exact browser origins and the real reverse-proxy hop count.
-- Keep reference packs and clinical artifacts outside source control.
-- Restrict filesystem permissions for the database, temporary uploads, and screenshots.
-- Review logs and monitoring exports for sensitive-data leakage.
-- Test restore and deletion procedures before handling governed data.
+The offline model adapter exists only to exercise software plumbing. Its output is fixed text that states its own nature, and it must never be presented as model or clinical validation.
 
-## Test mode
+`SOMNOSCRIBE_SYNTHETIC_LLM` is the test suite's switch and the API refuses it outside the test environment. `SOMNOSCRIBE_DEMO_MODE` is the operator's and runs anywhere, so that a demonstration deployment can be one honestly. Wherever it is on, the interface says so on every screen and `GET /api/config` reports it. Do not enable it on a deployment anyone might mistake for a working one.
 
-Synthetic model mode exists only to exercise software plumbing. Its output is explicitly non-clinical and the API refuses to enable it outside the test environment. It must never be presented as model or clinical validation.
+`SOMNOSCRIBE_DEMO_MODE` also opens keyless sign-in to a short-lived, isolated demo principal displayed as `demo@example.test`. That is deliberate coupling in both directions: the account cannot exist without the offline model, so no anonymous visitor can spend a real provider credential, and no deployment can offer keyless access while drafting text a reader might take as clinical. Turning demo mode off closes both and cleanup removes demo artifacts.
+
+The generated demo study is a waveform drawn from a fixed seed. It is not a recording of a person, contains no identifiers, and the indices derived from it describe the generator, not a patient.
 
 ## Reporting a safety issue
 

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createRequire } from 'node:module';
 import { describe, it, expect } from 'vitest';
 import supertest from 'supertest';

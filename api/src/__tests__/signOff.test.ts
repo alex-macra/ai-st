@@ -1,8 +1,15 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../app.js';
-import { insertCase, updateCaseFindings, updateSectionReview, updateFindingDecision } from '../db.js';
+import {
+  insertCase,
+  updateCaseFindings,
+  updateSectionReview,
+  updateFindingDecision,
+} from '../db.js';
 import type { Case, Finding, StructuredReport } from '../shared/types.js';
 import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
 
@@ -27,7 +34,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     modelVersion: 'gpt-5.4-mini',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -37,7 +44,7 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
     claim: 'AHI elevated at 22.4/h consistent with moderate OSA',
     evidence: [{ type: 'edf_metric', source: 'ahi', value: 22.4 }],
     confidence: 'high',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -50,7 +57,7 @@ function emptyStructuredReport(overrides: Partial<StructuredReport> = {}): Struc
     positional: {},
     impression: '',
     citations: {},
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -107,7 +114,7 @@ describe('POST /api/cases/:id/sign-off', () => {
     const report = emptyStructuredReport({
       summary: 'Patient with moderate OSA on HSAT.',
       respiratoryIndices: { ahi: 22.4 },
-      impression: 'Moderate OSA - refer for treatment evaluation.'
+      impression: 'Moderate OSA - refer for treatment evaluation.',
     });
     updateCaseFindings(c.id, [f], 'narr', c.modelVersion, now, report);
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
@@ -116,7 +123,7 @@ describe('POST /api/cases/:id/sign-off', () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toMatch(/sections must be reviewed/i);
     expect(res.body.unreviewedSections).toEqual(
-      expect.arrayContaining(['summary', 'respiratoryIndices', 'impression'])
+      expect.arrayContaining(['summary', 'respiratoryIndices', 'impression']),
     );
   });
 
@@ -129,7 +136,7 @@ describe('POST /api/cases/:id/sign-off', () => {
       summary: '   ',
       studyQuality: { channelIssues: [] },
       respiratoryIndices: {},
-      impression: 'Done.'
+      impression: 'Done.',
     });
     updateCaseFindings(c.id, [f], 'narr', c.modelVersion, now, report);
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
@@ -147,7 +154,7 @@ describe('POST /api/cases/:id/sign-off', () => {
     const report = emptyStructuredReport({
       summary: 'Summary.',
       respiratoryIndices: { ahi: 22.4 },
-      impression: 'Impression.'
+      impression: 'Impression.',
     });
     updateCaseFindings(c.id, [f], 'narr', c.modelVersion, now, report);
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
@@ -163,7 +170,9 @@ describe('POST /api/cases/:id/sign-off', () => {
     expect(fetched.body.case.status).toBe('signed_off');
 
     const audit = await request.get(`/api/cases/${c.id}/audit`);
-    expect(audit.body.auditLog.some((r: { action: string }) => r.action === 'signed_off')).toBe(true);
+    expect(audit.body.auditLog.some((r: { action: string }) => r.action === 'signed_off')).toBe(
+      true,
+    );
   });
 
   it('rejects re-sign-off with 409 once already signed off', async () => {

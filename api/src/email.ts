@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -17,7 +19,7 @@ function createTransport() {
   });
 }
 
-const FROM = process.env['SMTP_FROM'] ?? 'AI-ST <noreply@example.test>';
+const FROM = process.env['SMTP_FROM'] ?? 'Somnoscribe <noreply@example.test>';
 
 export async function sendOtp(email: string, code: string): Promise<void> {
   const transport = createTransport();
@@ -30,10 +32,10 @@ export async function sendOtp(email: string, code: string): Promise<void> {
   await transport.sendMail({
     from: FROM,
     to: email,
-    subject: 'Your AI-ST sign-in code',
+    subject: 'Your Somnoscribe sign-in code',
     text: `Your sign-in code is: ${code}\n\nThis code expires in 10 minutes. Do not share it.`,
     html: `
-      <p>Your AI-ST sign-in code is:</p>
+      <p>Your Somnoscribe sign-in code is:</p>
       <p style="font-size:2rem;letter-spacing:.25em;font-weight:bold">${code}</p>
       <p>This code expires in 10 minutes. Do not share it.</p>
     `,

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 export function buildPdfFilename(c: { name: string; createdAt: string }): string {
   const dt = new Date(c.createdAt);
   const date = dt.toISOString().slice(0, 10);

@@ -1,7 +1,9 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { CaseList } from '../components/CaseList';
-import type { Case } from '../shared/types';
+import type { Case } from '@contracts/types';
 
 // Smoke coverage for the local EmptyState, Badge, and Alert contracts.
 
@@ -21,6 +23,7 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     studyHash: 'hash',
     name: 'Study 001',
     status: 'draft',
+    cohort: 'adult',
     findings: [],
     preprocessorVersion: '1',
     promptVersion: '1',
@@ -39,7 +42,18 @@ describe('CaseList UI integration', () => {
     getCasesMock.mockResolvedValue([]);
     render(<CaseList onSelect={() => {}} />);
     expect(await screen.findByText('No cases yet')).toBeInTheDocument();
-    expect(screen.getByText('Upload a study to get started.')).toBeInTheDocument();
+    expect(screen.getByText(/upload a study to get started/i)).toBeInTheDocument();
+  });
+
+  it('offers the demo study only when demo navigation is available', async () => {
+    getCasesMock.mockResolvedValue([]);
+    const { rerender } = render(<CaseList onSelect={() => {}} />);
+
+    await screen.findByText('No cases yet');
+    expect(screen.queryByRole('button', { name: 'Try the demo study' })).not.toBeInTheDocument();
+
+    rerender(<CaseList onSelect={() => {}} onStartDemo={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Try the demo study' })).toBeInTheDocument();
   });
 
   it('renders a status Badge and case name for each case', async () => {

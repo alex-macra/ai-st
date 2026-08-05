@@ -1,34 +1,49 @@
-import { useEffect, useState } from 'react';
-import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText } from 'lucide-react';
-import { Alert, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText, FlaskConical } from 'lucide-react';
+import { Alert, Button, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
 import { getCases, deleteCase, clearCaseAnalysis } from '../api';
-import type { Case } from '../shared/types';
+import type { Case } from '@contracts/types';
 
 interface Props {
   onSelect: (c: Case) => void;
   refreshKey?: number;
+  /** Sends a first-time visitor to the upload view, where the demo panel lives. */
+  onStartDemo?: () => void;
 }
 
-export function CaseList({ onSelect, refreshKey }: Props) {
+export function CaseList({ onSelect, refreshKey, onStartDemo }: Props) {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingId, setClearingId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(
+    () =>
+      getCases()
+        .then(setCases)
+        .catch((err: unknown) =>
+          setError(err instanceof Error ? err.message : 'Failed to load cases'),
+        )
+        .finally(() => setLoading(false)),
+    [],
+  );
+
+  /** Refresh button: raising the spinner from a handler is safe, unlike an effect. */
+  function reload() {
     setLoading(true);
     setError(null);
-    try {
-      setCases(await getCases());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load cases');
-    } finally {
-      setLoading(false);
-    }
+    void load();
   }
 
-  useEffect(() => { void load(); }, [refreshKey]);
+  // `loading` starts true, so the effect only resolves it. A refreshKey change
+  // keeps the current list on screen until the new one arrives rather than
+  // flashing a spinner over data that is about to be replaced.
+  useEffect(() => {
+    void load();
+  }, [refreshKey, load]);
 
   async function handleDelete(c: Case) {
     if (!window.confirm(`Delete case ${c.id.slice(0, 8)}? This cannot be undone.`)) return;
@@ -46,13 +61,20 @@ export function CaseList({ onSelect, refreshKey }: Props) {
   }
 
   async function handleClear(c: Case) {
-    if (!window.confirm(`Clear analysis for ${c.id.slice(0, 8)}? Findings and report will be removed; uploaded files are kept.`)) return;
+    if (
+      !window.confirm(
+        `Clear analysis for ${c.id.slice(0, 8)}? Findings and report will be removed; uploaded files are kept.`,
+      )
+    )
+      return;
 
     setClearingId(c.id);
     setError(null);
     try {
       await clearCaseAnalysis(c.id);
-      setCases((prev) => prev.map((x) => x.id === c.id ? { ...x, findings: [], status: 'draft' } : x));
+      setCases((prev) =>
+        prev.map((x) => (x.id === c.id ? { ...x, findings: [], status: 'draft' } : x)),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Clear failed');
     } finally {
@@ -64,7 +86,7 @@ export function CaseList({ onSelect, refreshKey }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Cases</h2>
-        <button className="btn-ghost p-1.5" onClick={() => void load()} title="Refresh">
+        <button className="btn-ghost p-1.5" onClick={reload} title="Refresh">
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -75,7 +97,18 @@ export function CaseList({ onSelect, refreshKey }: Props) {
         <EmptyState
           icon={<FileText size={28} />}
           title="No cases yet"
-          description="Upload a study to get started."
+          description={
+            onStartDemo
+              ? 'Upload a study to get started, or run the demo study if you do not have one to hand.'
+              : 'Upload a study to get started.'
+          }
+          action={
+            onStartDemo && (
+              <Button variant="secondary" icon={<FlaskConical size={14} />} onClick={onStartDemo}>
+                Try the demo study
+              </Button>
+            )
+          }
         />
       )}
 
@@ -88,7 +121,9 @@ export function CaseList({ onSelect, refreshKey }: Props) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={CASE_STATUS_VARIANT[c.status] ?? 'default'}>{c.status.replaceAll('_', ' ')}</Badge>
+                  <Badge variant={CASE_STATUS_VARIANT[c.status] ?? 'default'}>
+                    {c.status.replaceAll('_', ' ')}
+                  </Badge>
                   <span className="text-sm font-medium mono truncate">{c.name}</span>
                 </div>
                 <p className="text-xs text-slate-500 truncate">

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import {
   forwardRef,
   useCallback,
@@ -39,8 +41,18 @@ const buttonSizes: Record<ButtonSize, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'primary', size = 'md', loading = false, icon, children, className, disabled, type = 'button', ...props },
-  ref
+  {
+    variant = 'primary',
+    size = 'md',
+    loading = false,
+    icon,
+    children,
+    className,
+    disabled,
+    type = 'button',
+    ...props
+  },
+  ref,
 ) {
   return (
     <button
@@ -52,12 +64,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'focus-ring inline-flex items-center justify-center font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         buttonVariants[variant],
         buttonSizes[size],
-        className
+        className,
       )}
       {...props}
     >
       {loading ? (
-        <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
+        <span
+          aria-hidden="true"
+          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent"
+        />
       ) : icon ? (
         <span className="shrink-0">{icon}</span>
       ) : null}
@@ -72,7 +87,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { error = false, className, ...props },
-  ref
+  ref,
 ) {
   return (
     <input
@@ -81,7 +96,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       className={cx(
         'focus-ring w-full rounded-xl border bg-ui-bg-raised px-3 py-2 text-sm text-ui-text placeholder:text-ui-text-subtle disabled:cursor-not-allowed disabled:opacity-50',
         error ? 'border-red-500' : 'border-ui-border hover:border-ui-text-subtle',
-        className
+        className,
       )}
       {...props}
     />
@@ -96,7 +111,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
   { error = false, autoResize = false, maxHeight, className, style, onInput, value, ...props },
-  forwardedRef
+  forwardedRef,
 ) {
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
   const resize = useCallback(() => {
@@ -127,7 +142,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       className={cx(
         'focus-ring w-full resize-y rounded-xl border bg-ui-bg-raised px-3 py-2 text-sm text-ui-text placeholder:text-ui-text-subtle disabled:cursor-not-allowed disabled:opacity-50',
         error ? 'border-red-500' : 'border-ui-border hover:border-ui-text-subtle',
-        className
+        className,
       )}
       {...props}
     />
@@ -140,7 +155,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
   { error = false, className, children, ...props },
-  ref
+  ref,
 ) {
   return (
     <span className="relative inline-block w-full">
@@ -150,13 +165,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         className={cx(
           'focus-ring w-full appearance-none rounded-xl border bg-ui-bg-raised px-3 py-2 pr-9 text-sm text-ui-text disabled:cursor-not-allowed disabled:opacity-50',
           error ? 'border-red-500' : 'border-ui-border hover:border-ui-text-subtle',
-          className
+          className,
         )}
         {...props}
       >
         {children}
       </select>
-      <ChevronDown aria-hidden="true" size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ui-text-subtle" />
+      <ChevronDown
+        aria-hidden="true"
+        size={14}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ui-text-subtle"
+      />
     </span>
   );
 });
@@ -172,18 +191,40 @@ export interface BadgeProps {
 const badgeVariants: Record<BadgeVariant, string> = {
   default: 'border-ui-border bg-ui-bg-muted text-ui-text-muted',
   accent: 'border-ui-accent/20 bg-ui-accent/10 text-ui-accent',
-  success: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300',
-  warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
-  danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300',
+  success:
+    'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300',
+  warning:
+    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
+  danger:
+    'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300',
   info: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300',
 };
 
 export function Badge({ variant = 'default', children, className }: BadgeProps) {
-  return <span className={cx('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium', badgeVariants[variant], className)}>{children}</span>;
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',
+        badgeVariants[variant],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 export function Chip({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cx('inline-flex items-center gap-1 rounded-md bg-ui-bg-muted px-2 py-0.5 text-xs text-ui-text-muted', className)}>{children}</span>;
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1 rounded-md bg-ui-bg-muted px-2 py-0.5 text-xs text-ui-text-muted',
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 export type AlertVariant = 'info' | 'success' | 'warning' | 'caution' | 'danger';
@@ -198,23 +239,35 @@ export interface AlertProps {
 
 const alertStyles: Record<AlertVariant, string> = {
   info: 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200',
-  success: 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-200',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200',
-  caution: 'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-200',
-  danger: 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200',
+  success:
+    'border-green-200 bg-green-50 text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-200',
+  warning:
+    'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200',
+  caution:
+    'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-200',
+  danger:
+    'border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200',
 };
 
 export function Alert({ variant = 'info', title, children, onDismiss, className }: AlertProps) {
   const Icon = variant === 'success' ? CheckCircle2 : variant === 'info' ? Info : AlertCircle;
   return (
-    <div role="alert" className={cx('flex gap-3 rounded-xl border p-4 text-sm', alertStyles[variant], className)}>
+    <div
+      role="alert"
+      className={cx('flex gap-3 rounded-xl border p-4 text-sm', alertStyles[variant], className)}
+    >
       <Icon aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
         {title && <p className="mb-1 font-semibold">{title}</p>}
         <div className="leading-relaxed">{children}</div>
       </div>
       {onDismiss && (
-        <button type="button" aria-label="Dismiss" onClick={onDismiss} className="focus-ring shrink-0 rounded opacity-60 hover:opacity-100">
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          className="focus-ring shrink-0 rounded opacity-60 hover:opacity-100"
+        >
           <X aria-hidden="true" size={14} />
         </button>
       )}
@@ -232,11 +285,19 @@ export interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
-    <div className={cx('flex flex-col items-center justify-center gap-3 py-16 text-center', className)}>
-      {icon && <div aria-hidden="true" className="mb-1 text-ui-text-subtle opacity-40">{icon}</div>}
+    <div
+      className={cx('flex flex-col items-center justify-center gap-3 py-16 text-center', className)}
+    >
+      {icon && (
+        <div aria-hidden="true" className="mb-1 text-ui-text-subtle opacity-40">
+          {icon}
+        </div>
+      )}
       <div>
         <p className="text-sm font-semibold text-ui-text">{title}</p>
-        {description && <p className="mx-auto mt-1 max-w-xs text-sm text-ui-text-muted">{description}</p>}
+        {description && (
+          <p className="mx-auto mt-1 max-w-xs text-sm text-ui-text-muted">{description}</p>
+        )}
       </div>
       {action && <div className="mt-2">{action}</div>}
     </div>
@@ -260,12 +321,34 @@ export interface RadioGroupProps {
   className?: string;
 }
 
-export function RadioGroup({ options, value, onChange, name, label, orientation = 'vertical', error, className }: RadioGroupProps) {
+export function RadioGroup({
+  options,
+  value,
+  onChange,
+  name,
+  label,
+  orientation = 'vertical',
+  error,
+  className,
+}: RadioGroupProps) {
   return (
-    <div role="radiogroup" aria-label={label ?? name} aria-describedby={error ? `${name}-error` : undefined} className={className}>
-      <div className={cx('flex gap-3', orientation === 'vertical' ? 'flex-col' : 'flex-row flex-wrap')}>
+    <div
+      role="radiogroup"
+      aria-label={label ?? name}
+      aria-describedby={error ? `${name}-error` : undefined}
+      className={className}
+    >
+      <div
+        className={cx('flex gap-3', orientation === 'vertical' ? 'flex-col' : 'flex-row flex-wrap')}
+      >
         {options.map((option) => (
-          <label key={option.value} className={cx('inline-flex cursor-pointer items-center gap-2.5 text-sm', option.disabled && 'cursor-not-allowed opacity-50')}>
+          <label
+            key={option.value}
+            className={cx(
+              'inline-flex cursor-pointer items-center gap-2.5 text-sm',
+              option.disabled && 'cursor-not-allowed opacity-50',
+            )}
+          >
             <input
               type="radio"
               className="h-4 w-4 accent-teal-600 focus:ring-teal-500"
@@ -279,7 +362,11 @@ export function RadioGroup({ options, value, onChange, name, label, orientation 
           </label>
         ))}
       </div>
-      {error && <p id={`${name}-error`} className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && (
+        <p id={`${name}-error`} className="mt-1 text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -300,10 +387,17 @@ export function progressToneFromPercent(percent: number): ProgressTone {
   return 'default';
 }
 
-export function Progress({ value, size = 'md', label = 'Progress', className, tone = 'default' }: ProgressProps) {
+export function Progress({
+  value,
+  size = 'md',
+  label = 'Progress',
+  className,
+  tone = 'default',
+}: ProgressProps) {
   const indeterminate = value === undefined;
   const clamped = Math.max(0, Math.min(100, value ?? 0));
-  const fill = tone === 'danger' ? 'bg-red-500' : tone === 'warning' ? 'bg-amber-500' : 'bg-ui-accent';
+  const fill =
+    tone === 'danger' ? 'bg-red-500' : tone === 'warning' ? 'bg-amber-500' : 'bg-ui-accent';
   return (
     <div
       role="progressbar"
@@ -312,24 +406,37 @@ export function Progress({ value, size = 'md', label = 'Progress', className, to
       aria-valuemax={100}
       aria-valuenow={indeterminate ? undefined : clamped}
       aria-valuetext={indeterminate ? 'Loading' : undefined}
-      className={cx('w-full overflow-hidden rounded-full bg-ui-bg-subtle', size === 'sm' ? 'h-1' : 'h-2', className)}
+      className={cx(
+        'w-full overflow-hidden rounded-full bg-ui-bg-subtle',
+        size === 'sm' ? 'h-1' : 'h-2',
+        className,
+      )}
     >
-      <div className={cx('h-full rounded-full transition-[width]', fill, indeterminate && 'w-1/3 animate-pulse')} style={indeterminate ? undefined : { width: `${clamped}%` }} />
+      <div
+        className={cx(
+          'h-full rounded-full transition-[width]',
+          fill,
+          indeterminate && 'w-1/3 animate-pulse',
+        )}
+        style={indeterminate ? undefined : { width: `${clamped}%` }}
+      />
     </div>
   );
 }
 
-export type FormatRule = {
-  kind: 'group';
-  groupSize: number;
-  separator: string;
-  totalChars: number;
-  uppercase?: boolean;
-  charset?: RegExp;
-} | {
-  kind: 'custom';
-  format: (raw: string) => string;
-};
+export type FormatRule =
+  | {
+      kind: 'group';
+      groupSize: number;
+      separator: string;
+      totalChars: number;
+      uppercase?: boolean;
+      charset?: RegExp;
+    }
+  | {
+      kind: 'custom';
+      format: (raw: string) => string;
+    };
 
 export interface FormattedInputProps extends Omit<InputProps, 'onChange' | 'value' | 'type'> {
   value: string;
@@ -344,7 +451,7 @@ export function applyFormat(raw: string, rule: FormatRule): string {
   const allowed = rule.charset ?? /[A-Z0-9]/i;
   const characters = Array.from(raw)
     .filter((character) => allowed.test(character))
-    .map((character) => rule.uppercase === false ? character : character.toUpperCase())
+    .map((character) => (rule.uppercase === false ? character : character.toUpperCase()))
     .join('')
     .slice(0, rule.totalChars);
   const groups: string[] = [];
@@ -354,34 +461,57 @@ export function applyFormat(raw: string, rule: FormatRule): string {
   return groups.join(rule.separator);
 }
 
+function formatLicenseKey(raw: string): string {
+  const characters = raw.toUpperCase().replaceAll(/[^A-Z0-9]/g, '');
+  const prefix = ['SOMNO', 'AIST'].find(
+    (candidate) => candidate.startsWith(characters) || characters.startsWith(candidate),
+  );
+
+  if (!prefix) {
+    return applyFormat(characters, {
+      kind: 'group',
+      groupSize: 4,
+      separator: '-',
+      totalChars: 24,
+      uppercase: true,
+    });
+  }
+
+  if (characters.length < prefix.length) return characters;
+
+  const body = characters.slice(prefix.length, prefix.length + 20);
+  const groups = body.match(/.{1,4}/g)?.join('-') ?? '';
+  return `${prefix}-${groups}`;
+}
+
 export const LICENSE_KEY_RULE: FormatRule = {
-  kind: 'group',
-  groupSize: 4,
-  separator: '-',
-  totalChars: 24,
-  uppercase: true,
+  kind: 'custom',
+  format: formatLicenseKey,
 };
 
-export const FormattedInput = forwardRef<HTMLInputElement, FormattedInputProps>(function FormattedInput(
-  { value, onChange, rule, label, inputClassName, id, ...props },
-  ref
-) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  return (
-    <div>
-      {label && <label htmlFor={inputId} className="mb-1 block text-xs font-medium text-ui-text-muted">{label}</label>}
-      <Input
-        {...props}
-        ref={ref}
-        id={inputId}
-        value={value}
-        onChange={(event) => onChange(applyFormat(event.target.value, rule))}
-        className={inputClassName}
-      />
-    </div>
-  );
-});
+export const FormattedInput = forwardRef<HTMLInputElement, FormattedInputProps>(
+  function FormattedInput({ value, onChange, rule, label, inputClassName, id, ...props }, ref) {
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+    return (
+      <div>
+        {label && (
+          <label htmlFor={inputId} className="mb-1 block text-xs font-medium text-ui-text-muted">
+            {label}
+          </label>
+        )}
+        <Input
+          {...props}
+          ref={ref}
+          id={inputId}
+          value={value}
+          onChange={(event) => onChange(applyFormat(event.target.value, rule))}
+          className={inputClassName}
+        />
+      </div>
+    );
+  },
+);
 
 export interface FileDropZoneProps {
   files?: File[];
@@ -422,7 +552,10 @@ export function FileDropZone({
     <div
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
-      className={cx('rounded-xl border border-dashed border-ui-border bg-ui-bg-raised p-3', className)}
+      className={cx(
+        'rounded-xl border border-dashed border-ui-border bg-ui-bg-raised p-3',
+        className,
+      )}
     >
       <input
         ref={inputRef}
@@ -441,7 +574,9 @@ export function FileDropZone({
           onClick={() => inputRef.current?.click()}
           className="focus-ring flex w-full items-center gap-3 rounded-lg p-2 text-left disabled:opacity-50"
         >
-          <span aria-hidden="true">{icon ?? <FilePlus2 size={20} className="text-ui-text-subtle" />}</span>
+          <span aria-hidden="true">
+            {icon ?? <FilePlus2 size={20} className="text-ui-text-subtle" />}
+          </span>
           <span>
             <span className="block text-sm font-medium text-ui-text">{label}</span>
             <span className="block text-xs text-ui-text-subtle">{description}</span>
@@ -450,18 +585,31 @@ export function FileDropZone({
       ) : (
         <ul className="space-y-1.5">
           {files.map((file, index) => (
-            <li key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-lg bg-ui-bg-muted px-3 py-2 text-sm">
+            <li
+              key={`${file.name}-${file.size}-${index}`}
+              className="flex items-center gap-2 rounded-lg bg-ui-bg-muted px-3 py-2 text-sm"
+            >
               <CheckCircle2 aria-hidden="true" size={15} className="shrink-0 text-emerald-600" />
               <span className="min-w-0 flex-1 truncate text-ui-text">{file.name}</span>
               {onClear && (
-                <button type="button" onClick={() => onClear(multiple ? index : undefined)} aria-label={`Remove ${file.name}`} className="focus-ring rounded p-1 text-ui-text-subtle hover:text-red-600">
+                <button
+                  type="button"
+                  onClick={() => onClear(multiple ? index : undefined)}
+                  aria-label={`Remove ${file.name}`}
+                  className="focus-ring rounded p-1 text-ui-text-subtle hover:text-red-600"
+                >
                   <X aria-hidden="true" size={14} />
                 </button>
               )}
             </li>
           ))}
           <li>
-            <button type="button" disabled={disabled} onClick={() => inputRef.current?.click()} className="focus-ring rounded px-2 py-1 text-xs text-ui-accent hover:underline disabled:opacity-50">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => inputRef.current?.click()}
+              className="focus-ring rounded px-2 py-1 text-xs text-ui-accent hover:underline disabled:opacity-50"
+            >
               {multiple ? 'Add more files' : 'Replace file'}
             </button>
           </li>

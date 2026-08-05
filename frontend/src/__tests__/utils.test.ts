@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect } from 'vitest';
 import { buildPdfFilename, stripInlineCitations } from '../utils';
 
@@ -24,7 +26,7 @@ describe('buildPdfFilename', () => {
 describe('stripInlineCitations', () => {
   it('removes parenthetical finding-id citations', () => {
     const out = stripInlineCitations(
-      'The provisional REI is moderate (F-2b2b1d2f-3d2a-4f7d-8db8-3a8d4d84eb1d).'
+      'The provisional REI is moderate (F-2b2b1d2f-3d2a-4f7d-8db8-3a8d4d84eb1d).',
     );
     expect(out).toBe('The provisional REI is moderate.');
   });

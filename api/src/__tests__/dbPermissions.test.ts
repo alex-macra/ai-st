@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { afterEach, describe, expect, it } from 'vitest';
 import { chmodSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +9,7 @@ import { openDb } from '../db/connection.js';
 const temporaryRoots: string[] = [];
 
 function temporaryRoot(): string {
-  const root = mkdtempSync(path.join(tmpdir(), 'ai-st-db-permissions-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'somnoscribe-db-permissions-'));
   temporaryRoots.push(root);
   return root;
 }

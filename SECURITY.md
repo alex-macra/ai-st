@@ -21,6 +21,14 @@ The maintainers will acknowledge a complete report when practical, investigate, 
 
 ## Deployment responsibility
 
-The source defaults to loopback binding and no trusted proxy. Self-hosters must provide TLS, network controls, secure secret storage, access review, encryption at rest, backup protection, retention and deletion controls, dependency updates, and monitoring appropriate to their environment.
+The source defaults to loopback binding and no trusted proxy. Self-hosters own everything above that line: TLS, network controls, secure secret storage, access review and least privilege, encryption at rest, backup protection, retention and deletion controls, incident response, dependency updates, monitoring, regional privacy requirements, vendor agreements, and model-provider data controls.
 
-Before internet exposure, configure a production-grade `JWT_SECRET`, exact `CORS_ORIGINS`, the real proxy trust setting, SMTP, restrictive filesystem permissions, and a reviewed external reference directory if used.
+Before exposing a deployment:
+
+- Keep the loopback binding unless a deliberate network boundary is configured.
+- Set a production-grade `JWT_SECRET` and terminate TLS. The API rejects a secret that is short or is an example value published in this repository.
+- Configure exact `CORS_ORIGINS` and the real reverse-proxy hop count.
+- Keep reference packs and clinical artifacts outside source control.
+- Restrict filesystem permissions on the database, temporary uploads, and screenshots.
+- Review logs and monitoring exports for sensitive-data leakage.
+- Test restore and deletion procedures before handling governed data.

@@ -1,7 +1,10 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Per-channel quality scoring. Returns artifact flags and coverage percentages.
 No clinical interpretation - only signal-level metrics.
 """
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,11 +17,11 @@ from edf_parser import ChannelInfo, ChannelInventory
 @dataclass
 class ChannelQC:
     label: str
-    quality_score: float          # 0.0 – 1.0
-    coverage_pct: float           # fraction of recording with valid samples
+    quality_score: float  # 0.0 – 1.0
+    coverage_pct: float  # fraction of recording with valid samples
     artifact_flag: bool
-    flat_segments_pct: float      # fraction of signal that is flat (stuck sensor)
-    clipping_pct: float           # fraction of samples at physical min/max
+    flat_segments_pct: float  # fraction of signal that is flat (stuck sensor)
+    clipping_pct: float  # fraction of samples at physical min/max
     notes: list[str]
     flat_intervals: list[tuple[float, float]] = None  # type: ignore[assignment]
 
@@ -29,23 +32,33 @@ class ChannelQC:
 
 @dataclass
 class QCResults:
-    channel_qc: dict[str, ChannelQC]   # keyed by channel label
+    channel_qc: dict[str, ChannelQC]  # keyed by channel label
 
     def for_label(self, label: str) -> ChannelQC | None:
         return self.channel_qc.get(label)
 
 
-_CLIP_MARGIN = 0.01      # within 1% of physical range → clipping
+_CLIP_MARGIN = 0.01  # within 1% of physical range → clipping
 
 # Channels whose physiological baseline is flat (constant SpO2, steady HR,
 # discrete position state, motionless during sleep). For these, flat samples
 # are normal - flat_pct must NOT trigger artifact_flag or penalize quality.
 _STABLE_BASELINE_TOKENS = (
-    "spo2", "saturation", "oximetry", "o2 sat",
-    "pulse", "hr", "heart rate",
-    "position", "lage", "body position",
-    "activity", "accel",
-    "accu", "akku", "battery",
+    "spo2",
+    "saturation",
+    "oximetry",
+    "o2 sat",
+    "pulse",
+    "hr",
+    "heart rate",
+    "position",
+    "lage",
+    "body position",
+    "activity",
+    "accel",
+    "accu",
+    "akku",
+    "battery",
 )
 
 # Channels whose physical_max/min in the EDF header is unreliable for clipping
@@ -107,7 +120,7 @@ def _score_channel(ch: ChannelInfo, signal: np.ndarray) -> ChannelQC:
         # signal. NaN comparisons are always False so NaN→NaN transitions are ignored.
         min_flat_samples = max(1, int(ch.sample_rate * 10.0))  # ≥10 s runs only
         raw_diffs = np.diff(signal.astype(np.float64))
-        is_flat_diff = (raw_diffs == 0.0)  # NaN diffs → False (correct)
+        is_flat_diff = raw_diffs == 0.0  # NaN diffs → False (correct)
         in_flat = False
         flat_start = 0
         for i, f in enumerate(is_flat_diff):
@@ -117,17 +130,21 @@ def _score_channel(ch: ChannelInfo, signal: np.ndarray) -> ChannelQC:
             elif not f and in_flat:
                 in_flat = False
                 if (i - flat_start) >= min_flat_samples:
-                    flat_intervals.append((
-                        round(flat_start / ch.sample_rate, 2),
-                        round((i + 1) / ch.sample_rate, 2),
-                    ))
+                    flat_intervals.append(
+                        (
+                            round(flat_start / ch.sample_rate, 2),
+                            round((i + 1) / ch.sample_rate, 2),
+                        )
+                    )
         if in_flat:
             span = len(signal) - 1 - flat_start
             if span >= min_flat_samples:
-                flat_intervals.append((
-                    round(flat_start / ch.sample_rate, 2),
-                    round(len(signal) / ch.sample_rate, 2),
-                ))
+                flat_intervals.append(
+                    (
+                        round(flat_start / ch.sample_rate, 2),
+                        round(len(signal) / ch.sample_rate, 2),
+                    )
+                )
 
     if _skip_clipping_check(ch.label):
         clip_pct = 0.0

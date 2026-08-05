@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -9,7 +11,7 @@ import {
   Badge,
 } from '../ui';
 import { getAuditLog } from '../api';
-import type { AuditRecord, TokenStats } from '../shared/types';
+import type { AuditRecord, TokenStats } from '@contracts/types';
 import { MODEL_PRICING, DEFAULT_MODEL_PRICING } from '../constants';
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
 const ACTION_LABELS: Record<string, string> = {
   case_created: 'Case created',
   analysis_completed: 'Analysis completed',
+  action_plan_generated: 'Action plan generated',
   signed_off: 'Signed off',
   finding_confirm: 'Finding confirmed',
   finding_reject: 'Finding rejected',
@@ -30,12 +33,13 @@ const ACTION_LABELS: Record<string, string> = {
 // Unmapped actions fall back to gray.
 const ACTION_TONE: Record<string, TimelineDotTone> = {
   analysis_completed: 'info',
-  signed_off:         'success',
-  finding_confirm:    'success',
-  finding_reject:     'danger',
-  finding_artefact:   'danger',
-  finding_uncertain:  'warning',
-  finding_edit:       'warning',
+  action_plan_generated: 'info',
+  signed_off: 'success',
+  finding_confirm: 'success',
+  finding_reject: 'danger',
+  finding_artefact: 'danger',
+  finding_uncertain: 'warning',
+  finding_edit: 'warning',
 };
 
 function actionLabel(action: string): string {
@@ -59,8 +63,13 @@ function metaBadges(meta: Record<string, unknown>): ReactNode {
   if (typeof meta['promptVersion'] === 'string') {
     items.push(<MetaBadge key="prompt" label="prompt" value={meta['promptVersion']} />);
   }
+  if (meta['analysisMode'] === 'demo' || meta['analysisMode'] === 'openai') {
+    items.push(<MetaBadge key="mode" label="mode" value={meta['analysisMode']} />);
+  }
   if (typeof meta['studyHash'] === 'string') {
-    items.push(<MetaBadge key="hash" label="hash" value={meta['studyHash'].slice(0, 12) + '…'} mono />);
+    items.push(
+      <MetaBadge key="hash" label="hash" value={meta['studyHash'].slice(0, 12) + '…'} mono />,
+    );
   }
   if (typeof meta['findingId'] === 'string') {
     items.push(<MetaBadge key="finding" label="finding" value={meta['findingId']} mono />);
@@ -97,11 +106,24 @@ function buildTokenRows(stats: TokenStats): TokenUsageRow[] {
   return rows;
 }
 
-function computeCost(stats: TokenStats, modelVersion?: string): number {
+function computeModelCost(input: number, output: number, modelVersion?: string): number {
   const pricing = (modelVersion ? MODEL_PRICING[modelVersion] : undefined) ?? DEFAULT_MODEL_PRICING;
-  const totalIn = stats.pass1In + stats.pass2In + stats.pass3In + (stats.pass4In ?? 0);
-  const totalOut = stats.pass1Out + stats.pass2Out + stats.pass3Out + (stats.pass4Out ?? 0);
-  return (totalIn / 1_000_000) * pricing.inputPer1M + (totalOut / 1_000_000) * pricing.outputPer1M;
+  return (input / 1_000_000) * pricing.inputPer1M + (output / 1_000_000) * pricing.outputPer1M;
+}
+
+function computeCost(
+  stats: TokenStats,
+  reportModelVersion?: string,
+  actionPlanModelVersion?: string,
+): number {
+  const reportIn = stats.pass1In + stats.pass2In + stats.pass3In;
+  const reportOut = stats.pass1Out + stats.pass2Out + stats.pass3Out;
+  const planIn = stats.pass4In ?? 0;
+  const planOut = stats.pass4Out ?? 0;
+  return (
+    computeModelCost(reportIn, reportOut, reportModelVersion) +
+    computeModelCost(planIn, planOut, actionPlanModelVersion ?? reportModelVersion)
+  );
 }
 
 export function AuditTrail({ caseId }: Props) {
@@ -110,9 +132,10 @@ export function AuditTrail({ caseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // `loading` starts true and is only ever resolved here. Raising it
+  // synchronously would cascade a render before the request is even sent.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     getAuditLog(caseId)
       .then(({ auditLog, tokenStats: ts }) => {
         if (!cancelled) {
@@ -127,16 +150,33 @@ export function AuditTrail({ caseId }: Props) {
           setLoading(false);
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [caseId]);
 
   if (loading) return <p className="text-xs text-slate-400">Loading audit trail…</p>;
   if (error) return <p className="text-xs text-red-500">{error}</p>;
 
-  const modelVersion = records.find(
-    (r) => r.action === 'analysis_completed' && typeof r.metadata?.['modelVersion'] === 'string'
-  )?.metadata?.['modelVersion'];
-  const modelVersionStr = typeof modelVersion === 'string' ? modelVersion : undefined;
+  const analysisModelVersion = [...records]
+    .reverse()
+    .find(
+      (r) => r.action === 'analysis_completed' && typeof r.metadata?.['modelVersion'] === 'string',
+    )?.metadata?.['modelVersion'];
+  const actionPlanModelVersion = [...records]
+    .reverse()
+    .find(
+      (r) =>
+        r.action === 'action_plan_generated' && typeof r.metadata?.['modelVersion'] === 'string',
+    )?.metadata?.['modelVersion'];
+  const analysisModelVersionStr =
+    typeof analysisModelVersion === 'string' ? analysisModelVersion : undefined;
+  const actionPlanModelVersionStr =
+    typeof actionPlanModelVersion === 'string' ? actionPlanModelVersion : undefined;
+  const modelLabel = [analysisModelVersionStr, actionPlanModelVersionStr]
+    .filter((value): value is string => value !== undefined)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(' + ');
 
   // Hide the panel when there are no records: tokenStats can arrive mid-analysis
   // (before analysis_completed), which would otherwise show usage next to
@@ -150,8 +190,8 @@ export function AuditTrail({ caseId }: Props) {
       {showTokenPanel && (
         <TokenUsagePanel
           rows={buildTokenRows(tokenStats!)}
-          costUsd={computeCost(tokenStats!, modelVersionStr)}
-          {...(modelVersionStr && { model: modelVersionStr })}
+          costUsd={computeCost(tokenStats!, analysisModelVersionStr, actionPlanModelVersionStr)}
+          {...(modelLabel && { model: modelLabel })}
         />
       )}
     </div>

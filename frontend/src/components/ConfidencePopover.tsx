@@ -1,11 +1,13 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { Popover, Badge, Chip, type BadgeVariant } from '../ui';
 import { ShieldCheck, AlertTriangle, AlertOctagon } from 'lucide-react';
-import type { Finding, FindingConfidence } from '../shared/types';
+import type { Finding, FindingConfidence } from '@contracts/types';
 
 const CONFIDENCE_VARIANT: Record<FindingConfidence, BadgeVariant> = {
-  high:   'success',
+  high: 'success',
   medium: 'warning',
-  low:    'danger',
+  low: 'danger',
 };
 
 interface Props {
@@ -13,41 +15,41 @@ interface Props {
 }
 
 const LEVEL_LABEL: Record<FindingConfidence, string> = {
-  high:   'High confidence',
+  high: 'High confidence',
   medium: 'Medium confidence',
-  low:    'Low confidence',
+  low: 'Low confidence',
 };
 
 const LEVEL_ICON: Record<FindingConfidence, typeof ShieldCheck> = {
-  high:   ShieldCheck,
+  high: ShieldCheck,
   medium: AlertTriangle,
-  low:    AlertOctagon,
+  low: AlertOctagon,
 };
 
 const LEVEL_COLOR: Record<FindingConfidence, string> = {
-  high:   'text-emerald-600 dark:text-emerald-400',
+  high: 'text-emerald-600 dark:text-emerald-400',
   medium: 'text-amber-600 dark:text-amber-400',
-  low:    'text-rose-600 dark:text-rose-400',
+  low: 'text-rose-600 dark:text-rose-400',
 };
 
 const FALLBACK: Record<FindingConfidence, string> = {
-  high:   'Directly supported by quantitative evidence from the study data.',
+  high: 'Directly supported by quantitative evidence from the study data.',
   medium: 'Supported with some uncertainty; verify signal quality or clinical context.',
-  low:    'Channel quality or coverage below threshold, or borderline signal.',
+  low: 'Channel quality or coverage below threshold, or borderline signal.',
 };
 
 const EVIDENCE_TYPE_LABEL: Record<string, string> = {
-  edf_metric:        'EDF',
-  event_table:       'Event',
-  report_page:       'Report',
+  edf_metric: 'EDF',
+  event_table: 'Event',
+  report_page: 'Report',
   screenshot_window: 'Screenshot',
-  pdf_metric:        'PDF',
+  pdf_metric: 'PDF',
 };
 
 const IMPACT_COLOR: Record<string, string> = {
   positive: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
   negative: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300',
-  neutral:  'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  neutral: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
 };
 
 const MAX_EVIDENCE_ROWS = 5;
@@ -74,7 +76,9 @@ export function ConfidencePopover({ finding }: Props) {
         </Badge>
       }
     >
-      <div className={`flex items-center gap-1.5 px-3 py-2 border-b border-ui-border/60 font-semibold ${LEVEL_COLOR[finding.confidence]}`}>
+      <div
+        className={`flex items-center gap-1.5 px-3 py-2 border-b border-ui-border/60 font-semibold ${LEVEL_COLOR[finding.confidence]}`}
+      >
         <Icon size={13} />
         {LEVEL_LABEL[finding.confidence]}
       </div>
@@ -90,7 +94,8 @@ export function ConfidencePopover({ finding }: Props) {
               key={i}
               className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 ${IMPACT_COLOR[f.impact] ?? IMPACT_COLOR.neutral}`}
             >
-              {f.label}{f.value !== undefined ? `: ${f.value}` : ''}
+              {f.label}
+              {f.value !== undefined ? `: ${f.value}` : ''}
             </span>
           ))}
         </div>

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { it, expect } from 'vitest';
 import { pass1SystemPrompt, pass2SystemPrompt } from '../prompts.js';
 import { PROMPT_VERSION } from '../constants.js';

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 export const GPT_MODEL = process.env['GPT_MODEL'] ?? 'gpt-5.4-mini';
 export const NANO_MODEL = process.env['NANO_MODEL'] ?? 'gpt-5.4-nano';
 export const PROMPT_VERSION = '2.0.0';
@@ -20,31 +22,28 @@ export const CHARTS_DIR = process.env['CHARTS_DIR'] ?? '../preprocessor/data/cha
 export const SLICES_DIR = process.env['SLICES_DIR'] ?? '../preprocessor/data/slices';
 export const SCREENSHOTS_DIR = process.env['SCREENSHOTS_DIR'] ?? '../data/screenshots';
 
-export const CASE_STATUSES = ['draft', 'pending_review', 'signed_off'] as const;
-export type CaseStatus = (typeof CASE_STATUSES)[number];
-
-export const FINDING_CONFIDENCES = ['high', 'medium', 'low'] as const;
-export type FindingConfidence = (typeof FINDING_CONFIDENCES)[number];
-
-export const EVIDENCE_TYPES = [
-  'edf_metric',
-  'event_table',
-  'report_page',
-  'screenshot_window',
-  'pdf_metric'
-] as const;
-export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+// These belong to the wire contract, so they are defined in shared/types.ts and
+// re-exported here for the existing call sites. This file reads process.env at
+// module scope and must never be reachable from the browser bundle.
+export {
+  CASE_STATUSES,
+  FINDING_CONFIDENCES,
+  EVIDENCE_TYPES,
+  type CaseStatus,
+  type FindingConfidence,
+  type EvidenceType,
+} from './shared/types.js';
 
 // Conservative prompt-size budget for text candidates and attached images.
-export const MAX_INPUT_TOKENS   = 35_000;
-export const TOKEN_BASE_PACKAGE = 1_500;  // estimated tokens for the base case package JSON
-export const TOKEN_PER_CANDIDATE = 80;    // estimated tokens per text candidate summary
-export const TOKEN_PER_IMAGE    = 1_500;  // estimated tokens per 480×180 JPEG (vision)
-export const MAX_IMAGE_CANDIDATES = 8;    // never attach more than 8 images per Pass 1 call
+export const MAX_INPUT_TOKENS = 35_000;
+export const TOKEN_BASE_PACKAGE = 1_500; // estimated tokens for the base case package JSON
+export const TOKEN_PER_CANDIDATE = 80; // estimated tokens per text candidate summary
+export const TOKEN_PER_IMAGE = 1_500; // estimated tokens per 480×180 JPEG (vision)
+export const MAX_IMAGE_CANDIDATES = 8; // never attach more than 8 images per Pass 1 call
 
 // Cost per 1M tokens in USD (approximate, for display only)
-export const COST_PER_1M_INPUT  = 0.15;
-export const COST_PER_1M_OUTPUT = 0.60;
+export const COST_PER_1M_INPUT = 0.15;
+export const COST_PER_1M_OUTPUT = 0.6;
 
 export const ALLOWED_MODELS = ['gpt-5.4-nano', 'gpt-5.4-mini', 'gpt-5.4', 'gpt-5.5'] as const;
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];

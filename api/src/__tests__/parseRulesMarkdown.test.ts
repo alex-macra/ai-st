@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect } from 'vitest';
 import { parseRulesMarkdown } from '../refs/parseRulesMarkdown.js';
 
@@ -76,17 +78,20 @@ license: open
   });
 
   it('rejects unsupported metadata values', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('license: open', 'license: private')))
-      .toThrow(/invalid reference metadata/i);
+    expect(() => parseRulesMarkdown(FIXTURE.replace('license: open', 'license: private'))).toThrow(
+      /invalid reference metadata/i,
+    );
   });
 
   it('rejects duplicate rule IDs', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-two', 'example-rule-one')))
-      .toThrow(/duplicate rule id/i);
+    expect(() =>
+      parseRulesMarkdown(FIXTURE.replace('example-rule-two', 'example-rule-one')),
+    ).toThrow(/duplicate rule id/i);
   });
 
   it('rejects unsafe rule IDs', () => {
-    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-one', '../../outside')))
-      .toThrow(/invalid rule id/i);
+    expect(() => parseRulesMarkdown(FIXTURE.replace('example-rule-one', '../../outside'))).toThrow(
+      /invalid rule id/i,
+    );
   });
 });

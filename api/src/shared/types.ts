@@ -1,7 +1,33 @@
-// Source of truth for types shared with the frontend. frontend/src/shared/types.ts
-// is a hand-maintained copy of the wire-crossing types; check drift with:
-//   diff api/src/shared/types.ts frontend/src/shared/types.ts
-import type { EvidenceType, FindingConfidence, CaseStatus } from '../constants.js';
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
+// The wire contract between the API and the frontend. The frontend imports this
+// file directly through its `@contracts/*` alias, so there is no second copy to
+// keep in step.
+//
+// Nothing here may import server-only code. `constants.ts` in particular reads
+// process.env at module scope, which is why the literal unions below live here
+// and are re-exported from there rather than the other way round.
+
+export const CASE_STATUSES = ['draft', 'pending_review', 'signed_off'] as const;
+export type CaseStatus = (typeof CASE_STATUSES)[number];
+
+/** Stable provenance label emitted by the built-in offline demonstration model. */
+export const OFFLINE_DEMO_MODEL_VERSION = 'somnoscribe-offline-demo';
+
+export const ANALYSIS_MODES = ['demo', 'openai'] as const;
+export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
+
+export const FINDING_CONFIDENCES = ['high', 'medium', 'low'] as const;
+export type FindingConfidence = (typeof FINDING_CONFIDENCES)[number];
+
+export const EVIDENCE_TYPES = [
+  'edf_metric',
+  'event_table',
+  'report_page',
+  'screenshot_window',
+  'pdf_metric',
+] as const;
+export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 
 export interface ConfidenceFactor {
   label: string;
@@ -77,6 +103,8 @@ export interface ActionPlan {
   evidenceReferences?: EvidenceReference[];
   generatedAt: string;
   modelVersion: string;
+  /** The mode that generated this plan, independent of the report's mode. */
+  analysisMode?: AnalysisMode;
   promptVersion: string;
   tokensIn: number;
   tokensOut: number;
@@ -90,7 +118,7 @@ export const REPORT_SECTION_KEYS = [
   'positional',
   'snoring',
   'cardiac',
-  'impression'
+  'impression',
 ] as const;
 export type ReportSectionKey = (typeof REPORT_SECTION_KEYS)[number];
 
@@ -287,6 +315,7 @@ export interface PdfMetrics {
 export interface Case {
   id: string;
   studyHash: string;
+  sourceKind?: 'upload' | 'demo_synthetic';
   name: string;
   status: CaseStatus;
   cohort: 'adult' | 'pediatric' | 'generic';
@@ -310,6 +339,8 @@ export interface Case {
   preprocessorVersion: string;
   promptVersion: string;
   modelVersion: string;
+  /** The mode that generated this case's report, if it has been analysed. */
+  analysisMode?: AnalysisMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -323,6 +354,7 @@ export interface AuditRecord {
   createdAt: string;
 }
 
+/** The persisted user row. `createdAt` and `lastSeen` never cross the wire. */
 export interface User {
   id: string;
   email: string;
@@ -330,9 +362,34 @@ export interface User {
   organizationId: string | null;
   tier: string;
   isAdmin: boolean;
+  isDemo: boolean;
+  demoExpiresAt: string | null;
   tokenBudget: number;
   createdAt: string;
   lastSeen: string | null;
+}
+
+/**
+ * The user payload the auth routes actually send. Activation and login return
+ * the identity fields only; `GET /api/auth/me` adds the usage window, which is
+ * computed per request rather than stored, hence the optional budget fields.
+ */
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  name?: string | null;
+  organizationId: string | null;
+  tier: string;
+  isAdmin: boolean;
+  /** Present for temporary demo principals so the browser can expose only their safe workflow. */
+  isDemo?: boolean;
+  tokenBudget: number;
+  tokens4h?: number;
+  tokensWeek?: number;
+  budget4h?: number;
+  budgetWeek?: number;
+  window4hEndsAt?: number;
+  weekEndsAt?: number;
 }
 
 export interface Organization {
@@ -396,3 +453,44 @@ export interface EventSlice {
   tags: string[];
   signalSlices: SignalSlice[];
 }
+
+/** SSE frames emitted by `POST /api/cases/:id/analyze`. */
+export type AnalysisEvent =
+  | { type: 'progress'; pass: number; message: string }
+  | {
+      type: 'stage_complete';
+      pass: number | '3b';
+      tokensIn: number;
+      tokensOut: number;
+      findingCount?: number;
+      warningCount?: number;
+      flagCount?: number;
+    }
+  | { type: 'documents_only_mode'; message: string }
+  | { type: 'warning'; code: 'reference_pack_unavailable'; message: string }
+  | { type: 'validation_warnings'; warnings: ValidationWarning[] }
+  | { type: 'reference_flags'; flags: ReferenceFlag[] }
+  | {
+      type: 'done';
+      findings: Finding[];
+      narrative: string;
+      structuredReport?: StructuredReport;
+      referenceFlags?: ReferenceFlag[];
+      validationWarnings?: ValidationWarning[];
+      modelVersion: string;
+      analysisMode: AnalysisMode;
+      promptVersion: string;
+      tokenStats?: TokenStats;
+    }
+  | {
+      type: 'validation_failed';
+      rejections: Array<{ quote: string; reason: string; section?: ReportSectionKey }>;
+    }
+  | { type: 'error'; message: string };
+
+/** SSE frames emitted by the action-plan endpoint (pass 4). */
+export type ActionPlanEvent =
+  | { type: 'progress'; pass: 4; message: string }
+  | { type: 'stage_complete'; pass: 4; tokensIn: number; tokensOut: number }
+  | { type: 'done'; actionPlan: ActionPlan }
+  | { type: 'error'; message: string };

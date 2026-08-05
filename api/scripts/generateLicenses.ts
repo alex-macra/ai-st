@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Mint license keys against the API's primary SQLite DB.
  *
@@ -21,7 +23,7 @@ const API_DIR = resolve(SCRIPT_DIR, '..');
 dotenvConfig({ path: resolve(API_DIR, '.env') });
 
 const COUNT = Number(process.argv[2] ?? '10');
-const TIER  = process.argv[3] ?? 'starter';
+const TIER = process.argv[3] ?? 'starter';
 
 if (!Number.isInteger(COUNT) || COUNT <= 0 || COUNT > 1_000) {
   console.error('Count must be an integer between 1 and 1000.');

@@ -1,8 +1,12 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
 test.use({ storageState: 'e2e/.auth/user.json' });
 
-const MOCK_USER = JSON.stringify({ user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null } });
+const MOCK_USER = JSON.stringify({
+  user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null },
+});
 const EMPTY_CASES = JSON.stringify({ cases: [] });
 
 test.describe('case list (authenticated)', () => {
@@ -15,16 +19,22 @@ test.describe('case list (authenticated)', () => {
     });
     await page.goto('/');
     // Wait for the authenticated app shell to render (Upload button only exists when signed in)
-    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
-  test('shows app header with AI-ST branding', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'AI-ST' })).toBeVisible();
+  test('shows app header with Somnoscribe branding', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Somnoscribe' })).toBeVisible();
   });
 
   test('shows empty state when no cases', async ({ page }) => {
     await expect(page.getByText('No cases yet')).toBeVisible();
-    await expect(page.getByText('Upload a study to get started.')).toBeVisible();
+    await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
+  });
+
+  test('does not offer demo-only generated files to a normal account', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Try the demo study' })).toHaveCount(0);
   });
 
   test('header upload button navigates to upload form', async ({ page }) => {

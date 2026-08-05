@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Alert } from '../ui';
@@ -53,10 +55,15 @@ export function ScreenshotPanel({ caseId, screenshots, locked, onDeleted }: Prop
 
       <div className="space-y-2">
         {screenshots.map((ss) => (
-          <div key={ss.id} className="flex items-center justify-between gap-3 p-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-            <span className="text-xs text-slate-700 dark:text-slate-300 truncate font-mono">{ss.originalName}</span>
-            {!locked && (
-              deleteConfirm === ss.id ? (
+          <div
+            key={ss.id}
+            className="flex items-center justify-between gap-3 p-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
+          >
+            <span className="text-xs text-slate-700 dark:text-slate-300 truncate font-mono">
+              {ss.originalName}
+            </span>
+            {!locked &&
+              (deleteConfirm === ss.id ? (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     className="btn-danger text-xs py-1 px-2"
@@ -82,8 +89,7 @@ export function ScreenshotPanel({ caseId, screenshots, locked, onDeleted }: Prop
                 >
                   <Trash2 size={14} />
                 </button>
-              )
-            )}
+              ))}
           </div>
         ))}
       </div>

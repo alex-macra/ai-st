@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: Somnoscribe Sleep Study Review Assistant
+message: >-
+  If you refer to this software in academic or clinical work, please cite it
+  using these metadata, and state that output was adjudicated by a human
+  reviewer.
+type: software
+authors:
+  - family-names: Macra
+    given-names: Alex
+repository-code: https://github.com/alex-macra/somnoscribe
+license: AGPL-3.0-only
+version: 0.1.0-alpha.2
+date-released: '2026-08-05'
+keywords:
+  - sleep medicine
+  - polysomnography
+  - home sleep apnea testing
+  - EDF
+  - clinical decision support
+  - self-hosted
+abstract: >-
+  Somnoscribe is an experimental, self-hosted review workspace for sleep-study
+  artifacts. It preprocesses EDF recordings and supporting documents, drafts
+  evidence-linked observations with a large language model, and requires a
+  human reviewer to adjudicate every drafted claim before sign-off. It is
+  clinician-assist research software, not an autonomous diagnostic system and
+  not a medical device.

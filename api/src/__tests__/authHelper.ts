@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
@@ -40,8 +42,9 @@ export function authedSupertest(app: Express, auth: TestAuth): ReturnType<typeof
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
       if (typeof value === 'function' && typeof prop === 'string' && VERBS.has(prop)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (...args: unknown[]) => (value as any).apply(target, args).set('Cookie', auth.cookie);
+        return (...args: unknown[]) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (value as any).apply(target, args).set('Cookie', auth.cookie);
       }
       return typeof value === 'function' ? (value as () => unknown).bind(target) : value;
     },

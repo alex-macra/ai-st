@@ -1,4 +1,6 @@
-import type { EventSlice, SignalSlice } from '../shared/types';
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
+import type { EventSlice, SignalSlice } from '@contracts/types';
 
 const WIDTH = 820;
 const LANE_H = 72;
@@ -6,33 +8,36 @@ const LANE_GAP = 4;
 const MARGIN = { top: 8, right: 16, bottom: 28, left: 60 };
 
 const CHANNEL_COLORS: Record<string, string> = {
-  spo2:       '#4ade80',
+  spo2: '#4ade80',
   saturation: '#4ade80',
-  oximetry:   '#4ade80',
-  'o2 sat':   '#4ade80',
-  flow:       '#60a5fa',
-  airflow:    '#60a5fa',
-  'nasal flow':'#60a5fa',
-  oronasal:   '#60a5fa',
-  ptaf:       '#60a5fa',
+  oximetry: '#4ade80',
+  'o2 sat': '#4ade80',
+  flow: '#60a5fa',
+  airflow: '#60a5fa',
+  'nasal flow': '#60a5fa',
+  oronasal: '#60a5fa',
+  ptaf: '#60a5fa',
   'nasal pressure': '#60a5fa',
-  thorax:     '#f97316',
-  chest:      '#f97316',
+  thorax: '#f97316',
+  chest: '#f97316',
   'resp effort': '#f97316',
-  thoracic:   '#f97316',
-  abdomen:    '#facc15',
-  abdominal:  '#facc15',
-  position:        '#14b8a6',
-  'body pos':      '#14b8a6',
+  thoracic: '#f97316',
+  abdomen: '#facc15',
+  abdominal: '#facc15',
+  position: '#14b8a6',
+  'body pos': '#14b8a6',
   'body position': '#14b8a6',
-  body:            '#14b8a6',
+  body: '#14b8a6',
 };
 
 function channelColor(label: string): string {
   return CHANNEL_COLORS[label.toLowerCase()] ?? '#94a3b8';
 }
 
-function eventBandColor(type: string, magnitude: number): { fill: string; stroke: string; label: string } {
+function eventBandColor(
+  type: string,
+  magnitude: number,
+): { fill: string; stroke: string; label: string } {
   if (type === 'provisional_desaturation') {
     return { fill: 'rgba(168,85,247,0.15)', stroke: '#a855f7', label: 'Desat' };
   }
@@ -47,7 +52,11 @@ function eventBandColor(type: string, magnitude: number): { fill: string; stroke
 
 function yRange(slice: SignalSlice): [number, number] {
   const label = slice.channel.toLowerCase();
-  const isSpo2 = label.includes('spo2') || label.includes('saturation') || label.includes('oximetry') || label === 'o2 sat';
+  const isSpo2 =
+    label.includes('spo2') ||
+    label.includes('saturation') ||
+    label.includes('oximetry') ||
+    label === 'o2 sat';
   if (isSpo2) {
     const valid = slice.samples.filter((v: number) => Number.isFinite(v));
     const lo = valid.length ? Math.min(...valid) : 80;
@@ -83,11 +92,18 @@ function buildPath(
   let inPath = false;
   for (let i = 0; i < n; i++) {
     const v = slice.samples[i] as number | undefined;
-    if (v === undefined || !Number.isFinite(v)) { inPath = false; continue; }
+    if (v === undefined || !Number.isFinite(v)) {
+      inPath = false;
+      continue;
+    }
     const x = xOf(i).toFixed(2);
     const y = yOf(v).toFixed(2);
-    if (!inPath) { d += `M ${x} ${y}`; inPath = true; }
-    else         { d += ` L ${x} ${y}`; }
+    if (!inPath) {
+      d += `M ${x} ${y}`;
+      inPath = true;
+    } else {
+      d += ` L ${x} ${y}`;
+    }
   }
   return d;
 }
@@ -108,7 +124,7 @@ export function EventWaveformSnapshot({ event, index }: Props) {
   if (!slices.length) return null;
 
   const globalStart = Math.min(...slices.map((s) => s.windowStartSec));
-  const globalEnd   = Math.max(...slices.map((s) => s.windowEndSec));
+  const globalEnd = Math.max(...slices.map((s) => s.windowEndSec));
   const span = globalEnd - globalStart;
 
   const plotW = WIDTH - MARGIN.left - MARGIN.right;
@@ -131,11 +147,22 @@ export function EventWaveformSnapshot({ event, index }: Props) {
 
   return (
     <div style={{ pageBreakInside: 'avoid', marginBottom: 20 }}>
-      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div
+        style={{
+          fontSize: 11,
+          color: '#64748b',
+          marginBottom: 3,
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+        }}
+      >
         <span style={{ fontWeight: 600, color: band.stroke }}>
           {index + 1}. {band.label}
         </span>
-        <span>{formatTime(event.startSec)} – {formatTime(event.endSec)}</span>
+        <span>
+          {formatTime(event.startSec)} – {formatTime(event.endSec)}
+        </span>
         <span>{(event.endSec - event.startSec).toFixed(1)}s</span>
         {isTagged && (
           <span style={{ color: '#94a3b8', fontSize: 10 }}>
@@ -150,7 +177,6 @@ export function EventWaveformSnapshot({ event, index }: Props) {
         xmlns="http://www.w3.org/2000/svg"
       >
         <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
-
           {/* Per-channel lanes */}
           {slices.map((slice: SignalSlice, li: number) => {
             const laneY = li * (LANE_H + LANE_GAP);
@@ -178,10 +204,26 @@ export function EventWaveformSnapshot({ event, index }: Props) {
 
                 {/* Event boundary lines */}
                 {eventX1 > 0 && eventX1 < plotW && (
-                  <line x1={eventX1} x2={eventX1} y1={0} y2={LANE_H} stroke={band.stroke} strokeWidth={1} strokeDasharray="3,2" />
+                  <line
+                    x1={eventX1}
+                    x2={eventX1}
+                    y1={0}
+                    y2={LANE_H}
+                    stroke={band.stroke}
+                    strokeWidth={1}
+                    strokeDasharray="3,2"
+                  />
                 )}
                 {eventX2 > 0 && eventX2 < plotW && (
-                  <line x1={eventX2} x2={eventX2} y1={0} y2={LANE_H} stroke={band.stroke} strokeWidth={1} strokeDasharray="3,2" />
+                  <line
+                    x1={eventX2}
+                    x2={eventX2}
+                    y1={0}
+                    y2={LANE_H}
+                    stroke={band.stroke}
+                    strokeWidth={1}
+                    strokeDasharray="3,2"
+                  />
                 )}
 
                 {/* Zero baseline */}
@@ -190,10 +232,23 @@ export function EventWaveformSnapshot({ event, index }: Props) {
                 )}
 
                 {/* Signal trace */}
-                <path d={pathD} fill="none" stroke={color} strokeWidth={1.2} strokeLinejoin="round" />
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={1.2}
+                  strokeLinejoin="round"
+                />
 
                 {/* Channel label */}
-                <text x={-6} y={LANE_H / 2} fill={color} fontSize={10} textAnchor="end" dominantBaseline="middle">
+                <text
+                  x={-6}
+                  y={LANE_H / 2}
+                  fill={color}
+                  fontSize={10}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                >
                   {slice.channel}
                 </text>
 

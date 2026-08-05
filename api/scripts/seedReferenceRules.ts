@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import 'dotenv/config';
 import { seedReferenceDocs } from '../src/refs/seedReferenceDocs.js';
 

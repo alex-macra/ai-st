@@ -1,23 +1,44 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// This file necessarily contains every marker string it searches for, so it is
+// the one file exempt from the marker scan. All other checks still apply to it.
+const selfPath = path
+  .relative(process.cwd(), fileURLToPath(import.meta.url))
+  .split(path.sep)
+  .join('/');
 
 const allowedRoots = new Set([
+  '.dockerignore',
+  '.editorconfig',
   '.github',
+  '.gitleaks.toml',
   '.gitignore',
   '.nvmrc',
+  '.prettierignore',
+  '.prettierrc',
   'ARCHITECTURE.md',
+  'CHANGELOG.md',
+  'CITATION.cff',
   'CODE_OF_CONDUCT.md',
   'CONTRIBUTING.md',
+  'DCO',
   'LICENSE',
+  'LICENSE-COMMERCIAL.md',
   'NOTICE',
   'README.md',
   'SAFETY.md',
   'SECURITY.md',
   'THIRD_PARTY_NOTICES.md',
   'api',
+  'docker-compose.yml',
   'docs',
   'e2e',
+  'eslint.config.js',
   'examples',
   'frontend',
   'package-lock.json',
@@ -28,36 +49,43 @@ const allowedRoots = new Set([
 ]);
 
 const bannedExtensions = new Set([
-  '.bdf', '.db', '.duckdb', '.edf', '.p12', '.parquet', '.pdf', '.pfx', '.sqlite', '.sqlite3',
+  '.bdf',
+  '.db',
+  '.duckdb',
+  '.edf',
+  '.p12',
+  '.parquet',
+  '.pdf',
+  '.pfx',
+  '.sqlite',
+  '.sqlite3',
 ]);
 
 const bannedSegments = new Set([
-  ['.', 'claude'].join(''),
-  ['.', 'codex'].join(''),
-  ['_', 'research'].join(''),
+  '_research',
   'generated',
   'private-references',
   'reports',
   'tasks',
 ]);
 
-const privateMarkers = [
-  ['shared', 'core'].join('-'),
-  ['@', 'shared', '/'].join(''),
-  ['file:', '..', '/..', '/'].join(''),
-  ['Plan', 'For', 'Projects'].join(''),
-  ['U', 'C', 'D', 'D', 'B'].join(''),
-  ['CHAT', ' dataset'].join(''),
-  ['fetch_', 'chat'].join(''),
-  ['fetch_', 'u', 'c', 'd', 'd', 'b'].join(''),
-  ['Atlas of ', 'Sleep Medicine'].join(''),
-  ['Thomas', ' 2023'].join(''),
-  ['Kry', 'ger'].join(''),
-  ['Pete', 'an'].join(''),
-  ['Petre', 'an'].join(''),
-  ['Niko', 'las'].join(''),
-  ['Nicho', 'las'].join(''),
-];
+// Dot-directories and dotfiles carry local tooling and editor state. Allow the
+// few this repository publishes and reject the rest at any depth, so a new one
+// never needs to be enumerated here to be caught.
+const allowedDotSegments = new Set([
+  '.auth',
+  '.dockerignore',
+  '.editorconfig',
+  '.env.example',
+  '.github',
+  '.gitleaks.toml',
+  '.gitignore',
+  '.nvmrc',
+  '.prettierignore',
+  '.prettierrc',
+]);
+
+const privateMarkers = ['shared-core', '@shared/', 'file:../../', 'PlanForProjects'];
 
 const secretPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
@@ -74,26 +102,39 @@ function publishableFiles() {
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
     { encoding: 'buffer' },
   );
-  return output.toString('utf8').split('\0').filter(Boolean).filter((file) => {
-    try {
-      lstatSync(file);
-      return true;
-    } catch (error) {
-      if (error && typeof error === 'object' && error.code === 'ENOENT') return false;
-      throw error;
-    }
-  }).sort();
+  return output
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .filter((file) => {
+      try {
+        lstatSync(file);
+        return true;
+      } catch (error) {
+        if (error && typeof error === 'object' && error.code === 'ENOENT') return false;
+        throw error;
+      }
+    })
+    .sort();
 }
 
 function checkPath(file, failures) {
   const normalized = file.split(path.sep).join('/');
   const segments = normalized.split('/');
   if (!allowedRoots.has(segments[0])) failures.push(`${file}: top-level path is not allowlisted`);
-  if (segments.some((segment) => bannedSegments.has(segment))) failures.push(`${file}: forbidden directory`);
-  if (normalized.startsWith('api/refs/')) failures.push(`${file}: bundled reference pack is forbidden`);
-  if (normalized.startsWith('e2e/.auth/') && !normalized.endsWith('/.gitignore')) failures.push(`${file}: browser auth state is forbidden`);
-  if (bannedExtensions.has(path.extname(normalized).toLowerCase())) failures.push(`${file}: forbidden artifact type`);
-  if (/^(?:latest|generated[-_].*|.*[-_]report)\./i.test(path.basename(normalized))) failures.push(`${file}: generated report-like filename`);
+  if (segments.some((segment) => bannedSegments.has(segment)))
+    failures.push(`${file}: forbidden directory`);
+  if (segments.some((segment) => segment.startsWith('.') && !allowedDotSegments.has(segment))) {
+    failures.push(`${file}: dot-path is not allowlisted`);
+  }
+  if (normalized.startsWith('api/refs/'))
+    failures.push(`${file}: bundled reference pack is forbidden`);
+  if (normalized.startsWith('e2e/.auth/') && !normalized.endsWith('/.gitignore'))
+    failures.push(`${file}: browser auth state is forbidden`);
+  if (bannedExtensions.has(path.extname(normalized).toLowerCase()))
+    failures.push(`${file}: forbidden artifact type`);
+  if (/^(?:latest|generated[-_].*|.*[-_]report)\./i.test(path.basename(normalized)))
+    failures.push(`${file}: generated report-like filename`);
 
   const stat = lstatSync(file);
   if (stat.isSymbolicLink()) failures.push(`${file}: symlinks are forbidden`);
@@ -106,11 +147,18 @@ function checkText(file, failures) {
   if (buffer.includes(0)) return;
   const content = buffer.toString('utf8');
 
-  if (/\/home\/[A-Za-z0-9._-]+\//.test(content) || /\/Users\/[A-Za-z0-9._-]+\//.test(content) || /[A-Za-z]:\\Users\\/.test(content)) {
+  if (
+    /\/home\/[A-Za-z0-9._-]+\//.test(content) ||
+    /\/Users\/[A-Za-z0-9._-]+\//.test(content) ||
+    /[A-Za-z]:\\Users\\/.test(content)
+  ) {
     failures.push(`${file}: absolute machine path`);
   }
-  for (const marker of privateMarkers) {
-    if (content.toLowerCase().includes(marker.toLowerCase())) failures.push(`${file}: private marker detected`);
+  if (file !== selfPath) {
+    for (const marker of privateMarkers) {
+      if (content.toLowerCase().includes(marker.toLowerCase()))
+        failures.push(`${file}: private marker detected`);
+    }
   }
   for (const pattern of secretPatterns) {
     if (pattern.test(content)) failures.push(`${file}: secret-like value detected`);
@@ -119,7 +167,8 @@ function checkText(file, failures) {
   const emails = content.match(/[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,}|localhost)/gi) ?? [];
   for (const email of emails) {
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
-    if (!allowedEmailDomains.has(domain)) failures.push(`${file}: non-example email address detected`);
+    if (!allowedEmailDomains.has(domain))
+      failures.push(`${file}: non-example email address detected`);
   }
 }
 

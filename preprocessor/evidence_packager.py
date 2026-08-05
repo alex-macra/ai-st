@@ -1,8 +1,11 @@
+# Copyright 2026 Alex Macra
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Assemble a compact case package for LLM consumption.
 Target size: ≤ 8 KB JSON.  Raw signal arrays are never included.
 Candidates are pre-sorted by priority_score (descending) from candidate_windows.py.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,33 +16,31 @@ from typing import Any
 import numpy as np
 import pyedflib
 
-from edf_parser import ChannelInventory
-from signal_qc import QCResults
 from candidate_windows import (
-    CandidateWindow,
     CandidateSet,
-    _SPO2_LABELS,
-    _FLOW_LABELS,
-    _EFFORT_LABELS,
-    _POSITION_LABELS,
-    _find_channel,
+    CandidateWindow,
     headline_flow_events,
 )
+from channels import (
+    APNEA_MAGNITUDE_FLOOR,
+    FLOW_LABELS,
+    HR_LABELS,
+    HYPOPNEA_MAGNITUDE_FLOOR,
+    POSITION_LABELS,
+    QUALITY_FLOOR,
+    SNORE_LABELS,
+    SPO2_LABELS,
+    SPO2_PHYSIOLOGICAL_MAX,
+    SPO2_PHYSIOLOGICAL_MIN,
+    find_channel,
+)
 from const import SCHEMA_VERSION
+from edf_parser import ChannelInventory
+from signal_qc import QCResults
 
 _MAX_CANDIDATES = 20
-_SPO2_PHYSIOLOGICAL_MIN = 50.0
-_SPO2_PHYSIOLOGICAL_MAX = 100.0
 _T90_THRESHOLD = 90.0
 _T80_THRESHOLD = 80.0
-
-# SOMNOtouch RESP channel label tokens for HR and snore
-_HR_LABELS = {"pulse", "hr", "heart rate", "pulse rate", "herzfrequenz"}
-_SNORE_LABELS = {"snore", "snoring", "schnarch", "schnarchen", "snore mic"}
-
-# Flow-reduction magnitude thresholds for apnea vs hypopnea classification
-_APNEA_MAGNITUDE_THRESHOLD = 0.9   # ≥90% reduction
-_HYPOPNEA_MAGNITUDE_THRESHOLD = 0.3  # 30–90% reduction
 
 
 def _spo2_summary(
@@ -48,11 +49,11 @@ def _spo2_summary(
     qc: QCResults,
     desat_candidates: list[CandidateWindow],
 ) -> dict[str, Any] | None:
-    spo2_label = _find_channel(inventory, _SPO2_LABELS)
+    spo2_label = find_channel(inventory, SPO2_LABELS)
     if spo2_label is None:
         return None
     qc_ch = qc.for_label(spo2_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(spo2_label)
     assert ch is not None
@@ -60,7 +61,7 @@ def _spo2_summary(
     with pyedflib.EdfReader(str(edf_path)) as reader:
         sig = reader.readSignal(ch.index).astype(np.float64)
 
-    sig[(sig < _SPO2_PHYSIOLOGICAL_MIN) | (sig > _SPO2_PHYSIOLOGICAL_MAX)] = np.nan
+    sig[(sig < SPO2_PHYSIOLOGICAL_MIN) | (sig > SPO2_PHYSIOLOGICAL_MAX)] = np.nan
     valid = sig[~np.isnan(sig)]
     if valid.size == 0:
         return None
@@ -101,11 +102,11 @@ def _spo2_summary(
 
 
 def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> dict[str, Any] | None:
-    hr_label = _find_channel(inventory, _HR_LABELS)
+    hr_label = find_channel(inventory, HR_LABELS)
     if hr_label is None:
         return None
     qc_ch = qc.for_label(hr_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(hr_label)
     assert ch is not None
@@ -127,12 +128,14 @@ def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> d
     }
 
 
-def _snore_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float) -> dict[str, Any] | None:
-    snore_label = _find_channel(inventory, _SNORE_LABELS)
+def _snore_summary(
+    edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float
+) -> dict[str, Any] | None:
+    snore_label = find_channel(inventory, SNORE_LABELS)
     if snore_label is None:
         return None
     qc_ch = qc.for_label(snore_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(snore_label)
     assert ch is not None
@@ -150,7 +153,7 @@ def _snore_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults, d
     if max_val <= 1.0:
         snore_threshold = 0.0
     else:
-        rms = float(np.sqrt(np.mean(sig ** 2)))
+        rms = float(np.sqrt(np.mean(sig**2)))
         snore_threshold = rms * 3.0
     snore_samples = float(np.sum(sig > snore_threshold))
     snore_minutes = round(snore_samples / ch.sample_rate / 60.0, 2)
@@ -171,11 +174,11 @@ def _positional_rei(
     flow_candidates: list[CandidateWindow],
     duration_hours: float,
 ) -> dict[str, Any] | None:
-    pos_label = _find_channel(inventory, _POSITION_LABELS)
+    pos_label = find_channel(inventory, POSITION_LABELS)
     if pos_label is None or not flow_candidates:
         return None
     qc_ch = qc.for_label(pos_label)
-    if qc_ch is None or qc_ch.quality_score < 0.3:
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
         return None
     ch = inventory.by_label(pos_label)
     assert ch is not None
@@ -220,7 +223,9 @@ def _positional_rei(
         "supine_flow_event_count": len(supine_events),
         "nonsupine_flow_event_count": len(nonsupine_events),
         "supine_rei_per_hour": round(len(supine_events) / supine_hours, 2) if supine_hours > 0 else None,
-        "nonsupine_rei_per_hour": round(len(nonsupine_events) / nonsupine_hours, 2) if nonsupine_hours > 0 else None,
+        "nonsupine_rei_per_hour": round(len(nonsupine_events) / nonsupine_hours, 2)
+        if nonsupine_hours > 0
+        else None,
     }
 
 
@@ -246,8 +251,8 @@ def _compute_study_metrics(
     # Flow events carry rejection tags from candidate_windows post-processing
     # (P1 SpO2 coupling, P2 flat-interval gating, P4 merge, P5 amplitude floor).
     # Headline AHI/REI uses only untagged events; the full set stays in the
-    # candidate list so the validation scorer and clinician see everything.
-    flow_label = _find_channel(inventory, _FLOW_LABELS)
+    # candidate list so the clinician sees everything.
+    flow_label = find_channel(inventory, FLOW_LABELS)
     flow_flat_pct: float | None = None
     if flow_label:
         qc_flow = qc.for_label(flow_label)
@@ -258,10 +263,9 @@ def _compute_study_metrics(
     headline_candidates = headline_flow_events(flow_candidates)
 
     # Flow-reduction sub-classification by magnitude (headline subset)
-    apnea_candidates = [w for w in headline_candidates if w.magnitude >= _APNEA_MAGNITUDE_THRESHOLD]
+    apnea_candidates = [w for w in headline_candidates if w.magnitude >= APNEA_MAGNITUDE_FLOOR]
     hypopnea_candidates = [
-        w for w in headline_candidates
-        if _HYPOPNEA_MAGNITUDE_THRESHOLD <= w.magnitude < _APNEA_MAGNITUDE_THRESHOLD
+        w for w in headline_candidates if HYPOPNEA_MAGNITUDE_FLOOR <= w.magnitude < APNEA_MAGNITUDE_FLOOR
     ]
 
     # Exclude flat-signal artifact from the REI/ODI denominator, matching DOMINO's
@@ -273,10 +277,16 @@ def _compute_study_metrics(
         effective_duration_sec = duration_sec * (1.0 - flow_flat_pct)
     effective_duration_hours = effective_duration_sec / 3600.0 if effective_duration_sec > 0 else 0.0
 
-    provisional_rei_per_hour = round(len(headline_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    provisional_rei_per_hour = (
+        round(len(headline_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
     provisional_rei_adjusted_per_hour = provisional_rei_per_hour
-    provisional_rei_raw_per_hour = round(len(flow_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
-    provisional_odi_per_hour = round(len(desat_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    provisional_rei_raw_per_hour = (
+        round(len(flow_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
+    provisional_odi_per_hour = (
+        round(len(desat_candidates) / effective_duration_hours, 2) if effective_duration_hours > 0 else 0.0
+    )
 
     artifact_excluded = funnel.get("tagged_artifact", 0)
 
@@ -289,7 +299,9 @@ def _compute_study_metrics(
         # Pediatric criterion-4 split: coupled = desat-confirmed (only valid when SpO2
         # coupling was actually applied); uncoupled = tagged-out events that lacked a
         # concurrent SpO2 drop. None when coupling was not applied (no SpO2 channel).
-        "coupled_hypopnea_count": len(hypopnea_candidates) if bool(funnel.get("coupling_applied", 0)) else None,
+        "coupled_hypopnea_count": len(hypopnea_candidates)
+        if bool(funnel.get("coupling_applied", 0))
+        else None,
         "uncoupled_hypopnea_count": funnel.get("tagged_uncoupled_hypopnea", 0),
         "raw_count_pre_filter": len(flow_candidates),
         "severity_breakdown": dict(Counter(w.dedupe_key for w in headline_candidates if w.dedupe_key)),
@@ -386,12 +398,10 @@ def package_evidence(
         )
 
     missing_channels = [
-        {"label": label, "present": False, "reason": "not_in_file"}
-        for label in candidates.channels_missing
+        {"label": label, "present": False, "reason": "not_in_file"} for label in candidates.channels_missing
     ]
     low_quality_channels = [
-        {"label": label, "reason": "below_quality_floor"}
-        for label in candidates.channels_low_quality
+        {"label": label, "reason": "below_quality_floor"} for label in candidates.channels_low_quality
     ]
 
     trimmed_candidates = candidates.windows[:_MAX_CANDIDATES]
@@ -456,8 +466,8 @@ def package_evidence(
     # Enforce 8 KB limit - truncate candidates further if needed
     while len(json.dumps(package).encode()) > 8 * 1024 and package["candidate_windows"]:
         package["candidate_windows"].pop()
-        package["candidate_count_trimmed_from_llm_package"] = (
-            package["candidate_count_total"] - len(package["candidate_windows"])
+        package["candidate_count_trimmed_from_llm_package"] = package["candidate_count_total"] - len(
+            package["candidate_windows"]
         )
 
     return package

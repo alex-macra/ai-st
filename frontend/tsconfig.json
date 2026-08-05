@@ -8,6 +8,13 @@
     "jsx": "react-jsx",
     "types": ["vite/client"],
 
+    // The wire contract is owned by the API. Importing it directly is safe
+    // because shared/ is self-contained: it pulls in no server code and is
+    // erased at build time apart from a handful of literal-union arrays.
+    "paths": {
+      "@contracts/*": ["../api/src/shared/*"]
+    },
+
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -17,5 +24,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts"]
+  // The build config files are checked separately by tsconfig.node.json. They
+  // need Node's types; application code must not have them in scope.
+  "include": ["src"]
 }

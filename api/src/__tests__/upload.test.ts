@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -29,7 +31,10 @@ interface FetchCall {
   formData: FormData;
 }
 
-function stubPreprocessor(payload: Record<string, unknown>, status = 200): { calls: FetchCall[]; restore: () => void } {
+function stubPreprocessor(
+  payload: Record<string, unknown>,
+  status = 200,
+): { calls: FetchCall[]; restore: () => void } {
   const calls: FetchCall[] = [];
   const original = globalThis.fetch;
   const stub = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
@@ -37,26 +42,44 @@ function stubPreprocessor(payload: Record<string, unknown>, status = 200): { cal
     calls.push({ url: String(url), init, formData: form });
     return new Response(JSON.stringify(payload), {
       status,
-      headers: { 'content-type': 'application/json' }
+      headers: { 'content-type': 'application/json' },
     });
   });
   globalThis.fetch = stub as unknown as typeof fetch;
-  return { calls, restore: () => { globalThis.fetch = original; } };
+  return {
+    calls,
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
 }
 
 function stubPreprocessorError(): { restore: () => void } {
   const original = globalThis.fetch;
-  globalThis.fetch = vi.fn(async () => { throw new Error('connect ECONNREFUSED'); }) as unknown as typeof fetch;
-  return { restore: () => { globalThis.fetch = original; } };
+  globalThis.fetch = vi.fn(async () => {
+    throw new Error('connect ECONNREFUSED');
+  }) as unknown as typeof fetch;
+  return {
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
 }
 
 function stubInvalidPreprocessorJson(): { restore: () => void } {
   const original = globalThis.fetch;
-  globalThis.fetch = vi.fn(async () => new Response('{', {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })) as unknown as typeof fetch;
-  return { restore: () => { globalThis.fetch = original; } };
+  globalThis.fetch = vi.fn(
+    async () =>
+      new Response('{', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+  ) as unknown as typeof fetch;
+  return {
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
 }
 
 function isCaseId(id: unknown): id is string {
@@ -73,7 +96,7 @@ const PACKAGE = {
     candidate_count_total: 120,
     provisional_odi_per_hour: 15.0,
   },
-  candidate_windows: []
+  candidate_windows: [],
 };
 
 const SCREENSHOT_PACKAGE = {
@@ -136,9 +159,7 @@ describe('POST /api/upload', () => {
     });
     restore = stub.restore;
 
-    const res = await request
-      .post('/api/upload')
-      .attach('edf', syntheticEdf(), 'study.edf');
+    const res = await request.post('/api/upload').attach('edf', syntheticEdf(), 'study.edf');
 
     expect(res.status).toBe(422);
     expect(res.body.code).toBe('PREPROCESSOR_RESPONSE_TOO_LARGE');
@@ -179,9 +200,7 @@ describe('POST /api/upload', () => {
   it('returns a schema error when preprocessor JSON is malformed', async () => {
     const stub = stubInvalidPreprocessorJson();
     restore = stub.restore;
-    const res = await request
-      .post('/api/upload')
-      .attach('edf', syntheticEdf(), 'study.edf');
+    const res = await request.post('/api/upload').attach('edf', syntheticEdf(), 'study.edf');
     expect(res.status).toBe(422);
     expect(res.body.code).toBe('PREPROCESSOR_SCHEMA_MISMATCH');
   });
@@ -264,12 +283,8 @@ describe('POST /api/upload', () => {
     const stub = stubPreprocessor(PACKAGE);
     restore = stub.restore;
 
-    const r1 = await request
-      .post('/api/upload')
-      .attach('edf', syntheticEdf('identical'), 'a.edf');
-    const r2 = await request
-      .post('/api/upload')
-      .attach('edf', syntheticEdf('identical'), 'b.edf');
+    const r1 = await request.post('/api/upload').attach('edf', syntheticEdf('identical'), 'a.edf');
+    const r2 = await request.post('/api/upload').attach('edf', syntheticEdf('identical'), 'b.edf');
 
     expect(r1.body.studyHash).toBe(r2.body.studyHash);
     expect(r1.body.caseId).not.toBe(r2.body.caseId);
@@ -329,7 +344,7 @@ describe('POST /api/upload', () => {
   });
 
   it('removes its private per-request upload directory after processing', async () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'ai-st-upload-test-'));
+    const root = mkdtempSync(path.join(tmpdir(), 'somnoscribe-upload-test-'));
     const previous = process.env['UPLOAD_TMP_DIR'];
     process.env['UPLOAD_TMP_DIR'] = root;
     const stub = stubPreprocessor(PACKAGE);

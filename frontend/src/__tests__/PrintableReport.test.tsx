@@ -1,7 +1,9 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PrintableReport } from '../components/PrintableReport';
-import type { Case, EventSlice, Finding, StructuredReport } from '../shared/types';
+import type { Case, EventSlice, Finding, StructuredReport } from '@contracts/types';
 
 vi.mock('../api', () => ({
   getAuditLog: vi.fn(async () => ({ auditLog: [], tokenStats: null })),
@@ -14,7 +16,7 @@ function fullReport(): StructuredReport {
     studyQuality: {
       totalRecordingTime: '7h 12m',
       analysableTime: '6h 50m',
-      channelIssues: ['SpO₂ dropouts in last hour']
+      channelIssues: ['SpO₂ dropouts in last hour'],
     },
     respiratoryIndices: { ahi: 22.4, rei: 19.1, odi3: 18.5 },
     oxygenation: { meanSpO2: 93, nadirSpO2: 81, t90Pct: 6.2 },
@@ -22,7 +24,7 @@ function fullReport(): StructuredReport {
     snoring: { snoreTimePct: 22.1, snoreIndex: 140 },
     cardiac: { meanHr: 68, minHr: 51, maxHr: 92 },
     impression: 'Moderate OSA, position-dependent. Consider PAP titration.',
-    citations: { summary: ['F-001'], impression: ['F-001'] }
+    citations: { summary: ['F-001'], impression: ['F-001'] },
   };
 }
 
@@ -32,11 +34,11 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
     claim: 'AHI elevated at 22.4/h consistent with moderate OSA',
     evidence: [
       { type: 'edf_metric', source: 'ahi', value: 22.4 },
-      { type: 'event_table', source: 'apnea_events', value: 87 }
+      { type: 'event_table', source: 'apnea_events', value: 87 },
     ],
     confidence: 'high',
     reviewerDecision: 'confirm',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -46,17 +48,18 @@ function makeCase(overrides: Partial<Case> = {}): Case {
     studyHash: 'a'.repeat(64),
     name: '2026-04-30-093000-study-01',
     status: 'signed_off',
+    cohort: 'adult',
     findings: [makeFinding()],
     structuredReport: fullReport(),
     sectionReviews: {
-      summary: { decision: 'confirm', reviewedAt: '2026-04-30T10:00:00Z' }
+      summary: { decision: 'confirm', reviewedAt: '2026-04-30T10:00:00Z' },
     },
     preprocessorVersion: '0.3.1',
     promptVersion: '1.2.0',
     modelVersion: 'gpt-5.4-mini',
     createdAt: '2026-04-30T09:00:00Z',
     updatedAt: '2026-04-30T10:00:00Z',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -66,6 +69,71 @@ describe('<PrintableReport />', () => {
     expect(screen.getByText('Sleep Study Analysis Report')).toBeInTheDocument();
     expect(screen.getByText('2026-04-30-093000-study-01')).toBeInTheDocument();
     expect(screen.getByText(/gpt-5\.4-mini.*prompt 1\.2\.0/)).toBeInTheDocument();
+  });
+
+  it('keeps separate durable input and report provenance inside the printable report', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({
+          sourceKind: 'demo_synthetic',
+          analysisMode: 'demo',
+          modelVersion: 'somnoscribe-offline-demo',
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/synthetic demo study.*input recording was generated/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/offline-generated report.*built-in demo model/i)).toBeInTheDocument();
+    expect(screen.getByText(/synthetic input.*offline-generated report/i)).toBeInTheDocument();
+    expect(screen.getByText(/somnoscribe-offline-demo.*prompt 1\.2\.0/)).toBeInTheDocument();
+  });
+
+  it('does not mislabel a real input when only its report was generated offline', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({ analysisMode: 'demo', modelVersion: 'somnoscribe-offline-demo' })}
+      />,
+    );
+
+    expect(screen.getByText(/offline-generated report.*built-in demo model/i)).toBeInTheDocument();
+    expect(screen.queryByText(/synthetic demo study/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps an offline action plan distinct from an OpenAI-generated report', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({
+          actionPlan: {
+            priorityActions: [],
+            verifyNext: [],
+            artifactCaveats: [],
+            clinicalContext: {
+              commonPresentation: 'Review the confirmed finding.',
+              rareButRelevant: [],
+            },
+            generatedAt: '2026-04-30T10:00:00Z',
+            modelVersion: 'somnoscribe-offline-demo',
+            analysisMode: 'demo',
+            promptVersion: '4.0.0',
+            tokensIn: 1,
+            tokensOut: 1,
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/offline-generated action plan.*built-in demo model/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/offline-generated report.*built-in demo model/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/synthetic demo study/i)).not.toBeInTheDocument();
   });
 
   it('renders all populated structured-report sections', () => {
@@ -89,7 +157,7 @@ describe('<PrintableReport />', () => {
       structuredReport: (() => {
         const { snoring: _s, cardiac: _c, ...rest } = fullReport();
         return { ...rest, studyQuality: { channelIssues: [] } };
-      })()
+      })(),
     });
     render(<PrintableReport signalSlices={[]} c={c} />);
     expect(screen.queryByText('Snore Analysis')).not.toBeInTheDocument();
@@ -106,7 +174,7 @@ describe('<PrintableReport />', () => {
   it('uses editedClaim over claim when reviewer edited the finding', () => {
     const f = makeFinding({
       reviewerDecision: 'edit',
-      editedClaim: 'Reviewer-edited: AHI 18.0/h - mild OSA'
+      editedClaim: 'Reviewer-edited: AHI 18.0/h - mild OSA',
     });
     render(<PrintableReport signalSlices={[]} c={makeCase({ findings: [f] })} />);
     expect(screen.getByText(/Reviewer-edited: AHI 18\.0\/h/)).toBeInTheDocument();
@@ -139,9 +207,9 @@ describe('<PrintableReport />', () => {
         impression: {
           decision: 'edit',
           editedValue: 'Reviewer rewrote impression: severe OSA, urgent.',
-          reviewedAt: '2026-04-30T10:00:00Z'
-        }
-      }
+          reviewedAt: '2026-04-30T10:00:00Z',
+        },
+      },
     });
     render(<PrintableReport signalSlices={[]} c={c} />);
     expect(screen.getByText(/Reviewer rewrote impression/)).toBeInTheDocument();
@@ -160,7 +228,7 @@ function makeEventSlice(overrides: Partial<EventSlice> = {}): EventSlice {
     tags: [],
     signalSlices: [
       { channel: 'Airflow', windowStartSec: 10, windowEndSec: 85, samples: [0.1, 0.2, 0.3] },
-      { channel: 'SpO2',    windowStartSec: 10, windowEndSec: 85, samples: [96, 95, 94] },
+      { channel: 'SpO2', windowStartSec: 10, windowEndSec: 85, samples: [96, 95, 94] },
     ],
     ...overrides,
   };

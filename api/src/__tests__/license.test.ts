@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/connection.js';
 import { createLicenseTable, getLicense, mintLicenseKeys } from '../license.js';
@@ -11,7 +13,7 @@ describe('local invitations', () => {
 
     expect(new Set(keys).size).toBe(64);
     for (const key of keys) {
-      expect(key).toMatch(/^AIST-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
+      expect(key).toMatch(/^SOMNO-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
       expect(getLicense(db, key)).toMatchObject({ key, used: 0, tier: 'starter' });
     }
     db.close();

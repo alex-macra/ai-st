@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { randomInt } from 'node:crypto';
 import { createRequire } from 'node:module';
 import type { Request, Response } from 'express';
@@ -7,6 +9,8 @@ import { getLicense, burnLicense } from '../license.js';
 import {
   getDb,
   createUser,
+  createDemoUser,
+  DemoPrincipalCapacityError,
   getUserByEmail,
   upsertOtp,
   verifyAndConsumeOtp,
@@ -15,9 +19,25 @@ import {
   updateUserName,
 } from '../db.js';
 import { sendOtp } from '../email.js';
-import { signJwt, setAuthCookie, clearAuthCookie, requireAuth } from '../middleware/auth.js';
+import {
+  signJwt,
+  setAuthCookie,
+  clearAuthCookie,
+  requireAuth,
+  requireNonDemoUser,
+  requirePublicDemoMode,
+} from '../middleware/auth.js';
 import { logger } from '../logger.js';
 import type { User } from '../shared/types.js';
+import {
+  DEMO_SESSION_JWT_TTL,
+  DEMO_SESSION_TTL_MS,
+  DEMO_USER_EMAIL,
+  demoMaxActivePrincipals,
+  demoExpiresAt,
+  isReservedDemoEmail,
+} from '../demo.js';
+import { purgeExpiredDemoData } from '../demoData.js';
 
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');
@@ -33,12 +53,14 @@ const loginSchema = z.object({
 
 const verifySchema = z.object({
   email: zEmail,
-  code: z.string().length(6).regex(/^\d{6}$/),
+  code: z
+    .string()
+    .length(6)
+    .regex(/^\d{6}$/),
 });
 
 type ActivationResult =
-  | { ok: true; user: User }
-  | { ok: false; reason: 'invalid' | 'used' | 'existing' };
+  { ok: true; user: User } | { ok: false; reason: 'invalid' | 'used' | 'existing' };
 
 function activateInvitation(email: string, licenseKey: string): ActivationResult {
   const db = getDb();
@@ -57,6 +79,65 @@ function generateOtp(): string {
   return n.toString().padStart(6, '0');
 }
 
+export { DEMO_USER_EMAIL } from '../demo.js';
+
+function authenticatedUserPayload(user: User) {
+  return {
+    id: user.id,
+    email: user.isDemo ? DEMO_USER_EMAIL : user.email,
+    organizationId: user.organizationId,
+    tier: user.tier,
+    isAdmin: user.isAdmin,
+    isDemo: user.isDemo,
+    tokenBudget: user.tokenBudget,
+  };
+}
+
+function rejectReservedDemoEmail(res: Response, email: string): boolean {
+  if (!isReservedDemoEmail(email)) return false;
+  res.status(400).json({ error: 'This email address is reserved for the temporary demo session.' });
+  return true;
+}
+
+export function createDemoAuthRouter() {
+  const router = express.Router();
+
+  router.use(requirePublicDemoMode);
+
+  router.post('/', async (_req: Request, res: Response): Promise<void> => {
+    try {
+      await purgeExpiredDemoData();
+    } catch (err) {
+      logger.warn(
+        { errorType: err instanceof Error ? err.name : 'UnknownError' },
+        'demo_purge_failed',
+      );
+    }
+
+    let user: User;
+    try {
+      user = createDemoUser(demoExpiresAt(), demoMaxActivePrincipals());
+    } catch (err) {
+      if (err instanceof DemoPrincipalCapacityError) {
+        res.setHeader('Retry-After', '60');
+        res.status(429).json({
+          code: 'demo_session_capacity',
+          error: 'The demo is at temporary session capacity. Please try again shortly.',
+          retryAfterSeconds: 60,
+        });
+        return;
+      }
+      throw err;
+    }
+    setAuthCookie(res, signJwt(user.id, DEMO_SESSION_JWT_TTL), DEMO_SESSION_TTL_MS);
+
+    logger.info({ userId: user.id }, 'demo_user_signed_in');
+    res.json({ user: authenticatedUserPayload(user) });
+  });
+
+  return router;
+}
+
 export function createAuthRouter() {
   const router = express.Router();
 
@@ -68,6 +149,7 @@ export function createAuthRouter() {
     }
 
     const { email, licenseKey } = parsed.data;
+    if (rejectReservedDemoEmail(res, email)) return;
 
     const activation = activateInvitation(email, licenseKey);
     if (!activation.ok && activation.reason === 'invalid') {
@@ -79,7 +161,9 @@ export function createAuthRouter() {
       return;
     }
     if (!activation.ok) {
-      res.status(400).json({ error: 'An account with this email already exists. Please sign in instead.' });
+      res
+        .status(400)
+        .json({ error: 'An account with this email already exists. Please sign in instead.' });
       return;
     }
     const { user } = activation;
@@ -88,7 +172,7 @@ export function createAuthRouter() {
     setAuthCookie(res, token);
 
     logger.info({ userId: user.id }, 'account_activated');
-    res.json({ user: { id: user.id, email: user.email, organizationId: user.organizationId, tier: user.tier, isAdmin: user.isAdmin, tokenBudget: user.tokenBudget } });
+    res.json({ user: authenticatedUserPayload(user) });
   });
 
   router.post('/login', async (req: Request, res: Response): Promise<void> => {
@@ -99,9 +183,10 @@ export function createAuthRouter() {
     }
 
     const { email } = parsed.data;
+    if (rejectReservedDemoEmail(res, email)) return;
 
     const user = getUserByEmail(email);
-    if (!user) {
+    if (!user || user.isDemo) {
       res.json({ ok: true });
       return;
     }
@@ -111,7 +196,7 @@ export function createAuthRouter() {
 
     try {
       await sendOtp(email, code);
-    } catch (err) {
+    } catch {
       logger.error('otp_send_failed');
       res.status(500).json({ error: 'Failed to send sign-in code. Please try again.' });
       return;
@@ -129,10 +214,12 @@ export function createAuthRouter() {
     }
 
     const { email, code } = parsed.data;
+    if (rejectReservedDemoEmail(res, email)) return;
 
-    const devBypass = process.env['NODE_ENV'] !== 'production'
-      && process.env['DEV_OTP_BYPASS'] === 'true'
-      && code === '000000';
+    const devBypass =
+      process.env['NODE_ENV'] !== 'production' &&
+      process.env['DEV_OTP_BYPASS'] === 'true' &&
+      code === '000000';
     const valid = devBypass || verifyAndConsumeOtp(email, code);
     if (!valid) {
       res.status(400).json({ error: 'Invalid or expired code. Please request a new one.' });
@@ -140,7 +227,7 @@ export function createAuthRouter() {
     }
 
     const user = getUserByEmail(email);
-    if (!user) {
+    if (!user || user.isDemo) {
       res.status(400).json({ error: 'Account not found.' });
       return;
     }
@@ -150,7 +237,7 @@ export function createAuthRouter() {
     setAuthCookie(res, token);
 
     logger.info({ userId: user.id }, 'user_logged_in');
-    res.json({ user: { id: user.id, email: user.email, organizationId: user.organizationId, tier: user.tier, isAdmin: user.isAdmin, tokenBudget: user.tokenBudget } });
+    res.json({ user: authenticatedUserPayload(user) });
   });
 
   router.get('/me', requireAuth, (req: Request, res: Response): void => {
@@ -159,11 +246,12 @@ export function createAuthRouter() {
     res.json({
       user: {
         id: u.id,
-        email: u.email,
+        email: u.isDemo ? DEMO_USER_EMAIL : u.email,
         name: u.name ?? null,
         organizationId: u.organizationId,
         tier: u.tier,
         isAdmin: u.isAdmin,
+        isDemo: u.isDemo,
         tokenBudget: u.tokenBudget,
         tokens4h: usage.tokens4h,
         tokensWeek: usage.tokensWeek,
@@ -175,9 +263,12 @@ export function createAuthRouter() {
     });
   });
 
-  router.patch('/me/name', requireAuth, (req: Request, res: Response): void => {
+  router.patch('/me/name', requireNonDemoUser, (req: Request, res: Response): void => {
     const parsed = z.object({ name: z.string().trim().min(1).max(100) }).safeParse(req.body);
-    if (!parsed.success) { res.status(400).json({ error: 'name must be 1–100 characters' }); return; }
+    if (!parsed.success) {
+      res.status(400).json({ error: 'name must be 1–100 characters' });
+      return;
+    }
     updateUserName(req.user!.id, parsed.data.name);
     res.json({ ok: true, name: parsed.data.name });
   });

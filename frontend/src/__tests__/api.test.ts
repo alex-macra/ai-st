@@ -1,6 +1,8 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { streamAnalysis } from '../api';
-import type { AnalysisEvent } from '../shared/types';
+import type { AnalysisEvent } from '@contracts/types';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -12,16 +14,22 @@ describe('analysis streaming', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
     const events: AnalysisEvent[] = [];
 
-    await expect(streamAnalysis('case-1', (event) => events.push(event), new AbortController().signal))
-      .resolves.toBeUndefined();
+    await expect(
+      streamAnalysis('case-1', (event) => events.push(event), new AbortController().signal),
+    ).resolves.toBeUndefined();
     expect(events).toEqual([]);
   });
 
   it('turns HTTP failures into the existing SSE error contract', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
-      JSON.stringify({ message: 'Analysis unavailable' }),
-      { status: 503, headers: { 'content-type': 'application/json' } },
-    )));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Analysis unavailable' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
     const events: AnalysisEvent[] = [];
 
     await streamAnalysis('case-1', (event) => events.push(event));
@@ -35,6 +43,8 @@ describe('analysis streaming', () => {
 
     await streamAnalysis('case-1', (event) => events.push(event));
 
-    expect(events).toEqual([{ type: 'error', message: 'Connection interrupted - please try again.' }]);
+    expect(events).toEqual([
+      { type: 'error', message: 'Connection interrupted - please try again.' },
+    ]);
   });
 });

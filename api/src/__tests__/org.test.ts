@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createApp } from '../app.js';
 import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
@@ -44,7 +46,9 @@ describe('/api/org', () => {
     expect(join.status).toBe(200);
     expect(join.body.organization.id).toBe(created.body.organization.id);
 
-    const meMember = await authedSupertest(app, { ...member, cookie: member.cookie }).get('/api/org/me');
+    const meMember = await authedSupertest(app, { ...member, cookie: member.cookie }).get(
+      '/api/org/me',
+    );
     expect(meMember.status).toBe(200);
     expect(meMember.body.organization.id).toBe(created.body.organization.id);
     expect(meMember.body.members.length).toBeGreaterThanOrEqual(2);
