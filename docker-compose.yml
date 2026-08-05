@@ -1,5 +1,7 @@
 # Evaluation stack for Somnoscribe. Three services on a private network, with only
-# the web interface and the API published to loopback on the host.
+# the web interface published to loopback on the host. The API and
+# preprocessor stay on the Compose network so browser traffic cannot bypass
+# authentication, demo upload checks, or the proxy's trusted-client boundary.
 #
 #   cp api/.env.example api/.env   # then set a real JWT_SECRET
 #   docker compose up --build
@@ -20,8 +22,6 @@ services:
       SLICES_DIR: /var/lib/somnoscribe/slices
     volumes:
       - evidence:/var/lib/somnoscribe
-    ports:
-      - '127.0.0.1:8001:8001'
     restart: unless-stopped
 
   api:
@@ -54,8 +54,6 @@ services:
       # Charts and slices are written by the preprocessor and read back by the
       # API, so both services must see the same filesystem.
       - evidence:/var/lib/somnoscribe
-    ports:
-      - '127.0.0.1:3001:3001'
     depends_on:
       preprocessor:
         condition: service_healthy
@@ -78,6 +76,9 @@ services:
       DB_PATH: /var/lib/somnoscribe/db/cases.sqlite
     volumes:
       - evidence:/var/lib/somnoscribe
+    # Keep SQLite, WAL, and lock-file ownership compatible with the API and
+    # preprocessor (both use UID 1000 on the shared evidence volume).
+    user: '1000:1000'
     entrypoint: ['npx', 'tsx']
     command: ['scripts/generateLicenses.ts', '1', 'starter']
 

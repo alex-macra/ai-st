@@ -9,6 +9,8 @@ RUN npm ci
 
 COPY frontend/tsconfig.json frontend/vite.config.ts frontend/index.html ./
 COPY frontend/postcss.config.cjs frontend/tailwind.config.cjs ./
+# The frontend's @contracts alias resolves this source directory from /app.
+COPY api/src/shared /api/src/shared
 COPY frontend/src ./src
 RUN npm run build
 
