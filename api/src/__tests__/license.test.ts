@@ -13,7 +13,7 @@ describe('local invitations', () => {
 
     expect(new Set(keys).size).toBe(64);
     for (const key of keys) {
-      expect(key).toMatch(/^AIST-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
+      expect(key).toMatch(/^SOMNO-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
       expect(getLicense(db, key)).toMatchObject({ key, used: 0, tier: 'starter' });
     }
     db.close();

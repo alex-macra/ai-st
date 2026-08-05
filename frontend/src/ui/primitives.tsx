@@ -461,12 +461,32 @@ export function applyFormat(raw: string, rule: FormatRule): string {
   return groups.join(rule.separator);
 }
 
+function formatLicenseKey(raw: string): string {
+  const characters = raw.toUpperCase().replaceAll(/[^A-Z0-9]/g, '');
+  const prefix = ['SOMNO', 'AIST'].find(
+    (candidate) => candidate.startsWith(characters) || characters.startsWith(candidate),
+  );
+
+  if (!prefix) {
+    return applyFormat(characters, {
+      kind: 'group',
+      groupSize: 4,
+      separator: '-',
+      totalChars: 24,
+      uppercase: true,
+    });
+  }
+
+  if (characters.length < prefix.length) return characters;
+
+  const body = characters.slice(prefix.length, prefix.length + 20);
+  const groups = body.match(/.{1,4}/g)?.join('-') ?? '';
+  return `${prefix}-${groups}`;
+}
+
 export const LICENSE_KEY_RULE: FormatRule = {
-  kind: 'group',
-  groupSize: 4,
-  separator: '-',
-  totalChars: 24,
-  uppercase: true,
+  kind: 'custom',
+  format: formatLicenseKey,
 };
 
 export const FormattedInput = forwardRef<HTMLInputElement, FormattedInputProps>(

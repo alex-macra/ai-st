@@ -68,7 +68,9 @@ function generateInvitationKey(): string {
     .match(/.{1,4}/g)
     ?.join('-');
   if (!body) throw new Error('Failed to generate invitation key');
-  return `AIST-${body}`;
+  // Keys are looked up by exact value, so `AIST-` keys minted before the rename
+  // keep working; only newly minted ones carry the current prefix.
+  return `SOMNO-${body}`;
 }
 
 export function mintLicenseKeys(
