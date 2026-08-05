@@ -1,14 +1,7 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import type OpenAI from 'openai';
-import {
-  getOpenAIClient,
-  writeSSE,
-  extractUsage,
-  LlmNotConfiguredError,
-  llmMode,
-  type LlmMode,
-} from './llm.js';
+import { getOpenAIClient, writeSSE, extractUsage, llmMode, type LlmMode } from './llm.js';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -41,7 +34,6 @@ import {
   updateCaseTokenStats,
   updateCaseActionPlan,
   insertAuditRecord,
-  insertAnalysisAuditRecord,
   getReferenceDocsForCohortAndType,
   nextCaseUpdatedAt,
 } from './db.js';
@@ -121,12 +113,24 @@ const evidenceRefSchema = z.object({
   eventId: z.string().optional(),
 });
 
+const confidenceFactorSchema = z.object({
+  label: z.string().min(1),
+  value: z.union([z.string(), z.number()]).optional(),
+  impact: z.enum(['positive', 'negative', 'neutral']),
+});
+
 const findingSchema = z.object({
   id: z.string().min(1),
   claim: z.string().min(1),
   confidence: z.enum(FINDING_CONFIDENCES),
   uncertainty: z.string().optional(),
   evidence: z.array(evidenceRefSchema).min(1),
+  // The Pass-1 prompt asks for both of these and `ConfidencePopover` renders
+  // them. They must be declared here or zod strips them, which is exactly what
+  // used to happen — the popover always fell back to generic wording and never
+  // showed a single factor chip.
+  confidenceRationale: z.string().optional(),
+  confidenceFactors: z.array(confidenceFactorSchema).optional(),
 });
 
 const pass1ResponseSchema = z.object({
@@ -939,11 +943,6 @@ function persistAnalysis(
     return;
   }
   updateCaseTokenStats(caseId, tokenStats, now);
-  if (c.createdBy) {
-    const totalIn = tokenStats.pass1In + tokenStats.pass2In + tokenStats.pass3In;
-    const totalOut = tokenStats.pass1Out + tokenStats.pass2Out + tokenStats.pass3Out;
-    insertAnalysisAuditRecord(caseId, c.createdBy, totalIn, totalOut);
-  }
   insertAuditRecord({
     id: randomUUID(),
     caseId,
@@ -1011,7 +1010,6 @@ export async function runAnalysis(
   }
 
   try {
-    if (configuredMode === 'unconfigured') throw new LlmNotConfiguredError();
     const ctx: AnalysisContext = {
       caseId,
       res,
@@ -1154,7 +1152,6 @@ export async function runActionPlan(
   const reportForPlan = reviewedReportForActionPlan(c);
 
   try {
-    if (configuredMode === 'unconfigured') throw new LlmNotConfiguredError();
     // See runAnalysis: the action-plan job also keeps one immutable client
     // rather than re-resolving configuration between provider calls.
     const client = getOpenAIClient(configuredMode);
@@ -1261,10 +1258,6 @@ export async function runActionPlan(
       { ...existing, pass4In: tokensIn, pass4Out: tokensOut, pass4CacheRead },
       now,
     );
-    if (c.createdBy) {
-      insertAnalysisAuditRecord(caseId, c.createdBy, tokensIn, tokensOut);
-    }
-
     insertAuditRecord({
       id: randomUUID(),
       caseId,
@@ -1302,9 +1295,6 @@ export async function runActionPlan(
 
 function safeAnalysisErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) return 'Analysis failed unexpectedly. Please try again.';
-  // Deliberately verbatim: this one is an operator misconfiguration, and the
-  // message names the two variables that resolve it. It leaks nothing.
-  if (err instanceof LlmNotConfiguredError) return err.message;
   const status = (err as { status?: number }).status;
   const msg = err.message.toLowerCase();
   if (status === 429 || msg.includes('rate limit')) {

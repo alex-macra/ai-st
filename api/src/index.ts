@@ -12,14 +12,7 @@ import {
   NANO_MODEL,
   ALLOWED_MODELS,
 } from './constants.js';
-import { jwtSecretError, parseTrustProxy } from './env.js';
-import { purgeDemoDataForCurrentMode } from './demoData.js';
-
-const jwtErr = jwtSecretError();
-if (jwtErr) {
-  process.stderr.write(`FATAL: ${jwtErr}\n`);
-  process.exit(1);
-}
+import { parseTrustProxy } from './env.js';
 
 if (!(ALLOWED_MODELS as readonly string[]).includes(NANO_MODEL)) {
   process.stderr.write(`FATAL: NANO_MODEL "${NANO_MODEL}" is not in ALLOWED_MODELS\n`);
@@ -61,15 +54,6 @@ try {
     'reference_docs_seed_failed',
   );
 }
-
-void purgeDemoDataForCurrentMode();
-const demoPurgeTimer = setInterval(
-  () => {
-    void purgeDemoDataForCurrentMode();
-  },
-  15 * 60 * 1_000,
-);
-demoPurgeTimer.unref();
 
 const server = app.listen(PORT, HOST, () => {
   logger.info({ host: HOST, port: PORT }, 'server_listening');

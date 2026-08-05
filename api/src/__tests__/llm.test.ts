@@ -3,7 +3,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   configuredApiKey,
-  demoModeEnabled,
   extractUsage,
   llmMode,
   syntheticLlmEnabled,
@@ -90,10 +89,10 @@ describe('model provider configuration', () => {
     ['absent', undefined],
     ['empty', ''],
     ['blank', '   '],
-  ])('treats an %s OPENAI_API_KEY as no key at all', (_label, value) => {
+  ])('falls back to the offline model when OPENAI_API_KEY is %s', (_label, value) => {
     const environment = value === undefined ? {} : { OPENAI_API_KEY: value };
     expect(configuredApiKey(environment)).toBeUndefined();
-    expect(llmMode(environment)).toBe('unconfigured');
+    expect(llmMode(environment)).toBe('demo');
   });
 
   it('trims a real key rather than rejecting it', () => {
@@ -101,21 +100,16 @@ describe('model provider configuration', () => {
     expect(llmMode({ OPENAI_API_KEY: 'sk-test' })).toBe('openai');
   });
 
-  it('prefers the offline demo model over a configured key', () => {
-    const environment = { SOMNOSCRIBE_DEMO_MODE: 'true', OPENAI_API_KEY: 'sk-test' };
-    expect(demoModeEnabled(environment)).toBe(true);
-    expect(llmMode(environment)).toBe('demo');
+  it('runs the offline model outside the test environment, unlike the browser-suite switch', () => {
+    expect(llmMode({ NODE_ENV: 'production' })).toBe('demo');
+    expect(() => llmMode({ NODE_ENV: 'production', SOMNOSCRIBE_SYNTHETIC_LLM: 'true' })).toThrow(
+      /only be enabled/,
+    );
   });
 
-  it('runs the demo model outside the test environment, unlike the browser-suite switch', () => {
-    expect(demoModeEnabled({ NODE_ENV: 'production', SOMNOSCRIBE_DEMO_MODE: 'true' })).toBe(true);
-    expect(() =>
-      demoModeEnabled({ NODE_ENV: 'production', SOMNOSCRIBE_SYNTHETIC_LLM: 'true' }),
-    ).toThrow(/only be enabled/);
-  });
-
-  it('is off unless one of the two switches is set', () => {
-    expect(demoModeEnabled({ NODE_ENV: 'development' })).toBe(false);
-    expect(demoModeEnabled({ SOMNOSCRIBE_DEMO_MODE: 'false' })).toBe(false);
+  it('lets the browser-suite switch force the offline model even with a key present', () => {
+    expect(
+      llmMode({ NODE_ENV: 'test', SOMNOSCRIBE_SYNTHETIC_LLM: 'true', OPENAI_API_KEY: 'sk-test' }),
+    ).toBe('demo');
   });
 });

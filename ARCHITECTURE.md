@@ -10,7 +10,7 @@ Browser
   ▼
 Express API ───────────────► SQLite and private local artifacts
   │
-  ├─ authenticated upload ─► FastAPI preprocessor
+  ├─ upload ───────────────► FastAPI preprocessor
   │                          ├─ de-identification
   │                          ├─ signal inventory and quality checks
   │                          ├─ candidate-window generation
@@ -27,7 +27,7 @@ The web interface has no direct access to the database, preprocessing service, m
 ## Repository layout
 
 ```text
-api/             Express API, SQLite migrations, authentication, SSE, uploads
+api/             Express API, SQLite schema, SSE, uploads
 frontend/        React interface and application-owned UI/API client
 preprocessor/    FastAPI signal and document preprocessing
 e2e/             synthetic Playwright journeys
@@ -43,27 +43,26 @@ Clinical artifacts, generated output, databases, private reference material, and
 The API owns the public wire contracts:
 
 - `/healthz` reports process health.
-- `/api/auth/*` handles local invitations, OTP sessions, and account state.
 - `/api/upload` accepts multipart EDF, PDF, and image artifacts.
 - `/api/cases/*` provides case state, review actions, analysis SSE, and sign-off.
 - `/api/references/status` reports optional reference-pack availability.
-- `/api/references/*` exposes authenticated reads and administrator-only mutations.
+- `/api/references/*` reads and mutates the optional reference pack.
 
 Long model operations use SSE messages framed as `data: <json>\n\n`. Existing progress, completion, warning, and error contracts are parsed incrementally by the local frontend client and can be aborted with `AbortController`.
 
 ## Application-owned modules
 
-The API uses direct public dependencies behind small local boundaries: `jsonwebtoken` (restricted to HS256), `better-sqlite3` (connection and migrations), `openai` (non-streaming calls inside an SSE workflow), `pino` (structured, redacted logs with hashed IPs), Zod (request, model-output, and reference-pack validation), and Helmet plus Express Rate Limit behind adapters that preserve response headers and error shapes.
+The API uses direct public dependencies behind small local boundaries: `better-sqlite3` (connection and migrations), `openai` (non-streaming calls inside an SSE workflow), `pino` (structured, redacted logs with hashed IPs), Zod (request, model-output, and reference-pack validation), and Helmet plus Express Rate Limit behind adapters that preserve response headers and error shapes.
 
 The frontend owns its HTTP/SSE client, semantic design tokens, primitives, overlays, navigation widgets, and theme persistence. It imports the wire contract types from the API's `src/shared/`, which is type-only and pulls in no server code. Neither side depends on a sibling repository.
 
 ## Upload lifecycle
 
-1. Authentication and rate limits run before any upload processing.
+1. Rate limits, and the access-token check when one is configured, run before any upload processing.
 2. Multer writes randomized filenames into a per-request directory with mode `0700` under the private temporary root.
 3. The API enforces aggregate and per-artifact limits, then validates file signatures rather than trusting extensions or MIME labels.
 4. Only normalized filenames reach the preprocessor or screenshot metadata.
-5. The preprocessor de-identifies EDF header fields before downstream parsing.
+5. The preprocessor de-identifies EDF header fields before downstream parsing, and crops the patient banner off each screenshot at `POST /deidentify/screenshot`. Screenshots, unlike the EDF, are stored and later read back at analysis time and sent to the model, so the API calls this before the first write and rejects the upload if it fails — it never falls back to the original bytes.
 6. The API stores the compact package and an artifact hash, never the original filename.
 7. Temporary request files are deleted in `finally`; partially written screenshot directories are removed on failure.
 
@@ -87,11 +86,15 @@ Public prompts bundle no clinical reference source, and forbid thresholds, guide
 
 Without the variable, startup succeeds with reference validation disabled: the API reports it and every analysis emits `reference_pack_unavailable`. See [docs/reference-pack-schema.md](docs/reference-pack-schema.md).
 
-## Authentication and authorization
+## No authentication
 
-Invitation keys and OTP values use cryptographic randomness, and activation burns an invitation transactionally. Sessions use HTTP-only SameSite=Lax cookies, plus Secure in production. JWT verification is restricted to HS256.
+There are no accounts, sessions, roles, or per-user case separation. Every request that reaches the API gets the whole workspace. This is a single-operator local tool and the design assumes it is run as one — see [SAFETY.md](SAFETY.md) for the obligations that assumption creates.
 
-Case and reference reads require authentication; account and reference mutations require the administrator role. Authenticated mutating methods enforce the configured browser origin policy. Logs exclude raw email addresses, filenames, clinical bodies, model payload fragments, and OTP values.
+`SOMNOSCRIBE_ACCESS_TOKEN`, when set, requires that value as a bearer token on every `/api` route except `/healthz` and `/api/config`; those two stay open so the interface can render and report its model mode before a token is supplied. The comparison is constant-time. It is a shared secret with no identity attached — it cannot distinguish two operators or be revoked for one of them.
+
+Mutating methods enforce the configured browser origin policy whether or not a token is set. Logs exclude filenames, clinical bodies, and model payload fragments.
+
+Sign-off is the only action that names a person, and the name is typed by the reviewer rather than derived from an authenticated session. It is stored verbatim in the audit entry and printed on the report as an attestation, not as verified identity.
 
 ## Network defaults
 
@@ -99,15 +102,11 @@ The API and development preprocessor bind to loopback. `TRUST_PROXY` defaults to
 
 ## Offline model adapter
 
-One adapter returns deterministic, non-clinical JSON for every analysis pass, reached by two switches with different reach. `SOMNOSCRIBE_SYNTHETIC_LLM=true` is the browser smoke journey's, and still throws during initialization outside `NODE_ENV=test`. `SOMNOSCRIBE_DEMO_MODE=true` is the operator's, and runs anywhere — a deployment whose whole purpose is demonstration should not have to lie about its environment to be one. What replaces the old environment restriction is disclosure: `GET /api/config` reports the mode, and the interface carries a banner while it is set.
+One adapter returns deterministic, non-clinical JSON for every analysis pass. There is no operator switch: an absent, empty, or whitespace-only `OPENAI_API_KEY` all count as no key, and no key means the offline adapter. This is what lets a fresh clone reach a drafted report with nothing configured. `SOMNOSCRIBE_SYNTHETIC_LLM=true` is the browser smoke journey's narrower switch and still throws during initialization outside `NODE_ENV=test`.
 
-Either way the path proves activation, upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
+Disclosure carries the weight the old switch used to: `GET /api/config` reports `llmMode`, and the interface shows a banner whenever it is `demo`. Either way the path proves upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
 
-The provider client is constructed only when an analysis or action-plan job begins, never at import. That job holds one client and one mode for all of its passes, so a demo job cannot fall through to a provider if an environment flag changes mid-stream. An absent, empty, or whitespace-only `OPENAI_API_KEY` all count as no key. An API with no model configured therefore starts and serves everything up to the analysis passes; analysis alone fails, naming the variable to set.
-
-## Demo sign-in
-
-`POST /api/auth/demo` returns 404 unless demo mode is on. When it is, each sign-in creates a fresh, isolated internal demo principal with a four-hour expiry; the UI presents the fixed display identity `demo@example.test`. It has no administrator or organization rights, is rate-limited separately from normal sign-in, accepts only the deterministic demo study, and is removed with its artifacts when expired or demo mode is disabled. It reuses the same `signJwt` / `setAuthCookie` session mechanics as every other route; only the constrained way in is different.
+The provider client is constructed only when an analysis or action-plan job begins, never at import. That job holds one client and one mode for all of its passes, so a job that started offline cannot fall through to a provider if the environment changes mid-stream.
 
 ## Demo study
 

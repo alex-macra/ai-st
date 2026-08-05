@@ -21,7 +21,6 @@ class ChannelQC:
     coverage_pct: float  # fraction of recording with valid samples
     artifact_flag: bool
     flat_segments_pct: float  # fraction of signal that is flat (stuck sensor)
-    clipping_pct: float  # fraction of samples at physical min/max
     notes: list[str]
     flat_intervals: list[tuple[float, float]] = None  # type: ignore[assignment]
 
@@ -88,7 +87,6 @@ def _score_channel(ch: ChannelInfo, signal: np.ndarray) -> ChannelQC:
             coverage_pct=0.0,
             artifact_flag=True,
             flat_segments_pct=0.0,
-            clipping_pct=0.0,
             notes=["empty signal"],
         )
 
@@ -103,7 +101,6 @@ def _score_channel(ch: ChannelInfo, signal: np.ndarray) -> ChannelQC:
             coverage_pct=0.0,
             artifact_flag=True,
             flat_segments_pct=0.0,
-            clipping_pct=0.0,
             notes=["all NaN"],
         )
 
@@ -170,7 +167,6 @@ def _score_channel(ch: ChannelInfo, signal: np.ndarray) -> ChannelQC:
         coverage_pct=coverage,
         artifact_flag=artifact_flag,
         flat_segments_pct=flat_pct,
-        clipping_pct=clip_pct,
         notes=notes,
         flat_intervals=flat_intervals,
     )

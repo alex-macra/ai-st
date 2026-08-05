@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useDarkMode } from '../ui/theme';
 import { Tabs } from '../ui/navigation';
-import { AccountPanel, Popover } from '../ui/overlays';
+import { Popover } from '../ui/overlays';
 import { SignOffPanel } from '../components/SignOffPanel';
 import { ActionPlanView } from '../components/ActionPlanView';
 import type { Case } from '@contracts/types';
@@ -118,31 +118,6 @@ describe('local UI contracts', () => {
     expect(report).toHaveFocus();
     await user.keyboard('{End}');
     expect(screen.getByRole('tab', { name: 'Findings' })).toHaveFocus();
-  });
-
-  it('moves focus through the account menu and restores it on Escape', async () => {
-    const user = userEvent.setup();
-    render(
-      <AccountPanel
-        label="reviewer@example.test"
-        items={[
-          { id: 'profile', label: 'Profile', onClick: vi.fn() },
-          { id: 'usage', label: 'Usage', onClick: vi.fn() },
-        ]}
-        onSignOut={vi.fn()}
-      />,
-    );
-
-    const trigger = screen.getByRole('button', { name: 'Account menu' });
-    await user.click(trigger);
-    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Profile' })).toHaveFocus());
-    await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: 'Usage' })).toHaveFocus();
-    await user.keyboard('{End}');
-    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toHaveFocus();
-    await user.keyboard('{Escape}');
-    expect(trigger).toHaveFocus();
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('closes a popover on Escape and returns focus to its trigger', async () => {

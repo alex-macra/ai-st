@@ -53,8 +53,6 @@ immediateTask.md
 # Test and runtime output
 test-results/
 playwright-report/
-e2e/.auth/*
-!e2e/.auth/.gitignore
 *.log
 .logs/
 

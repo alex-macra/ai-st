@@ -3,23 +3,19 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
+import { OPERATOR } from '../constants.js';
 import { activeAnalyses } from '../routes/cases.js';
-import { createDemoUser, insertCase } from '../db.js';
-import { signJwt } from '../middleware/auth.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
+import { testApp } from './factories.js';
 
-const { mockCreate, mockGetOpenAIClient, mockLlmMode, mockPublicDemoMode } = vi.hoisted(() => ({
+const { mockCreate, mockGetOpenAIClient, mockLlmMode } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockGetOpenAIClient: vi.fn(),
   mockLlmMode: vi.fn(() => 'openai'),
-  mockPublicDemoMode: vi.fn(() => false),
 }));
 
 vi.mock('../llm.js', () => ({
   getOpenAIClient: mockGetOpenAIClient,
   llmMode: mockLlmMode,
-  publicDemoModeEnabled: mockPublicDemoMode,
   LlmNotConfiguredError: class LlmNotConfiguredError extends Error {},
   writeSSE: (
     res: { write: (s: string) => void },
@@ -45,8 +41,6 @@ vi.mock('../llm.js', () => ({
     cacheWriteTokens: 0,
   }),
 }));
-
-let auth: TestAuth = undefined as unknown as TestAuth;
 
 function syntheticEdf(): Buffer {
   const buffer = Buffer.alloc(256, 0x20);
@@ -96,6 +90,10 @@ function makePass1Response(): { text: string; findingId: string } {
         claim: 'AHI 18.5/h from DOMINO PDF',
         confidence: 'medium',
         confidenceRationale: 'Derived from PDF metric; no raw signal available.',
+        confidenceFactors: [
+          { label: 'evidence source', value: 'pdf_metric', impact: 'negative' },
+          { label: 'AHI borderline', value: 18.5, impact: 'neutral' },
+        ],
         evidence: [{ type: 'pdf_metric', source: 'pdf_metrics.ahi', value: 18.5 }],
       },
     ],
@@ -126,17 +124,13 @@ describe('analyze gates', () => {
   let restore: () => void = () => {};
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
     activeAnalyses.clear();
     mockCreate.mockReset();
     mockGetOpenAIClient.mockReset();
     mockGetOpenAIClient.mockReturnValue({ chat: { completions: { create: mockCreate } } });
     mockLlmMode.mockReset();
     mockLlmMode.mockReturnValue('openai');
-    mockPublicDemoMode.mockReset();
-    mockPublicDemoMode.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -197,6 +191,20 @@ describe('analyze gates', () => {
     const findings = done?.['findings'] as Array<Record<string, unknown>>;
     expect(findings).toHaveLength(1);
     expect(findings[0]?.['reviewerDecision']).toBeUndefined();
+
+    // The confidence explanation the prompt asks for has to survive schema
+    // parsing and persistence, or the popover silently falls back to generic
+    // wording. It used to be stripped here.
+    expect(findings[0]?.['confidenceRationale']).toBe(
+      'Derived from PDF metric; no raw signal available.',
+    );
+    expect(findings[0]?.['confidenceFactors']).toEqual([
+      { label: 'evidence source', value: 'pdf_metric', impact: 'negative' },
+      { label: 'AHI borderline', value: 18.5, impact: 'neutral' },
+    ]);
+    expect(
+      (persisted.body.case.findings as Array<Record<string, unknown>>)[0]?.['confidenceFactors'],
+    ).toHaveLength(2);
   });
 
   it('keeps a demo analysis on its captured offline client if the flag changes between passes', async () => {
@@ -241,61 +249,7 @@ describe('analyze gates', () => {
     expect(done?.['analysisMode']).toBe('demo');
   });
 
-  it('forces a demo principal onto the offline client even if global mode changes before capture', async () => {
-    mockPublicDemoMode.mockReturnValue(true);
-    // Model configuration becomes provider-backed after auth has admitted the
-    // keyless principal. The route must still explicitly force offline mode.
-    mockLlmMode.mockReturnValue('openai');
-    const user = createDemoUser(new Date(Date.now() + 60_000).toISOString(), 100);
-    const now = new Date().toISOString();
-    const caseId = randomUUID();
-    insertCase({
-      id: caseId,
-      studyHash: 'd'.repeat(64),
-      name: `demo-analysis-${randomUUID()}`,
-      status: 'draft',
-      cohort: 'adult',
-      findings: [],
-      casePackage: JSON.stringify(DOCS_ONLY_PACKAGE),
-      createdBy: user.id,
-      sourceKind: 'demo_synthetic',
-      preprocessorVersion: 'test',
-      promptVersion: 'test',
-      modelVersion: 'somnoscribe-offline-demo',
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    const { text: pass1Text, findingId } = makePass1Response();
-    mockCreate
-      .mockResolvedValueOnce({
-        model: 'somnoscribe-offline-demo',
-        choices: [{ message: { content: pass1Text } }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      })
-      .mockResolvedValueOnce({
-        model: 'somnoscribe-offline-demo',
-        choices: [{ message: { content: makePass2Response(findingId) } }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      })
-      .mockResolvedValueOnce({
-        model: 'somnoscribe-offline-demo',
-        choices: [{ message: { content: PASS3_OK } }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
-      });
-
-    const response = await supertest(createApp({ rateLimitMax: 1000 }))
-      .post(`/api/cases/${caseId}/analyze`)
-      .set('Cookie', `somno_session=${signJwt(user.id, '4h')}`)
-      .send({});
-
-    expect(response.status).toBe(200);
-    expect(mockGetOpenAIClient).toHaveBeenCalledWith('demo');
-    const done = parseSseEvents(response.text).find((event) => event['type'] === 'done');
-    expect(done?.['analysisMode']).toBe('demo');
-  });
-
-  it('rejects a concurrent model job from the same authenticated user with 429', async () => {
+  it('rejects a second concurrent model job with 429', async () => {
     restore = stubPreprocessor({
       schema_version: '0.4',
       edf_available: true,
@@ -307,38 +261,13 @@ describe('analyze gates', () => {
     expect(upload.status).toBe(201);
     const { caseId } = upload.body as { caseId: string };
 
-    activeAnalyses.add(auth.userId);
+    activeAnalyses.add(OPERATOR);
 
     const res = await request.post(`/api/cases/${caseId}/analyze`).send({});
 
     expect(res.status).toBe(429);
     expect((res.body as { code?: string }).code).toBe('analysis_in_flight');
     expect(typeof (res.body as { retryAfterSeconds?: number }).retryAfterSeconds).toBe('number');
-  });
-
-  it('does not let one account block another account on the same client IP', async () => {
-    restore = stubPreprocessor(DOCS_ONLY_PACKAGE);
-    const otherAuth = mintAuthCookie();
-    const otherRequest = authedSupertest(
-      createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 }),
-      otherAuth,
-    );
-    const upload = await otherRequest
-      .post('/api/upload')
-      .attach('pdf', Buffer.from('%PDF-1.4 fake'), 'report.pdf');
-    expect(upload.status).toBe(201);
-
-    activeAnalyses.add(auth.userId);
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ finish_reason: 'stop', message: { content: null } }],
-      usage: { prompt_tokens: 1, completion_tokens: 0 },
-    });
-
-    const response = await otherRequest
-      .post(`/api/cases/${upload.body.caseId as string}/analyze`)
-      .send({});
-
-    expect(response.status).toBe(200);
   });
 
   // ── Pass 1 response parsing ──────────────────────────────────────────────

@@ -11,14 +11,11 @@ import {
   FileDropZone,
   type RadioOption,
 } from '../ui';
-import { uploadCase, type DeploymentConfig } from '../api';
+import { uploadCase } from '../api';
 import { DemoPanel } from './DemoPanel';
 
 interface Props {
   onUploaded: (caseId: string) => void;
-  config: DeploymentConfig | null;
-  /** The generated recording endpoint is intentionally limited to this principal. */
-  isDemoUser?: boolean;
 }
 
 type Cohort = 'adult' | 'pediatric';
@@ -35,7 +32,7 @@ const UPLOAD_STEPS = [
   'Building case package…',
 ];
 
-export function CaseUpload({ onUploaded, config, isDemoUser = false }: Props) {
+export function CaseUpload({ onUploaded }: Props) {
   const [edf, setEdf] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [screenshots, setScreenshots] = useState<File[]>([]);
@@ -90,17 +87,7 @@ export function CaseUpload({ onUploaded, config, isDemoUser = false }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {config?.demoMode && isDemoUser && (
-        <DemoPanel config={config} onLoadStudy={handleDemoStudy} />
-      )}
-
-      {config && !config.analysisAvailable && (
-        <Alert variant="warning" title="Analysis is not configured">
-          Upload and preprocessing work, so you can see signal quality, detected events, and the
-          evidence package. Drafting a report needs a model: set <code>OPENAI_API_KEY</code>, or set{' '}
-          <code>SOMNOSCRIBE_DEMO_MODE=true</code> to run the offline demo model.
-        </Alert>
-      )}
+      <DemoPanel onLoadStudy={handleDemoStudy} />
 
       <form onSubmit={handleSubmit} className="card p-6 space-y-6">
         <div>

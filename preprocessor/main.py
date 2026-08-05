@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from candidate_windows import find_candidate_windows
 from chart_renderer import CHART_RENDERER_VERSION, render_window
 from const import SCHEMA_VERSION
-from deidentify import deidentify_edf_header
+from deidentify import deidentify_edf_header, deidentify_screenshot
 from demo_study import demo_edf_bytes, demo_study_summary
 from edf_parser import extract_demographics, parse_edf
 from evidence_packager import package_evidence
@@ -50,6 +50,26 @@ async def demo_study():
 async def demo_summary():
     """What the generator put into the demo recording."""
     return demo_study_summary()
+
+
+@app.post("/deidentify/screenshot")
+async def deidentify_screenshot_endpoint(screenshot: UploadFile = File(...)):
+    """Crop the patient-info bar off one screenshot and return the image bytes.
+
+    The API calls this before it writes a screenshot to disk, because unlike the
+    EDF — which is scrubbed inside /ingest and never leaves this service — stored
+    screenshots are read back at analysis time and sent to the model. A 422 here
+    means the API must reject the upload, not fall back to the original.
+    """
+    content = await _read_upload_limited(screenshot)
+    if len(content) > MAX_SCREENSHOT_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="screenshot exceeds the size limit")
+    try:
+        cleaned = deidentify_screenshot(content)
+    except Exception as exc:
+        logger.warning("screenshot_deidentify_failed")
+        raise HTTPException(status_code=422, detail="screenshot could not be de-identified") from exc
+    return Response(content=cleaned, media_type=screenshot.content_type or "image/png")
 
 
 @app.post("/ingest")

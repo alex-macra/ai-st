@@ -3,7 +3,6 @@
 import { createRequire } from 'node:module';
 import type { Request, Response } from 'express';
 import { PREPROCESSOR_URL } from '../constants.js';
-import { requireDemoUser, requirePublicDemoMode } from '../middleware/auth.js';
 import { logger, errorLogFields } from '../logger.js';
 import { sendError } from '../errors.js';
 import { DEMO_STUDY_FILENAME, DemoStudyUnavailableError, fetchDemoStudy } from '../demoStudy.js';
@@ -21,9 +20,6 @@ const PREPROCESSOR_TIMEOUT_MS = 20_000;
  */
 export function createDemoRouter() {
   const router = express.Router();
-
-  router.use(requirePublicDemoMode);
-  router.use(requireDemoUser);
 
   router.get('/study.edf', async (_req: Request, res: Response): Promise<void> => {
     try {

@@ -3,15 +3,9 @@
 import { useEffect, useState } from 'react';
 import { FlaskConical, Download } from 'lucide-react';
 import { Alert, Button } from '../ui';
-import {
-  getDemoStudyFile,
-  getDemoStudySummary,
-  type DeploymentConfig,
-  type DemoStudySummary,
-} from '../api';
+import { getDemoStudyFile, getDemoStudySummary, type DemoStudySummary } from '../api';
 
 interface Props {
-  config: DeploymentConfig | null;
   /** Hands the generated recording to the upload form. */
   onLoadStudy: (file: File) => void;
 }
@@ -31,7 +25,7 @@ function formatDuration(seconds: number): string {
  * and it goes through the same upload, preprocessing, and review path as a real
  * one. Nothing here bypasses a step.
  */
-export function DemoPanel({ config, onLoadStudy }: Props) {
+export function DemoPanel({ onLoadStudy }: Props) {
   const [summary, setSummary] = useState<DemoStudySummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,13 +114,6 @@ export function DemoPanel({ config, onLoadStudy }: Props) {
       </p>
 
       {error && <Alert variant="danger">{error}</Alert>}
-
-      {config?.demoMode && (
-        <Alert variant="warning" title="Demo model">
-          This deployment is running the offline demo model. Analysis completes and the workflow is
-          real, but the drafted text is canned and carries no clinical meaning.
-        </Alert>
-      )}
 
       <Button
         onClick={() => void handleLoad()}

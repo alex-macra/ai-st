@@ -44,8 +44,9 @@ from channels import (
     SPO2_PHYSIOLOGICAL_MAX,
     SPO2_PHYSIOLOGICAL_MIN,
     find_channel,
+    mask_outside,
 )
-from edf_parser import ChannelInventory
+from edf_parser import ChannelInventory, read_window
 
 SLICES_DIR = Path(os.environ.get("SLICES_DIR", "data/slices"))
 
@@ -74,22 +75,6 @@ def _decimate(signal: np.ndarray, sample_rate: float, n_out: int) -> list[float 
     step = len(signal) / n_out
     indices = [int(i * step) for i in range(n_out)]
     return [_safe(signal[i]) for i in indices]
-
-
-def _read_channel_window(
-    reader: pyedflib.EdfReader,
-    ch_index: int,
-    sample_rate: float,
-    total_samples: int,
-    window_start_sec: float,
-    window_end_sec: float,
-) -> np.ndarray:
-    start_idx = max(0, int(window_start_sec * sample_rate))
-    end_idx = min(total_samples, int(window_end_sec * sample_rate))
-    if end_idx <= start_idx:
-        return np.array([], dtype=np.float32)
-    n = end_idx - start_idx
-    return reader.readSignal(ch_index, start=start_idx, n=n).astype(np.float32)
 
 
 def build_signal_slices(
@@ -142,22 +127,20 @@ def build_signal_slices(
                 if ch is None:
                     continue
 
-                total_samples = int(ch.sample_rate * duration_sec)
-                sig = _read_channel_window(
+                sig = read_window(
                     reader,
                     ch.index,
                     ch.sample_rate,
-                    total_samples,
                     window_start,
                     window_end,
+                    dtype=np.float32,
                 )
                 if sig.size == 0:
                     continue
 
                 # Mask SpO2 dropout values before decimating
                 if ch_label.lower() in SPO2_LABELS:
-                    sig = sig.copy()
-                    sig[(sig < SPO2_PHYSIOLOGICAL_MIN) | (sig > SPO2_PHYSIOLOGICAL_MAX)] = float("nan")
+                    sig = mask_outside(sig, SPO2_PHYSIOLOGICAL_MIN, SPO2_PHYSIOLOGICAL_MAX)
 
                 slices.append(
                     {

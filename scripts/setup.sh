@@ -14,7 +14,7 @@ echo "==> api: ensuring .env"
 if [ ! -f api/.env ]; then
   cp api/.env.example api/.env
   echo "    created api/.env from example - no model key is needed to start"
-  echo "    set OPENAI_API_KEY for a real model or SOMNOSCRIBE_DEMO_MODE=true for offline analysis"
+  echo "    set OPENAI_API_KEY to analyse with a real model; without one the offline generator is used"
 fi
 
 echo "==> frontend: installing node deps"

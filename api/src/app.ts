@@ -6,11 +6,8 @@ import type { Request, Response, NextFunction, ErrorRequestHandler, Express } fr
 
 import { casesRouter } from './routes/cases.js';
 import { referencesRouter } from './routes/references.js';
-import { createAuthRouter, createDemoAuthRouter } from './routes/auth.js';
-import { createOrgRouter } from './routes/org.js';
-import { createAdminRouter } from './routes/admin.js';
 import { createDemoRouter } from './routes/demo.js';
-import { llmMode, publicDemoModeEnabled } from './llm.js';
+import { llmMode } from './llm.js';
 import {
   cleanupUploadTemp,
   enforceUploadContentLength,
@@ -19,8 +16,7 @@ import {
 } from './upload.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
-import { requireAuth, requirePublicDemoMode } from './middleware/auth.js';
-import { DEMO_LOGIN_RATE_LIMIT_MAX, DEMO_LOGIN_RATE_LIMIT_WINDOW_MS } from './demo.js';
+import { requireAccessToken } from './middleware/accessToken.js';
 import { logger, hashIp, errorLogFields } from './logger.js';
 import { sendError } from './errors.js';
 import { parseTrustProxy, type TrustProxySetting } from './env.js';
@@ -28,7 +24,6 @@ import {
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX,
   UPLOAD_RATE_LIMIT_MAX,
-  AUTH_RATE_LIMIT_MAX,
   ALLOWED_MODELS,
   GPT_MODEL,
 } from './constants.js';
@@ -36,15 +31,12 @@ import {
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');
 const cors = require('cors') as typeof import('cors');
-const cookieParser = require('cookie-parser') as typeof import('cookie-parser');
 
 export interface AppConfig {
   corsOrigins?: string[];
   rateLimitWindowMs?: number;
   rateLimitMax?: number;
   uploadRateLimitMax?: number;
-  demoLoginRateLimitWindowMs?: number;
-  demoLoginRateLimitMax?: number;
   trustProxy?: TrustProxySetting;
 }
 
@@ -66,9 +58,6 @@ export function createApp(cfg: AppConfig = {}): Express {
   const rateLimitWindowMs = cfg.rateLimitWindowMs ?? RATE_LIMIT_WINDOW_MS;
   const rateLimitMax = cfg.rateLimitMax ?? RATE_LIMIT_MAX;
   const uploadRateLimitMax = cfg.uploadRateLimitMax ?? UPLOAD_RATE_LIMIT_MAX;
-  const demoLoginRateLimitWindowMs =
-    cfg.demoLoginRateLimitWindowMs ?? DEMO_LOGIN_RATE_LIMIT_WINDOW_MS;
-  const demoLoginRateLimitMax = cfg.demoLoginRateLimitMax ?? DEMO_LOGIN_RATE_LIMIT_MAX;
 
   const app = express();
   app.set('trust proxy', cfg.trustProxy ?? parseTrustProxy(process.env['TRUST_PROXY']));
@@ -76,7 +65,6 @@ export function createApp(cfg: AppConfig = {}): Express {
 
   app.use(securityHeaders);
   app.use(express.json({ limit: '64kb' }));
-  app.use(cookieParser());
 
   app.use((_req: Request, res: Response, next: NextFunction): void => {
     res.locals['requestId'] = randomUUID();
@@ -140,24 +128,13 @@ export function createApp(cfg: AppConfig = {}): Express {
     maxRequests: uploadRateLimitMax,
     skipLoopback,
   });
-  const authLimiter = createRateLimiter({
-    windowMs: 15 * 60 * 1000,
-    maxRequests: AUTH_RATE_LIMIT_MAX,
-    skipLoopback: false,
-  });
-  const demoLoginLimiter = createRateLimiter({
-    windowMs: demoLoginRateLimitWindowMs,
-    maxRequests: demoLoginRateLimitMax,
-    skipLoopback: false,
-  });
-
   app.use(globalLimiter);
 
   app.get('/healthz', (_req: Request, res: Response): void => {
     res.json({ ok: true, ts: new Date().toISOString() });
   });
 
-  app.get('/api/models', (_req: Request, res: Response): void => {
+  app.get('/api/models', requireAccessToken, (_req: Request, res: Response): void => {
     // The offline demo client ignores provider model ids. Do not present a
     // disabled GPT selector that looks like an operator choice when it cannot
     // affect the generated output.
@@ -168,30 +145,21 @@ export function createApp(cfg: AppConfig = {}): Express {
     res.json({ models: ALLOWED_MODELS, default: GPT_MODEL });
   });
 
-  // Which capabilities this deployment actually has. Unauthenticated, because
-  // the sign-in screen has to be able to say it is a demo before anyone signs
-  // in. It reports the mode, never the credential.
+  // Which model this deployment will actually use. Reports the mode, never the
+  // credential. Deliberately outside the access-token guard so the interface can
+  // show the offline banner before a token has been supplied.
   app.get('/api/config', (_req: Request, res: Response): void => {
-    const mode = llmMode();
-    res.json({
-      llmMode: mode,
-      analysisAvailable: mode !== 'unconfigured',
-      demoMode: publicDemoModeEnabled(),
-    });
+    res.json({ llmMode: llmMode() });
   });
 
-  app.use('/api/auth/demo', requirePublicDemoMode, demoLoginLimiter, createDemoAuthRouter());
-  app.use('/api/auth', authLimiter, createAuthRouter());
-  app.use('/api/demo', createDemoRouter());
-  app.use('/api/org', createOrgRouter());
-  app.use('/api/cases', casesRouter());
-  app.use('/api/references', referencesRouter());
-  app.use('/api/admin', createAdminRouter());
+  app.use('/api/demo', requireAccessToken, createDemoRouter());
+  app.use('/api/cases', requireAccessToken, casesRouter());
+  app.use('/api/references', requireAccessToken, referencesRouter());
 
   app.post(
     '/api/upload',
     uploadLimiter,
-    requireAuth,
+    requireAccessToken,
     enforceUploadContentLength,
     (req: Request, res: Response, next: NextFunction) => {
       uploadMiddleware(req, res, (err?: unknown) => {

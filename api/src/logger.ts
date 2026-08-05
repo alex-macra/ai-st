@@ -59,7 +59,7 @@ export function errorLogFields(error: unknown): SafeErrorLogFields {
 }
 
 export function hashIp(ip: string | undefined): string {
-  const salt = process.env['LOG_HASH_SALT'] ?? process.env['JWT_SECRET'] ?? 'local-development';
+  const salt = process.env['LOG_HASH_SALT'] ?? 'local-development';
   return createHash('sha256')
     .update(`${salt}:${ip ?? ''}`)
     .digest('hex')

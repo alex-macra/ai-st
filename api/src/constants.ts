@@ -4,10 +4,16 @@ export const GPT_MODEL = process.env['GPT_MODEL'] ?? 'gpt-5.4-mini';
 export const NANO_MODEL = process.env['NANO_MODEL'] ?? 'gpt-5.4-nano';
 export const PROMPT_VERSION = '2.0.0';
 
+/**
+ * Somnoscribe has no accounts, so every audit entry except sign-off is
+ * attributed to the single local operator. Sign-off carries the reviewer's
+ * typed name instead — that is the one place a person is named.
+ */
+export const OPERATOR = 'operator';
+
 export const RATE_LIMIT_WINDOW_MS = 600_000;
 export const RATE_LIMIT_MAX = 60;
 export const UPLOAD_RATE_LIMIT_MAX = Number(process.env['UPLOAD_RATE_LIMIT_MAX'] ?? 5);
-export const AUTH_RATE_LIMIT_MAX = Number(process.env['AUTH_RATE_LIMIT_MAX'] ?? 10);
 
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
 export const MAX_TOTAL_UPLOAD_BYTES = 400 * 1024 * 1024;

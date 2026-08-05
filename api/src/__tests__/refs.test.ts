@@ -11,10 +11,8 @@ import {
   deleteReferenceDocsByPrefix,
   getReferenceDocsForCohortAndType,
   insertReferenceDoc,
-  setUserAdmin,
 } from '../db.js';
 import { createApp } from '../app.js';
-import { authedSupertest, mintAuthCookie } from './authHelper.js';
 
 const ADULT_MD = `---
 ref_id: synthetic-adult-hsat
@@ -153,21 +151,14 @@ describe('reference pack loading', () => {
 });
 
 describe('reference API authorization', () => {
-  it('requires authentication for status and reads', async () => {
+  it('serves reference status, reads, and mutations without an account', async () => {
     const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    expect((await supertest(app).get('/api/references/status')).status).toBe(401);
-    expect((await supertest(app).get('/api/references')).status).toBe(401);
-  });
 
-  it('allows authenticated status reads and restricts mutations to admins', async () => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    const user = mintAuthCookie();
-    const admin = mintAuthCookie();
-    setUserAdmin(admin.userId, true);
-
-    const status = await authedSupertest(app, user).get('/api/references/status');
+    const status = await supertest(app).get('/api/references/status');
     expect(status.status).toBe(200);
     expect(status.body).toMatchObject({ enabled: false, filesLoaded: 0, rulesLoaded: 0 });
+
+    expect((await supertest(app).get('/api/references')).status).toBe(200);
 
     const payload = {
       title: 'Synthetic rule',
@@ -176,11 +167,6 @@ describe('reference API authorization', () => {
       type: 'generic',
       license: 'open',
     };
-    expect((await authedSupertest(app, user).post('/api/references').send(payload)).status).toBe(
-      403,
-    );
-    expect((await authedSupertest(app, admin).post('/api/references').send(payload)).status).toBe(
-      201,
-    );
+    expect((await supertest(app).post('/api/references').send(payload)).status).toBe(201);
   });
 });

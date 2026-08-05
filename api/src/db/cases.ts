@@ -29,8 +29,6 @@ interface DbCaseRow {
   reference_flags: string | null;
   validation_warnings: string | null;
   action_plan: string | null;
-  created_by: string | null;
-  organization_id: string | null;
   source_kind: string;
   analysis_mode: string | null;
   preprocessor_version: string;
@@ -38,14 +36,6 @@ interface DbCaseRow {
   model_version: string;
   created_at: string;
   updated_at: string;
-}
-
-/** Raised when expiry cleanup won an in-flight temporary demo upload. */
-export class DemoCreatorUnavailableError extends Error {
-  constructor() {
-    super('The temporary demo session is no longer active.');
-    this.name = 'DemoCreatorUnavailableError';
-  }
 }
 
 function extractPdfMetrics(casePackageJson: string | null): PdfMetrics | null {
@@ -266,20 +256,12 @@ function rowToCase(row: DbCaseRow): Case {
       ? { validationWarnings: JSON.parse(row.validation_warnings) as ValidationWarning[] }
       : {}),
     ...(row.action_plan !== null ? { actionPlan: JSON.parse(row.action_plan) as ActionPlan } : {}),
-    ...(row.created_by !== null ? { createdBy: row.created_by } : {}),
-    ...(row.organization_id !== null ? { organizationId: row.organization_id } : {}),
     preprocessorVersion: row.preprocessor_version,
     promptVersion: row.prompt_version,
     modelVersion: row.model_version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-export interface CaseScope {
-  userId: string;
-  organizationId: string | null;
-  demoOnly?: boolean;
 }
 
 export function nextCaseUpdatedAt(current: string, nowMs = Date.now()): string {
@@ -296,25 +278,6 @@ export function createCaseWithAudit(
   const db = getDb();
   let name = '';
   db.transaction(() => {
-    // A demo upload awaits preprocessing before it reaches this transaction.
-    // Recheck the principal here so expiry cleanup cannot delete the user in
-    // that interval and leave an orphaned synthetic case behind.
-    if (partialCase.sourceKind === 'demo_synthetic') {
-      const creator = db
-        .prepare('SELECT is_demo, demo_expires_at FROM users WHERE id = ?')
-        .get(partialCase.createdBy ?? '') as
-        { is_demo: number; demo_expires_at: string | null } | undefined;
-      const expiresAtMs = Date.parse(creator?.demo_expires_at ?? '');
-      if (
-        !creator ||
-        creator.is_demo !== 1 ||
-        !Number.isFinite(expiresAtMs) ||
-        expiresAtMs <= Date.now()
-      ) {
-        throw new DemoCreatorUnavailableError();
-      }
-    }
-
     const row = db
       .prepare('SELECT COUNT(*) as n FROM cases WHERE name LIKE ?')
       .get(`%-${basename}-%`) as { n: number } | undefined;
@@ -324,9 +287,9 @@ export function createCaseWithAudit(
     db.prepare(
       `INSERT INTO cases
          (id, study_hash, name, status, findings, narrative, case_package, token_stats,
-          structured_report, section_reviews, created_by, organization_id,
+          structured_report, section_reviews,
           source_kind, analysis_mode, preprocessor_version, prompt_version, model_version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       partialCase.id,
       partialCase.studyHash,
@@ -338,8 +301,6 @@ export function createCaseWithAudit(
       partialCase.tokenStats ? JSON.stringify(partialCase.tokenStats) : null,
       partialCase.structuredReport ? JSON.stringify(partialCase.structuredReport) : null,
       partialCase.sectionReviews ? JSON.stringify(partialCase.sectionReviews) : null,
-      partialCase.createdBy ?? null,
-      partialCase.organizationId ?? null,
       partialCase.sourceKind ?? 'upload',
       partialCase.analysisMode ?? null,
       partialCase.preprocessorVersion,
@@ -368,10 +329,10 @@ export function insertCase(c: Case): void {
     .prepare(
       `INSERT INTO cases
          (id, study_hash, name, status, findings, narrative, case_package, token_stats,
-          structured_report, section_reviews, created_by, organization_id,
+          structured_report, section_reviews,
           source_kind, analysis_mode, preprocessor_version, prompt_version, model_version,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       c.id,
@@ -384,8 +345,6 @@ export function insertCase(c: Case): void {
       c.tokenStats ? JSON.stringify(c.tokenStats) : null,
       c.structuredReport ? JSON.stringify(c.structuredReport) : null,
       c.sectionReviews ? JSON.stringify(c.sectionReviews) : null,
-      c.createdBy ?? null,
-      c.organizationId ?? null,
       c.sourceKind ?? 'upload',
       c.analysisMode ?? null,
       c.preprocessorVersion,
@@ -415,32 +374,6 @@ export function getCases(status?: string): Case[] {
       : getDb().prepare('SELECT * FROM cases ORDER BY created_at DESC').all()
   ) as DbCaseRow[];
   return rows.map(rowToCase);
-}
-
-export function getCasesScoped(scope: CaseScope, status?: string): Case[] {
-  const orgId = scope.organizationId;
-  const params: unknown[] = orgId ? [scope.userId, orgId] : [scope.userId];
-  const where = orgId ? '(created_by = ? OR organization_id = ?)' : 'created_by = ?';
-  const demoWhere = scope.demoOnly ? " AND source_kind = 'demo_synthetic'" : '';
-  const sql = status
-    ? `SELECT * FROM cases WHERE ${where}${demoWhere} AND status = ? ORDER BY created_at DESC`
-    : `SELECT * FROM cases WHERE ${where}${demoWhere} ORDER BY created_at DESC`;
-  if (status) params.push(status);
-  const rows = getDb()
-    .prepare(sql)
-    .all(...params) as DbCaseRow[];
-  return rows.map(rowToCase);
-}
-
-export function getCaseByIdScoped(id: string, scope: CaseScope): Case | undefined {
-  const c = getCaseById(id);
-  if (!c) return undefined;
-  if (scope.demoOnly) {
-    return c.createdBy === scope.userId && c.sourceKind === 'demo_synthetic' ? c : undefined;
-  }
-  if (c.createdBy === scope.userId) return c;
-  if (scope.organizationId && c.organizationId === scope.organizationId) return c;
-  return undefined;
 }
 
 export function updateCaseStatusWithAudit(

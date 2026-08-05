@@ -2,54 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
-import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
 import { insertCase, updateCaseFindings, updateFindingDecision } from '../db.js';
-import type { Case, Finding } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
-
-function hex64(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
-function makeCase(overrides: Partial<Case> = {}): Case {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    studyHash: hex64(),
-    name: `fr-${randomUUID().slice(0, 8)}`,
-    status: 'pending_review',
-    cohort: 'adult',
-    findings: [],
-    createdBy: auth.userId,
-    preprocessorVersion: '0.1.0',
-    promptVersion: '1.2.0',
-    modelVersion: 'gpt-5.4-mini',
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
-
-function makeFinding(overrides: Partial<Finding> = {}): Finding {
-  return {
-    id: `F-${randomUUID()}`,
-    claim: 'AHI elevated at 22.4/h',
-    evidence: [{ type: 'edf_metric', source: 'ahi', value: 22.4 }],
-    confidence: 'high',
-    ...overrides,
-  };
-}
+import type { Finding } from '../shared/types.js';
+import { makeCase, makeFinding, testApp } from './factories.js';
 
 describe('PATCH /api/cases/:id/findings/:findingId', () => {
   let request: ReturnType<typeof supertest>;
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   it('returns 404 when case does not exist', async () => {

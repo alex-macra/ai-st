@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
-test.use({ storageState: 'e2e/.auth/user.json' });
-
 const FAKE_EDF = {
   name: 'night1.edf',
   mimeType: 'application/octet-stream',
@@ -15,16 +13,10 @@ const FAKE_PDF = {
   buffer: Buffer.from('%PDF-1.4'),
 };
 const FAKE_IMG = { name: 'screen.png', mimeType: 'image/png', buffer: Buffer.from('PNG') };
-const MOCK_USER = JSON.stringify({
-  user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null },
-});
 const EMPTY_CASES = JSON.stringify({ cases: [] });
 
 test.describe('CaseUpload form', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('/api/auth/me', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: MOCK_USER });
-    });
     // Stub cases so the initial list load never hits the real API
     await page.route('/api/cases*', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: EMPTY_CASES });

@@ -8,6 +8,86 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] - 2026-08-05
+
+Somnoscribe no longer has accounts. A fresh clone now reaches a drafted report
+with nothing configured — no invitation to mint, no sign-in, and no model key.
+That removed roughly a fifth of the codebase.
+
+### Removed
+
+- **Accounts, in full.** Sign-up, sign-in, invitation keys, OTP email, sessions,
+  the administrator role, organizations, per-user token quotas, the admin
+  console, the usage page, and per-user case scoping. Somnoscribe is a
+  single-operator workspace: every request that reaches the API gets the whole
+  workspace. Read [SAFETY.md](SAFETY.md#no-authentication) before exposing it —
+  this is a real change in security posture, not only a smaller codebase.
+- `JWT_SECRET`, `AUTH_RATE_LIMIT_MAX`, and the startup check that refused to
+  boot without a secret. Nothing signs a session any more.
+- `SOMNOSCRIBE_DEMO_MODE` and `SOMNOSCRIBE_DEMO_MAX_ACTIVE_PRINCIPALS`, together
+  with the demo principal, its four-hour expiry, concurrency caps, reserved
+  email, and artifact purge. Most of that machinery existed to hand out a
+  keyless _account_, which is moot now there are none.
+- The `licenses`, `users`, `organizations`, `auth_otps`, `analysis_audit`, and
+  `admin_audit_log` tables, and the `created_by` / `organization_id` columns on
+  `cases`.
+- The `license:generate` and `make:admin` scripts.
+- The `jsonwebtoken`, `cookie-parser`, and `nodemailer` dependencies, and the
+  SMTP module that only the removed OTP sign-in used.
+- Unreachable UI: the account menu, `QuotaCard`, `StatCard`, `Pagination`, and
+  the confidence-tone helper that was provably always one value.
+
+### Added
+
+- `SOMNOSCRIBE_ACCESS_TOKEN`. When set, every `/api` route except `/healthz` and
+  `/api/config` requires it as a bearer token, compared in constant time. It is
+  a single shared secret with no identity attached — a safety valve for an
+  operator who exposes the port, not an authentication system.
+- A required reviewer name at sign-off, stored in the audit entry and printed on
+  the report. With no accounts it is an attestation the reviewer types, not a
+  verified identity, and the documentation says so.
+
+### Changed
+
+- **The offline model is the default rather than a switch.** No
+  `OPENAI_API_KEY` means every analysis pass is answered by the offline
+  generator, with the banner on screen throughout; set a key and the same
+  workflow calls the provider. The `unconfigured` state, in which analysis
+  refused to run at all, is gone. `SOMNOSCRIBE_SYNTHETIC_LLM` keeps its narrower
+  test-environment-only rule.
+- **The database schema is declared once with no upgrade path.** The 21 `ALTER
+TABLE` statements and the legacy table rebuild are gone. **Breaking: delete
+  any existing `data/cases.sqlite`** — it will not be migrated. Versioned
+  migrations return at 1.0.
+- The Docker quick start is `docker compose up --build --wait` with no
+  preceding configuration step.
+- Uploading the generated demo study is now recognised by hash for provenance
+  rather than enforced as the only permitted upload.
+
+### Fixed
+
+- **Screenshots were stored without being de-identified.** The DOMINO patient
+  banner was cropped by a function nothing ever called: the preprocessor read
+  the uploaded bytes and discarded them, and the API wrote the originals
+  straight to disk, from where analysis read them back and sent them to the
+  model provider. The API now crops every screenshot through the
+  preprocessor's new `POST /deidentify/screenshot` before the first write, and
+  **rejects an upload it cannot de-identify** rather than falling back to the
+  original. The crop is a fixed strip, not content detection —
+  [SAFETY.md](SAFETY.md#what-de-identification-does-and-does-not-do) states what
+  it does not cover.
+- The primary respiratory index was never bounds-checked. `metricBounds` keyed
+  on `study_metrics.provisional_ahi_per_hour` while the Pass-1 prompt emits
+  `provisional_rei_per_hour`, so the impossible-value and out-of-range guards
+  silently skipped the headline metric of every EDF case while still checking
+  the SpO2 and ODI values.
+- `confidenceFactors` and `confidenceRationale` were stripped before
+  persistence. The Pass-1 prompt asked for both and zod discarded them as
+  unknown keys, so the confidence popover always rendered generic fallback text
+  and never showed a factor chip.
+- `evidence_packager` opened each EDF four separate times, once per channel
+  summary, and restated the quality-floor gate at each site.
+
 ## [0.1.0-alpha.2] - 2026-08-05
 
 ### Added
@@ -155,6 +235,7 @@ external validation dataset.
   machine-specific paths, private source markers, non-example email addresses,
   and secret-like values.
 
-[Unreleased]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.2...HEAD
+[Unreleased]: https://github.com/alex-macra/somnoscribe/compare/v0.2.0-alpha.1...HEAD
+[0.2.0-alpha.1]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
 [0.1.0-alpha.2]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/alex-macra/somnoscribe/releases/tag/v0.1.0-alpha.1
