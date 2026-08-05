@@ -1,7 +1,15 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from 'vitest';
-import { extractUsage, syntheticLlmEnabled, syntheticResponseFor, writeSSE } from '../llm.js';
+import {
+  configuredApiKey,
+  demoModeEnabled,
+  extractUsage,
+  llmMode,
+  syntheticLlmEnabled,
+  syntheticResponseFor,
+  writeSSE,
+} from '../llm.js';
 import {
   pass1SystemPrompt,
   pass2SystemPrompt,
@@ -73,5 +81,41 @@ describe('synthetic LLM mode', () => {
       outputTokens: 2,
       cacheReadTokens: 0,
     });
+  });
+});
+
+describe('model provider configuration', () => {
+  // A copied sample config has an empty key; it must not reach the provider.
+  it.each([
+    ['absent', undefined],
+    ['empty', ''],
+    ['blank', '   '],
+  ])('treats an %s OPENAI_API_KEY as no key at all', (_label, value) => {
+    const environment = value === undefined ? {} : { OPENAI_API_KEY: value };
+    expect(configuredApiKey(environment)).toBeUndefined();
+    expect(llmMode(environment)).toBe('unconfigured');
+  });
+
+  it('trims a real key rather than rejecting it', () => {
+    expect(configuredApiKey({ OPENAI_API_KEY: ' sk-test \n' })).toBe('sk-test');
+    expect(llmMode({ OPENAI_API_KEY: 'sk-test' })).toBe('openai');
+  });
+
+  it('prefers the offline demo model over a configured key', () => {
+    const environment = { SOMNOSCRIBE_DEMO_MODE: 'true', OPENAI_API_KEY: 'sk-test' };
+    expect(demoModeEnabled(environment)).toBe(true);
+    expect(llmMode(environment)).toBe('demo');
+  });
+
+  it('runs the demo model outside the test environment, unlike the browser-suite switch', () => {
+    expect(demoModeEnabled({ NODE_ENV: 'production', SOMNOSCRIBE_DEMO_MODE: 'true' })).toBe(true);
+    expect(() =>
+      demoModeEnabled({ NODE_ENV: 'production', SOMNOSCRIBE_SYNTHETIC_LLM: 'true' }),
+    ).toThrow(/only be enabled/);
+  });
+
+  it('is off unless one of the two switches is set', () => {
+    expect(demoModeEnabled({ NODE_ENV: 'development' })).toBe(false);
+    expect(demoModeEnabled({ SOMNOSCRIBE_DEMO_MODE: 'false' })).toBe(false);
   });
 });

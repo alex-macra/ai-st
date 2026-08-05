@@ -1,7 +1,14 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import type OpenAI from 'openai';
-import { getOpenAIClient, writeSSE, extractUsage } from './llm.js';
+import {
+  getOpenAIClient,
+  writeSSE,
+  extractUsage,
+  LlmNotConfiguredError,
+  llmMode,
+  type LlmMode,
+} from './llm.js';
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -49,6 +56,7 @@ import type {
   ValidationWarning,
   ActionPlan,
   ReportSectionKey,
+  AnalysisMode,
 } from './shared/types.js';
 import { REPORT_SECTION_KEYS, REFERENCE_FLAG_SEVERITIES } from './shared/types.js';
 import { selectCandidates } from './tokenBudget.js';
@@ -62,8 +70,6 @@ import {
   unreviewedSectionKeys,
 } from './shared/review.js';
 
-const client = getOpenAIClient();
-
 function sse(res: Response, event: Record<string, unknown>): void {
   const requestId = res.locals['requestId'] as string | undefined;
   writeSSE(res, event, requestId);
@@ -71,6 +77,7 @@ function sse(res: Response, event: Record<string, unknown>): void {
 
 interface PassCallResult {
   text: string;
+  modelVersion: string;
   tokensIn: number;
   tokensOut: number;
   cacheReadTokens: number;
@@ -86,6 +93,7 @@ function untrustedJson(label: string, value: unknown): string {
 }
 
 async function callPass(
+  client: OpenAI,
   params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
   signal: AbortSignal,
 ): Promise<PassCallResult | null> {
@@ -94,6 +102,10 @@ async function callPass(
   const usage = extractUsage(completion.usage);
   return {
     text: completion.choices[0]?.message?.content ?? '{}',
+    modelVersion:
+      typeof completion.model === 'string' && completion.model.trim().length > 0
+        ? completion.model
+        : params.model,
     tokensIn: usage.inputTokens,
     tokensOut: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
@@ -427,7 +439,11 @@ interface AnalysisContext {
   caseId: string;
   res: Response;
   signal: AbortSignal;
+  client: OpenAI;
   model: string;
+  analysisMode: AnalysisMode;
+  reportModelVersion?: string;
+  modelVersions: Partial<Record<'pass1' | 'pass2' | 'pass3' | 'pass3b', string>>;
   caseCohort: CohortType['cohort'];
   isDocumentsOnly: boolean;
   tokenStats: TokenStats;
@@ -451,6 +467,7 @@ async function runPass1(
   const pass1UserContent = await buildPass1UserContent(casePackageJson, caseId);
 
   const pass1 = await callPass(
+    ctx.client,
     {
       model: ctx.model,
       max_completion_tokens: 16384,
@@ -469,6 +486,8 @@ async function runPass1(
   );
 
   if (!pass1) return null;
+
+  ctx.modelVersions.pass1 = pass1.modelVersion;
 
   tokenStats.pass1In = pass1.tokensIn;
   tokenStats.pass1Out = pass1.tokensOut;
@@ -583,6 +602,7 @@ async function runPass2(
   sse(res, { type: 'progress', pass: 2, message: 'Drafting structured report…' });
 
   const pass2 = await callPass(
+    ctx.client,
     {
       model: ctx.model,
       max_completion_tokens: 4096,
@@ -596,6 +616,11 @@ async function runPass2(
   );
 
   if (!pass2) return null;
+
+  // Pass 2 authors the report text, so its actual provider identifier is the
+  // one shown on the case and printed report. Pass 1/3 ids remain in audit.
+  ctx.reportModelVersion = pass2.modelVersion;
+  ctx.modelVersions.pass2 = pass2.modelVersion;
 
   tokenStats.pass2In = pass2.tokensIn;
   tokenStats.pass2Out = pass2.tokensOut;
@@ -680,6 +705,7 @@ async function runPass3(
   sse(res, { type: 'progress', pass: 3, message: 'Validating report sections…' });
 
   const pass3 = await callPass(
+    ctx.client,
     {
       model: NANO_MODEL,
       max_completion_tokens: 4096,
@@ -699,6 +725,8 @@ async function runPass3(
   );
 
   if (!pass3) return null;
+
+  ctx.modelVersions.pass3 = pass3.modelVersion;
 
   tokenStats.pass3In = pass3.tokensIn;
   tokenStats.pass3Out = pass3.tokensOut;
@@ -799,6 +827,7 @@ async function runPass3b(
 
   try {
     const pass3b = await callPass(
+      ctx.client,
       {
         model: NANO_MODEL,
         max_completion_tokens: 1024,
@@ -820,6 +849,8 @@ async function runPass3b(
     );
 
     if (!pass3b) return null;
+
+    ctx.modelVersions.pass3b = pass3b.modelVersion;
 
     tokenStats.pass3In += pass3b.tokensIn;
     tokenStats.pass3Out += pass3b.tokensOut;
@@ -877,6 +908,7 @@ function persistAnalysis(
   validationWarnings: ValidationWarning[],
 ): void {
   const { res, caseId, model, tokenStats } = ctx;
+  const modelVersion = ctx.reportModelVersion ?? model;
   const now = nextCaseUpdatedAt(c.updatedAt);
   const narrative = structuredReport.impression;
   const findingsPendingReview = findings.map(
@@ -891,12 +923,13 @@ function persistAnalysis(
     caseId,
     findingsPendingReview,
     narrative,
-    model,
+    modelVersion,
     now,
     structuredReport,
     referenceFlags,
     validationWarnings,
     c.updatedAt,
+    ctx.analysisMode,
   );
   if (!persisted) {
     sse(res, {
@@ -917,7 +950,10 @@ function persistAnalysis(
     action: 'analysis_completed',
     metadata: {
       promptVersion: PROMPT_VERSION,
-      modelVersion: model,
+      requestedModel: model,
+      modelVersion,
+      modelVersions: ctx.modelVersions,
+      analysisMode: ctx.analysisMode,
       findingCount: findingsPendingReview.length,
       referenceFlagCount: referenceFlags.length,
       validationWarningCount: validationWarnings.length,
@@ -933,7 +969,8 @@ function persistAnalysis(
     structuredReport,
     referenceFlags,
     validationWarnings,
-    modelVersion: model,
+    modelVersion,
+    analysisMode: ctx.analysisMode,
     promptVersion: PROMPT_VERSION,
     tokenStats,
   });
@@ -944,8 +981,10 @@ export async function runAnalysis(
   res: Response,
   signal: AbortSignal,
   modelId?: string,
+  forcedMode?: LlmMode,
 ): Promise<void> {
   const model = validateModel(modelId) ?? GPT_MODEL;
+  const configuredMode = forcedMode ?? llmMode();
 
   const c = getCaseById(caseId);
   if (!c) {
@@ -971,24 +1010,31 @@ export async function runAnalysis(
     });
   }
 
-  const ctx: AnalysisContext = {
-    caseId,
-    res,
-    signal,
-    model,
-    caseCohort: detectCohortAndType(casePackageJson).cohort,
-    isDocumentsOnly,
-    tokenStats: {
-      pass1In: 0,
-      pass1Out: 0,
-      pass2In: 0,
-      pass2Out: 0,
-      pass3In: 0,
-      pass3Out: 0,
-    },
-  };
-
   try {
+    if (configuredMode === 'unconfigured') throw new LlmNotConfiguredError();
+    const ctx: AnalysisContext = {
+      caseId,
+      res,
+      signal,
+      // Capture the client and mode once per job. A flag changed after this
+      // request passed auth can stop future jobs, but cannot spend a real key
+      // from this already-running offline job.
+      client: getOpenAIClient(configuredMode),
+      model,
+      analysisMode: configuredMode,
+      modelVersions: {},
+      caseCohort: detectCohortAndType(casePackageJson).cohort,
+      isDocumentsOnly,
+      tokenStats: {
+        pass1In: 0,
+        pass1Out: 0,
+        pass2In: 0,
+        pass2Out: 0,
+        pass3In: 0,
+        pass3Out: 0,
+      },
+    };
+
     const findings = await runPass1(ctx, casePackageJson);
     if (!findings) return;
 
@@ -1058,8 +1104,10 @@ export async function runActionPlan(
   res: Response,
   signal: AbortSignal,
   modelId?: string,
+  forcedMode?: LlmMode,
 ): Promise<void> {
   const model = validateModel(modelId) ?? GPT_MODEL;
+  const configuredMode = forcedMode ?? llmMode();
 
   const c = getCaseById(caseId);
   if (!c) {
@@ -1106,6 +1154,10 @@ export async function runActionPlan(
   const reportForPlan = reviewedReportForActionPlan(c);
 
   try {
+    if (configuredMode === 'unconfigured') throw new LlmNotConfiguredError();
+    // See runAnalysis: the action-plan job also keeps one immutable client
+    // rather than re-resolving configuration between provider calls.
+    const client = getOpenAIClient(configuredMode);
     sse(res, { type: 'progress', pass: 4, message: 'Generating action plan…' });
 
     const userContent = [
@@ -1115,6 +1167,7 @@ export async function runActionPlan(
     ].join('\n\n');
 
     const pass4 = await callPass(
+      client,
       {
         model,
         max_completion_tokens: ACTION_PLAN_MAX_OUTPUT_TOKENS,
@@ -1177,7 +1230,8 @@ export async function runActionPlan(
         rareButRelevant: [],
       },
       generatedAt: new Date().toISOString(),
-      modelVersion: model,
+      modelVersion: pass4.modelVersion,
+      analysisMode: configuredMode,
       promptVersion: ACTION_PLAN_PROMPT_VERSION,
       tokensIn,
       tokensOut,
@@ -1217,7 +1271,9 @@ export async function runActionPlan(
       action: 'action_plan_generated',
       metadata: {
         promptVersion: ACTION_PLAN_PROMPT_VERSION,
-        modelVersion: model,
+        requestedModel: model,
+        modelVersion: pass4.modelVersion,
+        analysisMode: configuredMode,
         priorityActionCount: sanitised.priorityActions.length,
         verifyNextCount: sanitised.verifyNext.length,
         artifactCaveatCount: sanitised.artifactCaveats.length,
@@ -1246,6 +1302,9 @@ export async function runActionPlan(
 
 function safeAnalysisErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) return 'Analysis failed unexpectedly. Please try again.';
+  // Deliberately verbatim: this one is an operator misconfiguration, and the
+  // message names the two variables that resolve it. It leaks nothing.
+  if (err instanceof LlmNotConfiguredError) return err.message;
   const status = (err as { status?: number }).status;
   const msg = err.message.toLowerCase();
   if (status === 429 || msg.includes('rate limit')) {

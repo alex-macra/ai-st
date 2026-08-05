@@ -13,11 +13,15 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 
 vi.mock('../api', () => ({
   uploadCase: vi.fn(),
+  getDemoStudySummary: vi.fn(),
+  getDemoStudyFile: vi.fn(),
 }));
 
-import { uploadCase } from '../api';
+import { uploadCase, getDemoStudyFile, getDemoStudySummary } from '../api';
 
 const uploadCaseMock = uploadCase as unknown as ReturnType<typeof vi.fn>;
+const demoFileMock = getDemoStudyFile as unknown as ReturnType<typeof vi.fn>;
+const demoSummaryMock = getDemoStudySummary as unknown as ReturnType<typeof vi.fn>;
 
 function makeFile(name: string, content = 'x'): File {
   // Pick a MIME type that matches the input's `accept` attribute so user-event
@@ -44,10 +48,13 @@ async function expandOptional(user: ReturnType<typeof userEvent.setup>) {
 describe('<CaseUpload />', () => {
   beforeEach(() => {
     uploadCaseMock.mockReset();
+    demoFileMock.mockReset();
+    demoSummaryMock.mockReset();
+    demoSummaryMock.mockRejectedValue(new Error('not available in this test'));
   });
 
   it('disables submit and shows hint when no files are picked', () => {
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     const submit = screen.getByRole('button', { name: /upload & process/i });
     expect(submit).toBeDisabled();
     expect(screen.getByText(/select at least one file to enable/i)).toBeInTheDocument();
@@ -55,7 +62,7 @@ describe('<CaseUpload />', () => {
 
   it('enables submit once an EDF is selected', async () => {
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     await user.upload(getEdfInput(), makeFile('study.edf'));
     expect(screen.getByRole('button', { name: /upload & process/i })).toBeEnabled();
     expect(screen.queryByText(/pick at least one file/i)).not.toBeInTheDocument();
@@ -63,7 +70,7 @@ describe('<CaseUpload />', () => {
 
   it('enables submit when only screenshots are picked (EDF optional)', async () => {
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     await expandOptional(user);
     await user.upload(getScreenshotsInput(), [makeFile('a.png'), makeFile('b.png')]);
     expect(screen.getByRole('button', { name: /upload & process/i })).toBeEnabled();
@@ -73,7 +80,7 @@ describe('<CaseUpload />', () => {
 
   it('removes a single screenshot without dropping the others', async () => {
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     await expandOptional(user);
     await user.upload(getScreenshotsInput(), [
       makeFile('a.png'),
@@ -91,7 +98,7 @@ describe('<CaseUpload />', () => {
 
   it('removing the only file disables submit and re-shows the hint', async () => {
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     await user.upload(getEdfInput(), makeFile('study.edf'));
     expect(screen.getByRole('button', { name: /upload & process/i })).toBeEnabled();
 
@@ -109,7 +116,7 @@ describe('<CaseUpload />', () => {
     uploadCaseMock.mockResolvedValueOnce({ caseId: 'case-123', studyHash: 'h', name: 'n' });
     const onUploaded = vi.fn();
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={onUploaded} />);
+    render(<CaseUpload onUploaded={onUploaded} config={null} />);
     await user.upload(getEdfInput(), makeFile('study.edf'));
     await user.click(screen.getByRole('button', { name: /upload & process/i }));
 
@@ -121,7 +128,7 @@ describe('<CaseUpload />', () => {
     uploadCaseMock.mockRejectedValueOnce(new Error('Preprocessor unreachable'));
     const onUploaded = vi.fn();
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={onUploaded} />);
+    render(<CaseUpload onUploaded={onUploaded} config={null} />);
     await user.upload(getEdfInput(), makeFile('study.edf'));
     await user.click(screen.getByRole('button', { name: /upload & process/i }));
 
@@ -129,10 +136,83 @@ describe('<CaseUpload />', () => {
     expect(onUploaded).not.toHaveBeenCalled();
   });
 
+  it('loads the demo study into the form and switches the cohort to adult', async () => {
+    demoFileMock.mockResolvedValueOnce(makeFile('somnoscribe-demo-study.edf'));
+    const user = userEvent.setup();
+    render(
+      <CaseUpload
+        onUploaded={vi.fn()}
+        config={{ llmMode: 'demo', analysisAvailable: true, demoMode: true }}
+        isDemoUser
+      />,
+    );
+
+    expect(screen.getByRole('radio', { name: 'Pediatric' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /load demo study/i }));
+
+    expect(await screen.findByText('somnoscribe-demo-study.edf')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Adult' })).toBeChecked();
+    expect(screen.getByRole('button', { name: /upload & process/i })).toBeEnabled();
+  });
+
+  it('reports a failure to generate the demo study without disabling the form', async () => {
+    demoFileMock.mockRejectedValueOnce(new Error('Preprocessing service is unreachable'));
+    const user = userEvent.setup();
+    render(
+      <CaseUpload
+        onUploaded={vi.fn()}
+        config={{ llmMode: 'demo', analysisAvailable: true, demoMode: true }}
+        isDemoUser
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /load demo study/i }));
+
+    expect(await screen.findByText('Preprocessing service is unreachable')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /load demo study/i })).toBeEnabled();
+  });
+
+  it('says analysis is unconfigured when the deployment has no model', async () => {
+    render(
+      <CaseUpload
+        onUploaded={vi.fn()}
+        config={{ llmMode: 'unconfigured', analysisAvailable: false, demoMode: false }}
+      />,
+    );
+    expect(await screen.findByText(/analysis is not configured/i)).toBeInTheDocument();
+  });
+
+  it('does not advertise the demo study outside demo mode', () => {
+    render(
+      <CaseUpload
+        onUploaded={vi.fn()}
+        config={{ llmMode: 'openai', analysisAvailable: true, demoMode: false }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('heading', { name: 'Try it with a demo study' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load demo study' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the generated demo study controls scoped to the temporary demo user', () => {
+    render(
+      <CaseUpload
+        onUploaded={vi.fn()}
+        config={{ llmMode: 'demo', analysisAvailable: true, demoMode: true }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('heading', { name: 'Try it with a demo study' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('sends EDF + PDF + screenshots together when all are picked', async () => {
     uploadCaseMock.mockResolvedValueOnce({ caseId: 'c', studyHash: 'h', name: 'n' });
     const user = userEvent.setup();
-    render(<CaseUpload onUploaded={vi.fn()} />);
+    render(<CaseUpload onUploaded={vi.fn()} config={null} />);
     await user.upload(getEdfInput(), makeFile('study.edf'));
     await expandOptional(user);
     await user.upload(getPdfInput(), makeFile('report.pdf'));

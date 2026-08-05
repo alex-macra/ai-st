@@ -1,17 +1,19 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText } from 'lucide-react';
-import { Alert, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
+import { RefreshCw, ChevronRight, Trash2, RotateCcw, FileText, FlaskConical } from 'lucide-react';
+import { Alert, Button, EmptyState, Badge, CASE_STATUS_VARIANT } from '../ui';
 import { getCases, deleteCase, clearCaseAnalysis } from '../api';
 import type { Case } from '@contracts/types';
 
 interface Props {
   onSelect: (c: Case) => void;
   refreshKey?: number;
+  /** Sends a first-time visitor to the upload view, where the demo panel lives. */
+  onStartDemo?: () => void;
 }
 
-export function CaseList({ onSelect, refreshKey }: Props) {
+export function CaseList({ onSelect, refreshKey, onStartDemo }: Props) {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,18 @@ export function CaseList({ onSelect, refreshKey }: Props) {
         <EmptyState
           icon={<FileText size={28} />}
           title="No cases yet"
-          description="Upload a study to get started."
+          description={
+            onStartDemo
+              ? 'Upload a study to get started, or run the demo study if you do not have one to hand.'
+              : 'Upload a study to get started.'
+          }
+          action={
+            onStartDemo && (
+              <Button variant="secondary" icon={<FlaskConical size={14} />} onClick={onStartDemo}>
+                Try the demo study
+              </Button>
+            )
+          }
         />
       )}
 

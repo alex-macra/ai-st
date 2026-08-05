@@ -13,6 +13,7 @@ import {
   ALLOWED_MODELS,
 } from './constants.js';
 import { jwtSecretError, parseTrustProxy } from './env.js';
+import { purgeDemoDataForCurrentMode } from './demoData.js';
 
 const jwtErr = jwtSecretError();
 if (jwtErr) {
@@ -60,6 +61,15 @@ try {
     'reference_docs_seed_failed',
   );
 }
+
+void purgeDemoDataForCurrentMode();
+const demoPurgeTimer = setInterval(
+  () => {
+    void purgeDemoDataForCurrentMode();
+  },
+  15 * 60 * 1_000,
+);
+demoPurgeTimer.unref();
 
 const server = app.listen(PORT, HOST, () => {
   logger.info({ host: HOST, port: PORT }, 'server_listening');

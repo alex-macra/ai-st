@@ -3,6 +3,14 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getDb } from './connection.js';
 import type { User, Organization } from '../shared/types.js';
+import { newDemoUserEmail } from '../demo.js';
+
+export class DemoPrincipalCapacityError extends Error {
+  constructor() {
+    super('The demo is at temporary session capacity. Please try again shortly.');
+    this.name = 'DemoPrincipalCapacityError';
+  }
+}
 
 interface DbUserRow {
   id: string;
@@ -11,6 +19,8 @@ interface DbUserRow {
   organization_id: string | null;
   tier: string;
   is_admin: number;
+  is_demo: number;
+  demo_expires_at: string | null;
   token_budget: number;
   created_at: string;
   last_seen: string | null;
@@ -37,6 +47,8 @@ function rowToUser(row: DbUserRow): User {
     organizationId: row.organization_id,
     tier: row.tier ?? 'starter',
     isAdmin: row.is_admin === 1,
+    isDemo: row.is_demo === 1,
+    demoExpiresAt: row.demo_expires_at ?? null,
     tokenBudget: row.token_budget ?? 5_000_000,
     createdAt: row.created_at,
     lastSeen: row.last_seen,
@@ -67,15 +79,52 @@ export function createUser(email: string, organizationId?: string): User {
   const now = new Date().toISOString();
   getDb()
     .prepare(
-      'INSERT INTO users (id, email, organization_id, tier, is_admin, token_budget, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO users
+         (id, email, organization_id, tier, is_admin, is_demo, demo_expires_at, token_budget, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, email, organizationId ?? null, 'starter', 0, 5_000_000, now);
+    .run(id, email, organizationId ?? null, 'starter', 0, 0, null, 5_000_000, now);
   return {
     id,
     email,
     organizationId: organizationId ?? null,
     tier: 'starter',
     isAdmin: false,
+    isDemo: false,
+    demoExpiresAt: null,
+    tokenBudget: 5_000_000,
+    createdAt: now,
+    lastSeen: null,
+  };
+}
+
+export function createDemoUser(expiresAt: string, maxActivePrincipals: number): User {
+  const id = randomUUID();
+  const email = newDemoUserEmail();
+  const now = new Date().toISOString();
+  const db = getDb();
+  db.transaction(() => {
+    const active = db
+      .prepare(
+        'SELECT COUNT(*) AS n FROM users WHERE is_demo = 1 AND demo_expires_at IS NOT NULL AND demo_expires_at > ?',
+      )
+      .get(now) as { n: number };
+    if (active.n >= maxActivePrincipals) throw new DemoPrincipalCapacityError();
+
+    db.prepare(
+      `INSERT INTO users
+         (id, email, organization_id, tier, is_admin, is_demo, demo_expires_at, token_budget, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, email, null, 'starter', 0, 1, expiresAt, 5_000_000, now);
+  })();
+  return {
+    id,
+    email,
+    organizationId: null,
+    tier: 'starter',
+    isAdmin: false,
+    isDemo: true,
+    demoExpiresAt: expiresAt,
     tokenBudget: 5_000_000,
     createdAt: now,
     lastSeen: null,
@@ -91,6 +140,73 @@ export function getUserByEmail(email: string): User | undefined {
 export function getUserById(id: string): User | undefined {
   const row = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUserRow | undefined;
   return row ? rowToUser(row) : undefined;
+}
+
+export interface PurgedDemoData {
+  caseIds: string[];
+  orphanedStudyHashes: string[];
+  deletedUsers: number;
+}
+
+export function purgeDemoUsers(expireBefore: string, includeActive: boolean): PurgedDemoData {
+  const db = getDb();
+  const predicate = includeActive
+    ? 'u.is_demo = 1'
+    : 'u.is_demo = 1 AND (u.demo_expires_at IS NULL OR u.demo_expires_at <= ?)';
+  const userPredicate = includeActive
+    ? 'is_demo = 1'
+    : 'is_demo = 1 AND (demo_expires_at IS NULL OR demo_expires_at <= ?)';
+  const params = includeActive ? [] : [expireBefore];
+
+  return db.transaction((): PurgedDemoData => {
+    const cases = db
+      .prepare(
+        `SELECT c.id, c.study_hash
+           FROM cases c
+           INNER JOIN users u ON u.id = c.created_by
+          WHERE ${predicate}`,
+      )
+      .all(...params) as Array<{ id: string; study_hash: string }>;
+
+    db.prepare(
+      `DELETE FROM audit_log
+        WHERE case_id IN (
+          SELECT c.id
+            FROM cases c
+            INNER JOIN users u ON u.id = c.created_by
+           WHERE ${predicate}
+        )`,
+    ).run(...params);
+    db.prepare(
+      `DELETE FROM analysis_audit
+        WHERE user_id IN (SELECT id FROM users WHERE ${userPredicate})
+           OR case_id IN (
+             SELECT c.id
+               FROM cases c
+               INNER JOIN users u ON u.id = c.created_by
+              WHERE ${predicate}
+           )`,
+    ).run(...params, ...params);
+    db.prepare(
+      `DELETE FROM cases
+        WHERE created_by IN (SELECT id FROM users WHERE ${userPredicate})`,
+    ).run(...params);
+    db.prepare(
+      `DELETE FROM auth_otps WHERE email IN (SELECT email FROM users WHERE ${userPredicate})`,
+    ).run(...params);
+    const deletedUsers = Number(
+      (db.prepare(`DELETE FROM users WHERE ${userPredicate}`).run(...params) as { changes: number })
+        .changes,
+    );
+
+    const orphanedStudyHashes = [...new Set(cases.map((c) => c.study_hash))].filter(
+      (studyHash) =>
+        /^[a-f0-9]{64}$/.test(studyHash) &&
+        db.prepare('SELECT 1 FROM cases WHERE study_hash = ? LIMIT 1').get(studyHash) === undefined,
+    );
+
+    return { caseIds: cases.map((c) => c.id), orphanedStudyHashes, deletedUsers };
+  })();
 }
 
 export function touchLastSeen(userId: string): void {

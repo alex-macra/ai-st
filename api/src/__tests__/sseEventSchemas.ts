@@ -32,6 +32,7 @@ export const doneEventSchema = z.object({
   referenceFlags: z.array(z.unknown()).optional(),
   validationWarnings: z.array(z.unknown()).optional(),
   modelVersion: z.string(),
+  analysisMode: z.enum(['demo', 'openai']),
 });
 
 export const sseEventSchema = z.discriminatedUnion('type', [

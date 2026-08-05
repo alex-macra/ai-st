@@ -5,12 +5,22 @@ import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../app.js';
 import { activeAnalyses } from '../routes/cases.js';
+import { createDemoUser, insertCase } from '../db.js';
+import { signJwt } from '../middleware/auth.js';
 import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
 
-const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
+const { mockCreate, mockGetOpenAIClient, mockLlmMode, mockPublicDemoMode } = vi.hoisted(() => ({
+  mockCreate: vi.fn(),
+  mockGetOpenAIClient: vi.fn(),
+  mockLlmMode: vi.fn(() => 'openai'),
+  mockPublicDemoMode: vi.fn(() => false),
+}));
 
 vi.mock('../llm.js', () => ({
-  getOpenAIClient: () => ({ chat: { completions: { create: mockCreate } } }),
+  getOpenAIClient: mockGetOpenAIClient,
+  llmMode: mockLlmMode,
+  publicDemoModeEnabled: mockPublicDemoMode,
+  LlmNotConfiguredError: class LlmNotConfiguredError extends Error {},
   writeSSE: (
     res: { write: (s: string) => void },
     data: Record<string, unknown>,
@@ -121,6 +131,12 @@ describe('analyze gates', () => {
     request = authedSupertest(app, auth);
     activeAnalyses.clear();
     mockCreate.mockReset();
+    mockGetOpenAIClient.mockReset();
+    mockGetOpenAIClient.mockReturnValue({ chat: { completions: { create: mockCreate } } });
+    mockLlmMode.mockReset();
+    mockLlmMode.mockReturnValue('openai');
+    mockPublicDemoMode.mockReset();
+    mockPublicDemoMode.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -140,10 +156,12 @@ describe('analyze gates', () => {
     const { text: pass1Text, findingId } = makePass1Response();
     mockCreate
       .mockImplementationOnce(async () => ({
+        model: 'provider-extractor-model',
         choices: [{ message: { content: pass1Text } }],
         usage: { prompt_tokens: 50, completion_tokens: 20 },
       }))
       .mockImplementationOnce(async () => ({
+        model: 'provider-report-model',
         choices: [{ message: { content: makePass2Response(findingId) } }],
         usage: { prompt_tokens: 80, completion_tokens: 40 },
       }))
@@ -169,9 +187,112 @@ describe('analyze gates', () => {
     ).toBeUndefined();
     const done = events.find((e) => e['type'] === 'done');
     expect(done).toBeDefined();
+    expect(done?.['modelVersion']).toBe('provider-report-model');
+    expect(done?.['analysisMode']).toBe('openai');
+    const persisted = await request.get(`/api/cases/${caseId}`);
+    expect(persisted.body.case).toMatchObject({
+      modelVersion: 'provider-report-model',
+      analysisMode: 'openai',
+    });
     const findings = done?.['findings'] as Array<Record<string, unknown>>;
     expect(findings).toHaveLength(1);
     expect(findings[0]?.['reviewerDecision']).toBeUndefined();
+  });
+
+  it('keeps a demo analysis on its captured offline client if the flag changes between passes', async () => {
+    restore = stubPreprocessor(DOCS_ONLY_PACKAGE);
+    const upload = await request
+      .post('/api/upload')
+      .attach('pdf', Buffer.from('%PDF-1.4 fake'), 'report.pdf');
+    expect(upload.status).toBe(201);
+    const { caseId } = upload.body as { caseId: string };
+
+    const { text: pass1Text, findingId } = makePass1Response();
+    mockLlmMode.mockReturnValue('demo');
+    mockCreate
+      .mockImplementationOnce(async () => {
+        // This models an operator disabling demo mode after the request has
+        // passed auth. A second client lookup here would otherwise use OpenAI.
+        mockLlmMode.mockReturnValue('openai');
+        return {
+          model: 'somnoscribe-offline-demo',
+          choices: [{ message: { content: pass1Text } }],
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        model: 'somnoscribe-offline-demo',
+        choices: [{ message: { content: makePass2Response(findingId) } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }))
+      .mockImplementationOnce(async () => ({
+        model: 'somnoscribe-offline-demo',
+        choices: [{ message: { content: PASS3_OK } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      }));
+
+    const response = await request.post(`/api/cases/${caseId}/analyze`).send({});
+
+    expect(response.status).toBe(200);
+    expect(mockGetOpenAIClient).toHaveBeenCalledTimes(1);
+    expect(mockGetOpenAIClient).toHaveBeenCalledWith('demo');
+    const done = parseSseEvents(response.text).find((event) => event['type'] === 'done');
+    expect(done?.['modelVersion']).toBe('somnoscribe-offline-demo');
+    expect(done?.['analysisMode']).toBe('demo');
+  });
+
+  it('forces a demo principal onto the offline client even if global mode changes before capture', async () => {
+    mockPublicDemoMode.mockReturnValue(true);
+    // Model configuration becomes provider-backed after auth has admitted the
+    // keyless principal. The route must still explicitly force offline mode.
+    mockLlmMode.mockReturnValue('openai');
+    const user = createDemoUser(new Date(Date.now() + 60_000).toISOString(), 100);
+    const now = new Date().toISOString();
+    const caseId = randomUUID();
+    insertCase({
+      id: caseId,
+      studyHash: 'd'.repeat(64),
+      name: `demo-analysis-${randomUUID()}`,
+      status: 'draft',
+      cohort: 'adult',
+      findings: [],
+      casePackage: JSON.stringify(DOCS_ONLY_PACKAGE),
+      createdBy: user.id,
+      sourceKind: 'demo_synthetic',
+      preprocessorVersion: 'test',
+      promptVersion: 'test',
+      modelVersion: 'somnoscribe-offline-demo',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { text: pass1Text, findingId } = makePass1Response();
+    mockCreate
+      .mockResolvedValueOnce({
+        model: 'somnoscribe-offline-demo',
+        choices: [{ message: { content: pass1Text } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      })
+      .mockResolvedValueOnce({
+        model: 'somnoscribe-offline-demo',
+        choices: [{ message: { content: makePass2Response(findingId) } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      })
+      .mockResolvedValueOnce({
+        model: 'somnoscribe-offline-demo',
+        choices: [{ message: { content: PASS3_OK } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      });
+
+    const response = await supertest(createApp({ rateLimitMax: 1000 }))
+      .post(`/api/cases/${caseId}/analyze`)
+      .set('Cookie', `somno_session=${signJwt(user.id, '4h')}`)
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(mockGetOpenAIClient).toHaveBeenCalledWith('demo');
+    const done = parseSseEvents(response.text).find((event) => event['type'] === 'done');
+    expect(done?.['analysisMode']).toBe('demo');
   });
 
   it('rejects a concurrent model job from the same authenticated user with 429', async () => {

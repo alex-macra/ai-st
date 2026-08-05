@@ -71,6 +71,71 @@ describe('<PrintableReport />', () => {
     expect(screen.getByText(/gpt-5\.4-mini.*prompt 1\.2\.0/)).toBeInTheDocument();
   });
 
+  it('keeps separate durable input and report provenance inside the printable report', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({
+          sourceKind: 'demo_synthetic',
+          analysisMode: 'demo',
+          modelVersion: 'somnoscribe-offline-demo',
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/synthetic demo study.*input recording was generated/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/offline-generated report.*built-in demo model/i)).toBeInTheDocument();
+    expect(screen.getByText(/synthetic input.*offline-generated report/i)).toBeInTheDocument();
+    expect(screen.getByText(/somnoscribe-offline-demo.*prompt 1\.2\.0/)).toBeInTheDocument();
+  });
+
+  it('does not mislabel a real input when only its report was generated offline', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({ analysisMode: 'demo', modelVersion: 'somnoscribe-offline-demo' })}
+      />,
+    );
+
+    expect(screen.getByText(/offline-generated report.*built-in demo model/i)).toBeInTheDocument();
+    expect(screen.queryByText(/synthetic demo study/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps an offline action plan distinct from an OpenAI-generated report', () => {
+    render(
+      <PrintableReport
+        signalSlices={[]}
+        c={makeCase({
+          actionPlan: {
+            priorityActions: [],
+            verifyNext: [],
+            artifactCaveats: [],
+            clinicalContext: {
+              commonPresentation: 'Review the confirmed finding.',
+              rareButRelevant: [],
+            },
+            generatedAt: '2026-04-30T10:00:00Z',
+            modelVersion: 'somnoscribe-offline-demo',
+            analysisMode: 'demo',
+            promptVersion: '4.0.0',
+            tokensIn: 1,
+            tokensOut: 1,
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText(/offline-generated action plan.*built-in demo model/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/offline-generated report.*built-in demo model/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/synthetic demo study/i)).not.toBeInTheDocument();
+  });
+
   it('renders all populated structured-report sections', () => {
     render(<PrintableReport signalSlices={[]} c={makeCase()} />);
     for (const heading of [

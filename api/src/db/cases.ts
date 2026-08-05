@@ -10,6 +10,7 @@ import type {
   StructuredReport,
   SectionReviews,
   ActionPlan,
+  AnalysisMode,
   PdfMetrics,
   EdfMetrics,
 } from '../shared/types.js';
@@ -30,11 +31,21 @@ interface DbCaseRow {
   action_plan: string | null;
   created_by: string | null;
   organization_id: string | null;
+  source_kind: string;
+  analysis_mode: string | null;
   preprocessor_version: string;
   prompt_version: string;
   model_version: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Raised when expiry cleanup won an in-flight temporary demo upload. */
+export class DemoCreatorUnavailableError extends Error {
+  constructor() {
+    super('The temporary demo session is no longer active.');
+    this.name = 'DemoCreatorUnavailableError';
+  }
 }
 
 function extractPdfMetrics(casePackageJson: string | null): PdfMetrics | null {
@@ -228,6 +239,10 @@ function rowToCase(row: DbCaseRow): Case {
   return {
     id: row.id,
     studyHash: row.study_hash,
+    ...(row.source_kind === 'demo_synthetic' ? { sourceKind: 'demo_synthetic' as const } : {}),
+    ...(row.analysis_mode === 'demo' || row.analysis_mode === 'openai'
+      ? { analysisMode: row.analysis_mode as AnalysisMode }
+      : {}),
     name: row.name,
     status: row.status as Case['status'],
     cohort,
@@ -264,6 +279,7 @@ function rowToCase(row: DbCaseRow): Case {
 export interface CaseScope {
   userId: string;
   organizationId: string | null;
+  demoOnly?: boolean;
 }
 
 export function nextCaseUpdatedAt(current: string, nowMs = Date.now()): string {
@@ -280,6 +296,25 @@ export function createCaseWithAudit(
   const db = getDb();
   let name = '';
   db.transaction(() => {
+    // A demo upload awaits preprocessing before it reaches this transaction.
+    // Recheck the principal here so expiry cleanup cannot delete the user in
+    // that interval and leave an orphaned synthetic case behind.
+    if (partialCase.sourceKind === 'demo_synthetic') {
+      const creator = db
+        .prepare('SELECT is_demo, demo_expires_at FROM users WHERE id = ?')
+        .get(partialCase.createdBy ?? '') as
+        { is_demo: number; demo_expires_at: string | null } | undefined;
+      const expiresAtMs = Date.parse(creator?.demo_expires_at ?? '');
+      if (
+        !creator ||
+        creator.is_demo !== 1 ||
+        !Number.isFinite(expiresAtMs) ||
+        expiresAtMs <= Date.now()
+      ) {
+        throw new DemoCreatorUnavailableError();
+      }
+    }
+
     const row = db
       .prepare('SELECT COUNT(*) as n FROM cases WHERE name LIKE ?')
       .get(`%-${basename}-%`) as { n: number } | undefined;
@@ -290,8 +325,8 @@ export function createCaseWithAudit(
       `INSERT INTO cases
          (id, study_hash, name, status, findings, narrative, case_package, token_stats,
           structured_report, section_reviews, created_by, organization_id,
-          preprocessor_version, prompt_version, model_version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          source_kind, analysis_mode, preprocessor_version, prompt_version, model_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       partialCase.id,
       partialCase.studyHash,
@@ -305,6 +340,8 @@ export function createCaseWithAudit(
       partialCase.sectionReviews ? JSON.stringify(partialCase.sectionReviews) : null,
       partialCase.createdBy ?? null,
       partialCase.organizationId ?? null,
+      partialCase.sourceKind ?? 'upload',
+      partialCase.analysisMode ?? null,
       partialCase.preprocessorVersion,
       partialCase.promptVersion,
       partialCase.modelVersion,
@@ -332,9 +369,9 @@ export function insertCase(c: Case): void {
       `INSERT INTO cases
          (id, study_hash, name, status, findings, narrative, case_package, token_stats,
           structured_report, section_reviews, created_by, organization_id,
-          preprocessor_version, prompt_version, model_version,
+          source_kind, analysis_mode, preprocessor_version, prompt_version, model_version,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       c.id,
@@ -349,6 +386,8 @@ export function insertCase(c: Case): void {
       c.sectionReviews ? JSON.stringify(c.sectionReviews) : null,
       c.createdBy ?? null,
       c.organizationId ?? null,
+      c.sourceKind ?? 'upload',
+      c.analysisMode ?? null,
       c.preprocessorVersion,
       c.promptVersion,
       c.modelVersion,
@@ -382,9 +421,10 @@ export function getCasesScoped(scope: CaseScope, status?: string): Case[] {
   const orgId = scope.organizationId;
   const params: unknown[] = orgId ? [scope.userId, orgId] : [scope.userId];
   const where = orgId ? '(created_by = ? OR organization_id = ?)' : 'created_by = ?';
+  const demoWhere = scope.demoOnly ? " AND source_kind = 'demo_synthetic'" : '';
   const sql = status
-    ? `SELECT * FROM cases WHERE ${where} AND status = ? ORDER BY created_at DESC`
-    : `SELECT * FROM cases WHERE ${where} ORDER BY created_at DESC`;
+    ? `SELECT * FROM cases WHERE ${where}${demoWhere} AND status = ? ORDER BY created_at DESC`
+    : `SELECT * FROM cases WHERE ${where}${demoWhere} ORDER BY created_at DESC`;
   if (status) params.push(status);
   const rows = getDb()
     .prepare(sql)
@@ -395,6 +435,9 @@ export function getCasesScoped(scope: CaseScope, status?: string): Case[] {
 export function getCaseByIdScoped(id: string, scope: CaseScope): Case | undefined {
   const c = getCaseById(id);
   if (!c) return undefined;
+  if (scope.demoOnly) {
+    return c.createdBy === scope.userId && c.sourceKind === 'demo_synthetic' ? c : undefined;
+  }
   if (c.createdBy === scope.userId) return c;
   if (scope.organizationId && c.organizationId === scope.organizationId) return c;
   return undefined;
@@ -471,7 +514,7 @@ export function clearCaseAnalysis(id: string, updatedAt = new Date().toISOString
       `UPDATE cases
          SET findings = '[]', narrative = NULL, structured_report = NULL,
              section_reviews = NULL, reference_flags = NULL, validation_warnings = NULL,
-             action_plan = NULL, status = 'draft', updated_at = ?
+             action_plan = NULL, analysis_mode = NULL, status = 'draft', updated_at = ?
        WHERE id = ? AND status != 'signed_off'`,
     )
     .run(updatedAt, id) as { changes: number };
@@ -520,7 +563,7 @@ export function clearAllAnalyses(): number {
       `UPDATE cases
          SET findings = '[]', narrative = NULL, structured_report = NULL,
              section_reviews = NULL, reference_flags = NULL, validation_warnings = NULL,
-             action_plan = NULL, status = 'draft', updated_at = ?
+             action_plan = NULL, analysis_mode = NULL, status = 'draft', updated_at = ?
        WHERE status != 'signed_off'`,
     )
     .run(now) as { changes: number };

@@ -6,12 +6,13 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from candidate_windows import find_candidate_windows
 from chart_renderer import CHART_RENDERER_VERSION, render_window
 from const import SCHEMA_VERSION
 from deidentify import deidentify_edf_header
+from demo_study import demo_edf_bytes, demo_study_summary
 from edf_parser import extract_demographics, parse_edf
 from evidence_packager import package_evidence
 from parsers.domino_pdf import ParseFailure, metrics_to_dict, parse_domino_pdf
@@ -33,6 +34,22 @@ app = FastAPI(title="Somnoscribe Preprocessor", version=PREPROCESSOR_VERSION)
 @app.get("/healthz")
 async def healthz():
     return {"ok": True, "version": PREPROCESSOR_VERSION, "chartRendererVersion": CHART_RENDERER_VERSION}
+
+
+@app.get("/demo/study.edf")
+async def demo_study():
+    """The synthetic demo recording. Generated from a fixed seed, never a person."""
+    return Response(
+        content=demo_edf_bytes(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="somnoscribe-demo-study.edf"'},
+    )
+
+
+@app.get("/demo/summary")
+async def demo_summary():
+    """What the generator put into the demo recording."""
+    return demo_study_summary()
 
 
 @app.post("/ingest")

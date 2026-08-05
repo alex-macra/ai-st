@@ -91,6 +91,7 @@ export function createAdminRouter(): Router {
       const result = getDb().transaction(() => {
         const existing = getUserById(targetId);
         if (!existing) return { kind: 'not_found' as const };
+        if (existing.isDemo) return { kind: 'demo_user' as const };
 
         if (nextIsAdmin === false) {
           if (actorId === targetId) return { kind: 'self_demote' as const };
@@ -114,6 +115,10 @@ export function createAdminRouter(): Router {
 
       if (result.kind === 'not_found') {
         res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      if (result.kind === 'demo_user') {
+        res.status(403).json({ error: 'Demo users cannot be granted administrator access.' });
         return;
       }
       if (result.kind === 'self_demote') {

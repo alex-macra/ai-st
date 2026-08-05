@@ -42,7 +42,18 @@ describe('CaseList UI integration', () => {
     getCasesMock.mockResolvedValue([]);
     render(<CaseList onSelect={() => {}} />);
     expect(await screen.findByText('No cases yet')).toBeInTheDocument();
-    expect(screen.getByText('Upload a study to get started.')).toBeInTheDocument();
+    expect(screen.getByText(/upload a study to get started/i)).toBeInTheDocument();
+  });
+
+  it('offers the demo study only when demo navigation is available', async () => {
+    getCasesMock.mockResolvedValue([]);
+    const { rerender } = render(<CaseList onSelect={() => {}} />);
+
+    await screen.findByText('No cases yet');
+    expect(screen.queryByRole('button', { name: 'Try the demo study' })).not.toBeInTheDocument();
+
+    rerender(<CaseList onSelect={() => {}} onStartDemo={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Try the demo study' })).toBeInTheDocument();
   });
 
   it('renders a status Badge and case name for each case', async () => {

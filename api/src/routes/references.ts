@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { insertReferenceDoc, getReferenceDocs, deleteReferenceDoc } from '../db.js';
 import { logger, hashIp } from '../logger.js';
-import { requireAdmin, requireAuth } from '../middleware/auth.js';
+import { requireAdmin, requireNonDemoUser } from '../middleware/auth.js';
 import { getReferenceStatus } from '../refs/seedReferenceDocs.js';
 
 const require = createRequire(import.meta.url);
@@ -28,11 +28,11 @@ const createRefSchema = z.object({
 export function referencesRouter(): Router {
   const router = express.Router();
 
-  router.get('/status', requireAuth, (_req: Request, res: Response): void => {
+  router.get('/status', requireNonDemoUser, (_req: Request, res: Response): void => {
     res.json(getReferenceStatus());
   });
 
-  router.get('/', requireAuth, (req: Request, res: Response): void => {
+  router.get('/', requireNonDemoUser, (req: Request, res: Response): void => {
     const cohort = typeof req.query['cohort'] === 'string' ? req.query['cohort'] : undefined;
     if (cohort && !COHORTS.includes(cohort as (typeof COHORTS)[number])) {
       res.status(400).json({ error: 'Invalid cohort filter' });

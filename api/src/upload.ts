@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { createCaseWithAudit } from './db.js';
+import { createCaseWithAudit, DemoCreatorUnavailableError } from './db.js';
 import {
   PREPROCESSOR_URL,
   MAX_UPLOAD_BYTES,
@@ -23,6 +23,8 @@ import {
 import { logger, hashIp, errorLogFields } from './logger.js';
 import { sendError } from './errors.js';
 import type { AuditRecord } from './shared/types.js';
+import { fetchDemoStudyHash, DemoStudyUnavailableError } from './demoStudy.js';
+import { publicDemoModeEnabled } from './llm.js';
 
 const require = createRequire(import.meta.url);
 const multer = require('multer') as typeof import('multer');
@@ -233,6 +235,47 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
     return;
   }
 
+  let sourceKind: 'upload' | 'demo_synthetic' = 'upload';
+  if (req.user!.isDemo) {
+    if (!publicDemoModeEnabled()) {
+      sendError(res, 401, 'DEMO_MODE_DISABLED', 'The demo session is no longer available.');
+      return;
+    }
+    if (!edfFile || pdfFile || screenshotFiles.length > 0) {
+      sendError(
+        res,
+        403,
+        'DEMO_STUDY_REQUIRED',
+        'The demo session accepts only the generated demo study.',
+      );
+      return;
+    }
+    try {
+      const demoStudyHash = await fetchDemoStudyHash();
+      if (studyHash !== demoStudyHash) {
+        sendError(
+          res,
+          403,
+          'DEMO_STUDY_REQUIRED',
+          'The demo session accepts only the generated demo study.',
+        );
+        return;
+      }
+    } catch (err) {
+      logger.warn(
+        { errorType: err instanceof Error ? err.name : 'UnknownError' },
+        'demo_study_validation_failed',
+      );
+      const code =
+        err instanceof DemoStudyUnavailableError
+          ? 'DEMO_STUDY_UNAVAILABLE'
+          : 'PREPROCESSOR_UNREACHABLE';
+      sendError(res, 503, code, 'The demo study could not be verified. Please try again.');
+      return;
+    }
+    sourceKind = 'demo_synthetic';
+  }
+
   const prelimCaseId = randomUUID();
   let casePackage: Record<string, unknown>;
   let preprocessorVersion = 'unknown';
@@ -346,7 +389,7 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
   const basename = 'study';
 
   const userId = req.user!.id;
-  const orgId = req.user!.organizationId;
+  const orgId = req.user!.isDemo ? null : req.user!.organizationId;
 
   const audit: AuditRecord = {
     id: randomUUID(),
@@ -356,6 +399,7 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
     metadata: {
       studyHash,
       hashedArtifact,
+      sourceKind,
       cohort: metaParsed.data.cohort ?? 'unknown',
       edfAttached: edfFile !== undefined,
       pdfAttached: pdfFile !== undefined,
@@ -385,6 +429,7 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
         casePackage: JSON.stringify(casePackage),
         createdBy: userId,
         ...(orgId ? { organizationId: orgId } : {}),
+        sourceKind,
         preprocessorVersion,
         promptVersion: PROMPT_VERSION,
         modelVersion: GPT_MODEL,
@@ -395,6 +440,15 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       basename,
     );
   } catch (err) {
+    if (err instanceof DemoCreatorUnavailableError) {
+      sendError(
+        res,
+        401,
+        'DEMO_SESSION_EXPIRED',
+        'The temporary demo session expired before the study could be saved. Please sign in again.',
+      );
+      return;
+    }
     logger.error(errorLogFields(err), 'case_create_failed');
     sendError(res, 500, 'CASE_CREATE_FAILED', 'Could not save the study record. Please try again.');
     return;

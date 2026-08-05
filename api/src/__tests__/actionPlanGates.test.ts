@@ -2,15 +2,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import supertest from 'supertest';
 import { createApp } from '../app.js';
-import { getCaseById, insertCase } from '../db.js';
+import { createDemoUser, getCaseById, insertCase } from '../db.js';
+import { signJwt } from '../middleware/auth.js';
 import type { Case, Finding, StructuredReport } from '../shared/types.js';
 import { authedSupertest, mintAuthCookie } from './authHelper.js';
 
-const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
+const { mockCreate, mockGetOpenAIClient, mockLlmMode, mockPublicDemoMode } = vi.hoisted(() => ({
+  mockCreate: vi.fn(),
+  mockGetOpenAIClient: vi.fn(),
+  mockLlmMode: vi.fn(() => 'openai'),
+  mockPublicDemoMode: vi.fn(() => false),
+}));
 
 vi.mock('../llm.js', () => ({
-  getOpenAIClient: () => ({ chat: { completions: { create: mockCreate } } }),
+  getOpenAIClient: mockGetOpenAIClient,
+  llmMode: mockLlmMode,
+  publicDemoModeEnabled: mockPublicDemoMode,
+  LlmNotConfiguredError: class LlmNotConfiguredError extends Error {},
   writeSSE: (res: { write: (value: string) => void }, data: Record<string, unknown>) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   },
@@ -40,7 +50,15 @@ function parseEvents(body: string): Array<Record<string, unknown>> {
 }
 
 describe('action-plan review gates', () => {
-  beforeEach(() => mockCreate.mockReset());
+  beforeEach(() => {
+    mockCreate.mockReset();
+    mockGetOpenAIClient.mockReset();
+    mockGetOpenAIClient.mockReturnValue({ chat: { completions: { create: mockCreate } } });
+    mockLlmMode.mockReset();
+    mockLlmMode.mockReturnValue('openai');
+    mockPublicDemoMode.mockReset();
+    mockPublicDemoMode.mockReturnValue(false);
+  });
 
   it('drops unsupported, rejected, uncertain-priority, and private-evidence output', async () => {
     const auth = mintAuthCookie();
@@ -130,6 +148,7 @@ describe('action-plan review gates', () => {
       verifyNext: [{ action: 'Verify', findingIds: ['F-UNCERTAIN'] }],
       artifactCaveats: [{ findingId: 'F-CONFIRMED' }],
       clinicalContext: { commonPresentation: 'Synthetic context.', rareButRelevant: [] },
+      analysisMode: 'openai',
     });
     expect(plan['evidenceReferences']).toBeUndefined();
     expect(
@@ -206,5 +225,67 @@ describe('action-plan review gates', () => {
     expect(error?.['message']).toMatch(/stale draft was not saved/i);
     expect(getCaseById(c.id)?.actionPlan).toBeUndefined();
     expect(getCaseById(c.id)?.findings[0]?.reviewerDecision).toBe('uncertain');
+  });
+
+  it('forces a demo principal action plan onto the offline client before mode capture', async () => {
+    mockPublicDemoMode.mockReturnValue(true);
+    mockLlmMode.mockReturnValue('openai');
+    const user = createDemoUser(new Date(Date.now() + 60_000).toISOString(), 100);
+    const now = new Date().toISOString();
+    const c: Case = {
+      id: randomUUID(),
+      studyHash: 'c'.repeat(64),
+      name: `demo-plan-${randomUUID().slice(0, 8)}`,
+      status: 'pending_review',
+      cohort: 'adult',
+      findings: [finding('F-001', 'high', 'confirm')],
+      structuredReport: {
+        summary: 'Synthetic reviewed summary.',
+        studyQuality: { channelIssues: [] },
+        respiratoryIndices: {},
+        oxygenation: {},
+        positional: {},
+        impression: '',
+        citations: { summary: ['F-001'] },
+      },
+      sectionReviews: { summary: { decision: 'confirm', reviewedAt: now } },
+      createdBy: user.id,
+      sourceKind: 'demo_synthetic',
+      preprocessorVersion: 'synthetic',
+      promptVersion: 'synthetic',
+      modelVersion: 'somnoscribe-offline-demo',
+      createdAt: now,
+      updatedAt: now,
+    };
+    insertCase(c);
+    mockCreate.mockResolvedValueOnce({
+      model: 'somnoscribe-offline-demo',
+      choices: [
+        {
+          finish_reason: 'stop',
+          message: {
+            content: JSON.stringify({
+              priorityActions: [
+                { action: 'Review', rationale: 'Synthetic.', findingIds: ['F-001'] },
+              ],
+              verifyNext: [],
+              artifactCaveats: [],
+              clinicalContext: { commonPresentation: 'Synthetic.', rareButRelevant: [] },
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1 },
+    });
+
+    const response = await supertest(createApp({ rateLimitMax: 1000 }))
+      .post(`/api/cases/${c.id}/action-plan`)
+      .set('Cookie', `somno_session=${signJwt(user.id, '4h')}`)
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(mockGetOpenAIClient).toHaveBeenCalledWith('demo');
+    const done = parseEvents(response.text).find((event) => event['type'] === 'done');
+    expect((done?.['actionPlan'] as Record<string, unknown>)['analysisMode']).toBe('demo');
   });
 });

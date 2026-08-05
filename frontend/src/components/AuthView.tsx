@@ -1,9 +1,9 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useRef, useState } from 'react';
-import { Activity } from 'lucide-react';
+import { Activity, FlaskConical } from 'lucide-react';
 import { Button, Input, DarkModeToggle, FormattedInput, LICENSE_KEY_RULE } from '../ui';
-import { activate, requestOtp, verifyOtp } from '../api';
+import { activate, demoSignIn, requestOtp, verifyOtp, type DeploymentConfig } from '../api';
 import type { AuthenticatedUser as User } from '@contracts/types';
 
 type Mode = 'choice' | 'activate' | 'login' | 'verify';
@@ -12,9 +12,10 @@ interface Props {
   onAuth: (user: User) => void;
   isDark: boolean;
   onToggleDark: () => void;
+  config: DeploymentConfig | null;
 }
 
-export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
+export function AuthView({ onAuth, isDark, onToggleDark, config }: Props) {
   const [mode, setMode] = useState<Mode>('choice');
   const [pendingEmail, setPendingEmail] = useState('');
   const [licenseKey, setLicenseKey] = useState('');
@@ -30,6 +31,18 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
     if (returnFocusRef.current === 'login') loginChoiceRef.current?.focus();
     returnFocusRef.current = null;
   }, [mode]);
+
+  async function handleDemo() {
+    setError(null);
+    setLoading(true);
+    try {
+      onAuth(await demoSignIn());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Demo sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleActivate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -105,9 +118,29 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                 Somnoscribe Sleep Study Review Assistant
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Sign in to access your cases.
+                {config?.demoMode
+                  ? 'Sign in to access your cases, or go straight in as the demo user.'
+                  : 'Sign in to access your cases.'}
               </p>
               <div className="space-y-2 pt-2">
+                {config?.demoMode && (
+                  // Listed first, and the only route in that needs nothing
+                  // prepared beforehand — no invitation key, no mailbox.
+                  <button
+                    onClick={() => void handleDemo()}
+                    disabled={loading}
+                    className="focus-ring w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-left text-sm font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FlaskConical size={14} aria-hidden="true" />
+                      {loading ? 'Signing in…' : 'Continue as demo user'}
+                    </span>
+                    <span className="block text-xs font-normal text-amber-800 dark:text-amber-300 mt-0.5">
+                      No key and no code. A temporary demo session on a deployment whose report text
+                      is generated offline.
+                    </span>
+                  </button>
+                )}
                 <button
                   ref={activateChoiceRef}
                   onClick={() => {
@@ -135,6 +168,11 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                   </span>
                 </button>
               </div>
+              {error && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
             </div>
           )}
 
@@ -190,7 +228,7 @@ export function AuthView({ onAuth, isDark, onToggleDark }: Props) {
                     rule={LICENSE_KEY_RULE}
                     required
                     autoComplete="off"
-                    placeholder="AIST-XXXX-XXXX-XXXX-XXXX-XXXX"
+                    placeholder="SOMNO-XXXX-XXXX-XXXX-XXXX-XXXX"
                     inputClassName="font-mono"
                   />
                 </div>

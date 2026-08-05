@@ -11,6 +11,12 @@
 export const CASE_STATUSES = ['draft', 'pending_review', 'signed_off'] as const;
 export type CaseStatus = (typeof CASE_STATUSES)[number];
 
+/** Stable provenance label emitted by the built-in offline demonstration model. */
+export const OFFLINE_DEMO_MODEL_VERSION = 'somnoscribe-offline-demo';
+
+export const ANALYSIS_MODES = ['demo', 'openai'] as const;
+export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
+
 export const FINDING_CONFIDENCES = ['high', 'medium', 'low'] as const;
 export type FindingConfidence = (typeof FINDING_CONFIDENCES)[number];
 
@@ -97,6 +103,8 @@ export interface ActionPlan {
   evidenceReferences?: EvidenceReference[];
   generatedAt: string;
   modelVersion: string;
+  /** The mode that generated this plan, independent of the report's mode. */
+  analysisMode?: AnalysisMode;
   promptVersion: string;
   tokensIn: number;
   tokensOut: number;
@@ -307,6 +315,7 @@ export interface PdfMetrics {
 export interface Case {
   id: string;
   studyHash: string;
+  sourceKind?: 'upload' | 'demo_synthetic';
   name: string;
   status: CaseStatus;
   cohort: 'adult' | 'pediatric' | 'generic';
@@ -330,6 +339,8 @@ export interface Case {
   preprocessorVersion: string;
   promptVersion: string;
   modelVersion: string;
+  /** The mode that generated this case's report, if it has been analysed. */
+  analysisMode?: AnalysisMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -351,6 +362,8 @@ export interface User {
   organizationId: string | null;
   tier: string;
   isAdmin: boolean;
+  isDemo: boolean;
+  demoExpiresAt: string | null;
   tokenBudget: number;
   createdAt: string;
   lastSeen: string | null;
@@ -368,6 +381,8 @@ export interface AuthenticatedUser {
   organizationId: string | null;
   tier: string;
   isAdmin: boolean;
+  /** Present for temporary demo principals so the browser can expose only their safe workflow. */
+  isDemo?: boolean;
   tokenBudget: number;
   tokens4h?: number;
   tokensWeek?: number;
@@ -463,6 +478,7 @@ export type AnalysisEvent =
       referenceFlags?: ReferenceFlag[];
       validationWarnings?: ValidationWarning[];
       modelVersion: string;
+      analysisMode: AnalysisMode;
       promptVersion: string;
       tokenStats?: TokenStats;
     }

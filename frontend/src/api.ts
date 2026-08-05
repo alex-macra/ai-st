@@ -50,6 +50,14 @@ export async function getMe(): Promise<User | null> {
   return data.user;
 }
 
+/** Starts a temporary demo session. Only available while demo mode is on. */
+export async function demoSignIn(): Promise<User> {
+  const res = await fetch(`${BASE}/auth/demo`, { method: 'POST' });
+  if (!res.ok) throw new Error(await parseError(res));
+  const data = (await res.json()) as { user: User };
+  return data.user;
+}
+
 export async function activate(email: string, licenseKey: string): Promise<User> {
   const res = await fetch(`${BASE}/auth/activate`, {
     method: 'POST',
@@ -111,6 +119,45 @@ export async function uploadCase(
   const res = await apiFetch(`${BASE}/upload`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json() as Promise<{ caseId: string; studyHash: string; name: string }>;
+}
+
+// --- Deployment capabilities and the demo study ---
+
+export interface DeploymentConfig {
+  llmMode: 'demo' | 'openai' | 'unconfigured';
+  analysisAvailable: boolean;
+  demoMode: boolean;
+}
+
+export async function getConfig(): Promise<DeploymentConfig> {
+  const res = await fetch(`${BASE}/config`);
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json() as Promise<DeploymentConfig>;
+}
+
+export interface DemoStudySummary {
+  durationSec: number;
+  channels: string[];
+  respiratoryEvents: number;
+  apneas: number;
+  hypopneas: number;
+  supineEvents: number;
+  nonSupineEvents: number;
+  expectedEventIndexPerHour: number;
+}
+
+export async function getDemoStudySummary(): Promise<DemoStudySummary> {
+  const res = await apiFetch(`${BASE}/demo/summary`);
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json() as Promise<DemoStudySummary>;
+}
+
+/** The demo recording as a `File`, ready for the ordinary upload form. */
+export async function getDemoStudyFile(): Promise<File> {
+  const res = await apiFetch(`${BASE}/demo/study.edf`);
+  if (!res.ok) throw new Error(await parseError(res));
+  const blob = await res.blob();
+  return new File([blob], 'somnoscribe-demo-study.edf', { type: 'application/octet-stream' });
 }
 
 export async function getCases(status?: string): Promise<Case[]> {

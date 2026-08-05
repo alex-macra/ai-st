@@ -17,6 +17,12 @@ export function migrate(db: BetterSqlite3.Database): void {
       id              TEXT PRIMARY KEY,
       email           TEXT NOT NULL UNIQUE,
       organization_id TEXT REFERENCES organizations(id),
+      name            TEXT,
+      tier            TEXT NOT NULL DEFAULT 'starter',
+      is_admin        INTEGER NOT NULL DEFAULT 0,
+      is_demo         INTEGER NOT NULL DEFAULT 0,
+      demo_expires_at TEXT,
+      token_budget    INTEGER NOT NULL DEFAULT 5000000,
       created_at      TEXT NOT NULL,
       last_seen       TEXT
     );
@@ -53,6 +59,8 @@ export function migrate(db: BetterSqlite3.Database): void {
       narrative TEXT,
       case_package TEXT,
       token_stats TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'upload',
+      analysis_mode TEXT,
       preprocessor_version TEXT NOT NULL,
       prompt_version TEXT NOT NULL,
       model_version TEXT NOT NULL,
@@ -142,6 +150,18 @@ export function migrate(db: BetterSqlite3.Database): void {
   if (!userCols.includes('name')) {
     db.exec('ALTER TABLE users ADD COLUMN name TEXT');
   }
+  if (!userCols.includes('is_demo')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!userCols.includes('demo_expires_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN demo_expires_at TEXT');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_users_demo_expiry ON users(is_demo, demo_expires_at)');
+
+  // Do not classify legacy `demo@example.test` rows here. Before the isolated
+  // demo principal existed, that account could hold arbitrary uploaded data;
+  // marking it as a demo row would let automatic expiry cleanup delete it on
+  // upgrade. Session loading separately fails closed for that reserved address.
 
   const otpCols: string[] = db
     .prepare('PRAGMA table_info(auth_otps)')
@@ -188,6 +208,12 @@ export function migrate(db: BetterSqlite3.Database): void {
   if (!cols.includes('organization_id')) {
     db.exec('ALTER TABLE cases ADD COLUMN organization_id TEXT');
   }
+  if (!cols.includes('source_kind')) {
+    db.exec("ALTER TABLE cases ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'upload'");
+  }
+  if (!cols.includes('analysis_mode')) {
+    db.exec('ALTER TABLE cases ADD COLUMN analysis_mode TEXT');
+  }
 
   // SQLite cannot drop a UNIQUE constraint in place. If the legacy schema still
   // marks study_hash UNIQUE, rebuild the table without it (re-uploads of the
@@ -221,6 +247,8 @@ export function migrate(db: BetterSqlite3.Database): void {
           action_plan TEXT,
           created_by TEXT,
           organization_id TEXT,
+          source_kind TEXT NOT NULL DEFAULT 'upload',
+          analysis_mode TEXT,
           preprocessor_version TEXT NOT NULL,
           prompt_version TEXT NOT NULL,
           model_version TEXT NOT NULL,
@@ -232,14 +260,14 @@ export function migrate(db: BetterSqlite3.Database): void {
         INSERT INTO cases_new (
           id, study_hash, name, status, findings, narrative, case_package,
           token_stats, structured_report, section_reviews, reference_flags,
-          validation_warnings, action_plan, created_by, organization_id,
+          validation_warnings, action_plan, created_by, organization_id, source_kind, analysis_mode,
           preprocessor_version, prompt_version, model_version,
           created_at, updated_at
         )
         SELECT
           id, study_hash, name, status, findings, narrative, case_package,
           token_stats, structured_report, section_reviews, reference_flags,
-          validation_warnings, action_plan, created_by, organization_id,
+          validation_warnings, action_plan, created_by, organization_id, source_kind, analysis_mode,
           preprocessor_version, prompt_version, model_version,
           created_at, updated_at
         FROM cases;

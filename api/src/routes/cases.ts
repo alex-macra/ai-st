@@ -38,6 +38,7 @@ import { logger, hashIp, errorLogFields } from '../logger.js';
 import { runAnalysis, runActionPlan } from '../analyze.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { reviewedFindingsForActionPlan, unreviewedSectionKeys } from '../shared/review.js';
+import { DEMO_MAX_CONCURRENT_ANALYSES } from '../demo.js';
 
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');
@@ -69,9 +70,15 @@ const analyzeBodySchema = z.object({
 });
 
 export const activeAnalyses = new Set<string>();
+let activeDemoAnalyses = 0;
 
 function scopeOf(req: Request): CaseScope {
-  return { userId: req.user!.id, organizationId: req.user!.organizationId };
+  const user = req.user!;
+  return {
+    userId: user.id,
+    organizationId: user.isDemo ? null : user.organizationId,
+    ...(user.isDemo ? { demoOnly: true } : {}),
+  };
 }
 
 function pathWithin(rootPath: string, childName: string): string | null {
@@ -216,9 +223,14 @@ export function casesRouter(): Router {
     }
 
     const jobKey = req.user!.id;
+    const isDemoJob = req.user!.isDemo;
     const ipHash = hashIp(req.ip);
     if (activeAnalyses.has(jobKey)) {
       res.status(429).json({ code: 'analysis_in_flight', retryAfterSeconds: 60 });
+      return;
+    }
+    if (isDemoJob && activeDemoAnalyses >= DEMO_MAX_CONCURRENT_ANALYSES) {
+      res.status(429).json({ code: 'demo_analysis_capacity', retryAfterSeconds: 60 });
       return;
     }
 
@@ -229,6 +241,7 @@ export function casesRouter(): Router {
     }
 
     activeAnalyses.add(jobKey);
+    if (isDemoJob) activeDemoAnalyses += 1;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -242,12 +255,13 @@ export function casesRouter(): Router {
 
     const modelId = bodyParsed.data.modelId;
     logger.info({ caseId: id, modelId, ipHash }, 'analysis_started');
-    runAnalysis(id, res, ac.signal, modelId)
+    runAnalysis(id, res, ac.signal, modelId, isDemoJob ? 'demo' : undefined)
       .catch((err: unknown) => {
         logger.error({ ...errorLogFields(err), caseId: id }, 'analyze_route_error');
       })
       .finally(() => {
         activeAnalyses.delete(jobKey);
+        if (isDemoJob) activeDemoAnalyses = Math.max(0, activeDemoAnalyses - 1);
       });
   });
 
@@ -291,8 +305,13 @@ export function casesRouter(): Router {
     }
 
     const jobKey = req.user!.id;
+    const isDemoJob = req.user!.isDemo;
     if (activeAnalyses.has(jobKey)) {
       res.status(429).json({ code: 'analysis_in_flight', retryAfterSeconds: 60 });
+      return;
+    }
+    if (isDemoJob && activeDemoAnalyses >= DEMO_MAX_CONCURRENT_ANALYSES) {
+      res.status(429).json({ code: 'demo_analysis_capacity', retryAfterSeconds: 60 });
       return;
     }
     const bodyParsed = analyzeBodySchema.safeParse(req.body);
@@ -301,6 +320,7 @@ export function casesRouter(): Router {
       return;
     }
     activeAnalyses.add(jobKey);
+    if (isDemoJob) activeDemoAnalyses += 1;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -315,12 +335,13 @@ export function casesRouter(): Router {
     const modelId = bodyParsed.data.modelId;
     const ipHash = hashIp(req.ip);
     logger.info({ caseId: id, modelId, ipHash }, 'action_plan_started');
-    runActionPlan(id, res, ac.signal, modelId)
+    runActionPlan(id, res, ac.signal, modelId, isDemoJob ? 'demo' : undefined)
       .catch((err: unknown) => {
         logger.error({ ...errorLogFields(err), caseId: id }, 'action_plan_route_error');
       })
       .finally(() => {
         activeAnalyses.delete(jobKey);
+        if (isDemoJob) activeDemoAnalyses = Math.max(0, activeDemoAnalyses - 1);
       });
   });
 

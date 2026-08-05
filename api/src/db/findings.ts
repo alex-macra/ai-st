@@ -14,6 +14,7 @@ import type {
   SectionReview,
   ReportSectionKey,
   ActionPlan,
+  AnalysisMode,
 } from '../shared/types.js';
 
 export function updateFindingDecision(
@@ -115,6 +116,7 @@ export function updateCaseFindings(
   referenceFlags: ReferenceFlag[] | null = null,
   validationWarnings: ValidationWarning[] | null = null,
   expectedUpdatedAt?: string,
+  analysisMode?: AnalysisMode,
 ): boolean {
   const where = expectedUpdatedAt
     ? "id = ? AND status != 'signed_off' AND updated_at = ?"
@@ -124,7 +126,7 @@ export function updateCaseFindings(
       `UPDATE cases
          SET findings = ?, narrative = ?, structured_report = ?, section_reviews = NULL,
              reference_flags = ?, validation_warnings = ?, action_plan = NULL,
-             model_version = ?, updated_at = ?
+             model_version = ?, analysis_mode = COALESCE(?, analysis_mode), updated_at = ?
        WHERE ${where}`,
     )
     .run(
@@ -134,6 +136,7 @@ export function updateCaseFindings(
       referenceFlags ? JSON.stringify(referenceFlags) : null,
       validationWarnings ? JSON.stringify(validationWarnings) : null,
       modelVersion,
+      analysisMode ?? null,
       updatedAt,
       id,
       ...(expectedUpdatedAt ? [expectedUpdatedAt] : []),
