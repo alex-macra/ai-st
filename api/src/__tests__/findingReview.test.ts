@@ -1,0 +1,125 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
+import { describe, it, expect, beforeEach } from 'vitest';
+import supertest from 'supertest';
+import { insertCase, updateCaseFindings, updateFindingDecision } from '../db.js';
+import type { Finding } from '../shared/types.js';
+import { makeCase, makeFinding, testApp } from './factories.js';
+
+describe('PATCH /api/cases/:id/findings/:findingId', () => {
+  let request: ReturnType<typeof supertest>;
+
+  beforeEach(() => {
+    request = testApp();
+  });
+
+  it('returns 404 when case does not exist', async () => {
+    const res = await request.patch('/api/cases/ghost/findings/F-x').send({ decision: 'confirm' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when finding does not exist on case', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/F-not-here`)
+      .send({ decision: 'confirm' });
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects invalid decision values', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const f = makeFinding();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, new Date().toISOString());
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'bogus' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects edit decision without editedClaim', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const f = makeFinding();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, new Date().toISOString());
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'edit' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/editedClaim required/i);
+  });
+
+  it('persists confirm decision and writes audit entry', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const f = makeFinding();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, new Date().toISOString());
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'confirm' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, decision: 'confirm' });
+
+    const fetched = await request.get(`/api/cases/${c.id}`);
+    const persisted = fetched.body.case.findings.find((x: Finding) => x.id === f.id);
+    expect(persisted.reviewerDecision).toBe('confirm');
+    expect(persisted.reviewedAt).toBeTruthy();
+
+    const audit = await request.get(`/api/cases/${c.id}/audit`);
+    expect(
+      audit.body.auditLog.some((r: { action: string }) => r.action === 'finding_confirm'),
+    ).toBe(true);
+  });
+
+  it('persists editedClaim when decision is edit', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const f = makeFinding();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, new Date().toISOString());
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'edit', editedClaim: 'AHI 18.0/h - mild OSA per reviewer recount' });
+    expect(res.status).toBe(200);
+
+    const fetched = await request.get(`/api/cases/${c.id}`);
+    const persisted = fetched.body.case.findings.find((x: Finding) => x.id === f.id);
+    expect(persisted.reviewerDecision).toBe('edit');
+    expect(persisted.editedClaim).toBe('AHI 18.0/h - mild OSA per reviewer recount');
+  });
+
+  it('clears editedClaim when reviewer switches from edit to confirm', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const f = makeFinding();
+    const now = new Date().toISOString();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, now);
+    updateFindingDecision(c.id, f.id, 'edit', 'previous edit', now);
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'confirm' });
+    expect(res.status).toBe(200);
+
+    const fetched = await request.get(`/api/cases/${c.id}`);
+    const persisted = fetched.body.case.findings.find((x: Finding) => x.id === f.id);
+    expect(persisted.reviewerDecision).toBe('confirm');
+    expect(persisted.editedClaim).toBeUndefined();
+  });
+
+  it('returns 409 when case is signed off', async () => {
+    const c = makeCase({ status: 'signed_off' });
+    insertCase(c);
+    const f = makeFinding();
+    updateCaseFindings(c.id, [f], null, c.modelVersion, new Date().toISOString());
+
+    const res = await request
+      .patch(`/api/cases/${c.id}/findings/${f.id}`)
+      .send({ decision: 'confirm' });
+    expect(res.status).toBe(409);
+  });
+});

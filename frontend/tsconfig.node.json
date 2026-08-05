@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Build configuration runs in Node, so it needs Node's types. Kept out of the
+  // application project on purpose: if `node` were in the main `types` array,
+  // src/ could reach for process or Buffer and still typecheck.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "useUnknownInCatchVariables": true,
+
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}

@@ -1,0 +1,31 @@
+# Lint and format configuration for the preprocessor service. This project has
+# no Python packaging metadata on purpose: the service is run with uvicorn from
+# source, not installed as a distribution. Licensing is declared by the SPDX
+# header in each source file and by the repository LICENSE, not here.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "B",    # flake8-bugbear
+    "I",    # isort
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    # `ruff format` owns line breaking, and it leaves long string literals and
+    # comments alone by design. Re-reporting those as lint errors would flag
+    # lines the formatter has already declined to split.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI declares request parameters as call expressions in argument defaults
+# (File(...), Form(...), Depends(...)). That is the framework's documented API,
+# not the mutable-default hazard B008 targets.
+"main.py" = ["B008"]

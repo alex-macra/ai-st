@@ -1,0 +1,63 @@
+# JavaScript dependencies and build output
+node_modules/
+api/node_modules/
+frontend/node_modules/
+api/dist/
+frontend/dist/
+api/public/
+*.tsbuildinfo
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Clinical and generated artifacts must remain outside the repository
+*.edf
+*.bdf
+*.pdf
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+data/
+api/data/
+preprocessor/data/
+private-references/
+generated/
+reports/
+
+# Local notes, scratch, and tool directories. The blanket dot-directory rule
+# keeps local tooling state out of the repository without enumerating it.
+.*/
+!.github/
+_research/
+tasks/
+TASKS.md
+immediateTask.md
+
+# Test and runtime output
+test-results/
+playwright-report/
+*.log
+.logs/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp

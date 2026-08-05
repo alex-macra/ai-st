@@ -1,0 +1,9 @@
+# Secret-scanning configuration. The default gitleaks rule set is kept in full.
+#
+# There are no exemptions, and none should be added lightly. If a synthetic
+# value ever has to be committed in plaintext, allowlist the specific literal
+# with `regexTarget = "match"` rather than a path, so that anything else
+# appearing in the same file is still reported.
+
+[extend]
+useDefault = true

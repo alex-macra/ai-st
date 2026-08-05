@@ -1,0 +1,46 @@
+// Copyright 2026 Alex Macra
+// SPDX-License-Identifier: AGPL-3.0-only
+import { test, expect } from '@playwright/test';
+
+const EMPTY_CASES = JSON.stringify({ cases: [] });
+
+test.describe('navigation', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('/api/cases*', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: EMPTY_CASES });
+    });
+    await page.goto('/');
+    await expect(page.getByText('No cases yet')).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('dark mode toggle switches html.dark class', async ({ page }) => {
+    const html = page.locator('html');
+    const isDark = await html.evaluate((el) => el.classList.contains('dark'));
+
+    const toggleBtn = page.getByRole('button', { name: /dark mode|light mode/i });
+    await toggleBtn.click();
+
+    if (isDark) {
+      await expect(html).not.toHaveClass(/dark/);
+    } else {
+      await expect(html).toHaveClass(/dark/);
+    }
+
+    // Second click restores original state
+    await toggleBtn.click();
+    if (isDark) {
+      await expect(html).toHaveClass(/dark/);
+    } else {
+      await expect(html).not.toHaveClass(/dark/);
+    }
+  });
+
+  test('Somnoscribe logo button navigates to case list from upload', async ({ page }) => {
+    await page.getByRole('button', { name: 'Upload study' }).click();
+    await expect(page.getByRole('heading', { name: 'Upload Sleep Study' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Somnoscribe' }).click();
+    await expect(page.getByText('No cases yet')).toBeVisible();
+    await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
+  });
+});

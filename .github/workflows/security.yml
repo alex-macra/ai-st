@@ -1,0 +1,43 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Scan all reachable commits
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4
+        with:
+          fail-on-severity: high
+          license-check: true
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC-BY-4.0, ISC, MIT, MIT-0, MIT-CMU, MPL-2.0, OFL-1.1, PSF-2.0, WTFPL, Zlib

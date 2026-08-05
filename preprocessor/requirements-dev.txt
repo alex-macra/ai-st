@@ -1,0 +1,7 @@
+-r requirements.txt
+# Test-only. `mne` is a second-reader cross-check in test_demo_study and does not
+# belong in the runtime image — it alone pulls scipy.
+mne==1.12.1
+httpx==0.28.1
+pytest==9.1.1
+ruff==0.16.1
