@@ -65,6 +65,7 @@ export default defineConfig({
         PREPROCESSOR_URL: 'http://127.0.0.1:8001',
         CORS_ORIGINS: 'http://localhost:5173',
         SOMNOSCRIBE_SYNTHETIC_LLM: 'true',
+        SOMNOSCRIBE_DEMO_MODE: 'true',
         OPENAI_API_KEY: 'not-used-in-synthetic-test-mode',
         JWT_SECRET: 'synthetic-e2e-secret-not-for-production',
         AUTH_RATE_LIMIT_MAX: '1000',

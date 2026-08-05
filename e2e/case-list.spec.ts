@@ -30,7 +30,11 @@ test.describe('case list (authenticated)', () => {
 
   test('shows empty state when no cases', async ({ page }) => {
     await expect(page.getByText('No cases yet')).toBeVisible();
-    await expect(page.getByText('Upload a study to get started.')).toBeVisible();
+    await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
+  });
+
+  test('does not offer demo-only generated files to a normal account', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Try the demo study' })).toHaveCount(0);
   });
 
   test('header upload button navigates to upload form', async ({ page }) => {

@@ -49,7 +49,7 @@ test.describe('navigation', () => {
 
     await page.getByRole('button', { name: 'Somnoscribe' }).click();
     await expect(page.getByText('No cases yet')).toBeVisible();
-    await expect(page.getByText('Upload a study to get started.')).toBeVisible();
+    await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
   });
 
   test('sign out redirects to auth screen', async ({ page }) => {

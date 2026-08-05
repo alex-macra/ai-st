@@ -22,7 +22,7 @@ export default async function globalSetup(): Promise<void> {
     encoding: 'utf8',
     env: { ...process.env, DB_PATH: dbPath },
   });
-  const licenseKey = output.match(/AIST-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}/)?.[0];
+  const licenseKey = output.match(/SOMNO-(?:[A-F0-9]{4}-){4}[A-F0-9]{4}/)?.[0];
   if (!licenseKey) throw new Error('Invitation generator did not return a key');
 
   const ctx = await request.newContext({ baseURL: API });

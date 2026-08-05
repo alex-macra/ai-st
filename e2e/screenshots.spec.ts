@@ -11,32 +11,31 @@
  */
 import { expect, test } from '@playwright/test';
 
-test.use({ storageState: 'e2e/.auth/user.json' });
+test.use({ storageState: undefined });
 
 const OUT = 'docs/images';
 
 test('capture the README images from the synthetic journey', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Continue as demo user' }).click();
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Upload study' }).click();
   await expect(page.getByRole('button', { name: 'Upload & Process' })).toBeVisible();
   // Each capture is sized to its own content. A fixed tall viewport leaves the
-  // shorter screens as mostly empty background in the README.
-  await page.setViewportSize({ width: 1440, height: 660 });
-  await page.screenshot({ path: `${OUT}/upload.png` });
+  // shorter screens as mostly empty background in the README. The demo panel
+  // and the form share a page, so they are captured element by element rather
+  // than by cropping the viewport around whichever one happens to be on top.
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByTestId('demo-panel').screenshot({ path: `${OUT}/demo-panel.png` });
+  await page.locator('form').screenshot({ path: `${OUT}/upload.png` });
 
-  await page.getByRole('button', { name: /Add supporting files/i }).click();
-  await page.locator('input[type="file"][accept=".pdf"]').setInputFiles({
-    name: 'synthetic-report.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n'),
-  });
+  await page.getByRole('button', { name: 'Load demo study' }).click();
+  await expect(page.getByText('somnoscribe-demo-study.edf')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Upload & Process' }).click();
 
   await expect(page.getByRole('button', { name: 'Back to cases' })).toBeVisible({
-    timeout: 15_000,
+    timeout: 60_000,
   });
   await page.getByRole('button', { name: 'Analyze' }).click();
   await expect(page.getByText(/Synthetic workflow verification completed/)).toBeVisible({
@@ -73,4 +72,12 @@ test('capture the README images from the synthetic journey', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 340 });
   await page.screenshot({ path: `${OUT}/case-list.png` });
+
+  // Signing out lands on the choice screen, which is where the demo user is
+  // offered. Captured last so the journey above does not have to start there.
+  await page.getByRole('button', { name: 'Account menu' }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 480 });
+  await page.screenshot({ path: `${OUT}/sign-in.png` });
 });
