@@ -21,4 +21,11 @@ regexes = [
   # value, but the string stays reachable in history and in the guard that
   # rejects it.
   '''change-me-to-a-random-32-byte-secret''',
+  # Former synthetic inputs to the activation-form formatter test. They were
+  # never credentials — no server ever accepted them — but they looked enough
+  # like keys to score above the generic-api-key entropy threshold. The test now
+  # uses repeated characters instead; these two only remain reachable in
+  # history, and both entries can go when that history is squashed.
+  '''somnoabcd1234efab5678cdef''',
+  '''aist1234abcd5678efab9999''',
 ]
