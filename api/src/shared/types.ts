@@ -334,8 +334,6 @@ export interface Case {
   casePackage?: string;
   tokenStats?: TokenStats;
   actionPlan?: ActionPlan;
-  createdBy?: string;
-  organizationId?: string;
   preprocessorVersion: string;
   promptVersion: string;
   modelVersion: string;
@@ -352,59 +350,6 @@ export interface AuditRecord {
   actorId?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
-}
-
-/** The persisted user row. `createdAt` and `lastSeen` never cross the wire. */
-export interface User {
-  id: string;
-  email: string;
-  name?: string;
-  organizationId: string | null;
-  tier: string;
-  isAdmin: boolean;
-  isDemo: boolean;
-  demoExpiresAt: string | null;
-  tokenBudget: number;
-  createdAt: string;
-  lastSeen: string | null;
-}
-
-/**
- * The user payload the auth routes actually send. Activation and login return
- * the identity fields only; `GET /api/auth/me` adds the usage window, which is
- * computed per request rather than stored, hence the optional budget fields.
- */
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  name?: string | null;
-  organizationId: string | null;
-  tier: string;
-  isAdmin: boolean;
-  /** Present for temporary demo principals so the browser can expose only their safe workflow. */
-  isDemo?: boolean;
-  tokenBudget: number;
-  tokens4h?: number;
-  tokensWeek?: number;
-  budget4h?: number;
-  budgetWeek?: number;
-  window4hEndsAt?: number;
-  weekEndsAt?: number;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  joinCode: string;
-  createdBy: string | null;
-  createdAt: string;
-}
-
-export interface License {
-  key: string;
-  used: boolean;
-  usedBy: string | null;
-  usedAt: string | null;
 }
 
 export type ReferenceCohort = 'adult' | 'pediatric' | 'generic';
@@ -427,13 +372,6 @@ export interface ReferenceRule {
   page: string;
   appliesTo: string;
   sourceRefId: string;
-}
-
-export interface UploadResponse {
-  caseId: string;
-  studyHash: string;
-  name: string;
-  status: CaseStatus;
 }
 
 export interface SignalSlice {

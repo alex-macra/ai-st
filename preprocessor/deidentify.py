@@ -1,9 +1,10 @@
 # Copyright 2026 Alex Macra
 # SPDX-License-Identifier: AGPL-3.0-only
 """
-Strip PHI from the EDF header before any downstream processing.
+Strip PHI from an upload before any downstream processing: the EDF header here,
+and the patient banner on DOMINO screenshots below.
 
-Operates at the byte level on the fixed-width EDF header fields:
+The EDF path operates at the byte level on the fixed-width header fields:
 - bytes 8–87:  local patient identification (80 ASCII chars, space-padded)
 - bytes 88–167: local recording identification (80 ASCII chars, space-padded)
 
@@ -12,8 +13,11 @@ files (e.g. SOMNOtouch RESP, with oximetry @ 25 Hz and snoring @ 200 Hz)
 round-trip without loss.
 """
 
+import io
 import shutil
 from pathlib import Path
+
+from PIL import Image
 
 _PATIENT_ID_OFFSET = 8
 _PATIENT_ID_LEN = 80
@@ -40,18 +44,34 @@ def _deidentified_recording_id(raw: bytes) -> bytes:
 
 TOP_CROP_PX = 40
 
+# Caps decode memory at roughly 256 MB of RGBA. Well above any real screen capture
+# (8K is 33 Mpx) and below Pillow's own bomb threshold, which only warns until 178 Mpx.
+MAX_SCREENSHOT_PIXELS = 64_000_000
+
 
 def deidentify_screenshot(image_bytes: bytes) -> bytes:
-    """Crop the top strip from a screenshot to remove the DOMINO patient-info bar."""
-    import io
+    """Crop the top strip from a screenshot to remove the DOMINO patient-info bar.
 
-    from PIL import Image
+    This is a fixed-height crop, not content detection: it removes the band where
+    DOMINO prints the patient banner in its default window. It is a defence, not a
+    guarantee — see SAFETY.md. Raises rather than returning the original, so a
+    caller cannot store an image that was not de-identified.
 
+    Re-encoding also drops EXIF/XMP, which a workstation capture can carry: the
+    save plugins write `encoderinfo`, not the source `info`. `test_deidentify.py`
+    pins that, since it is Pillow's behaviour rather than ours.
+    """
     img = Image.open(io.BytesIO(image_bytes))
     width, height = img.size
+    if width * height > MAX_SCREENSHOT_PIXELS:
+        raise ValueError(f"screenshot too large to decode ({width}x{height})")
+    if height <= TOP_CROP_PX:
+        raise ValueError(f"screenshot is shorter than the {TOP_CROP_PX}px patient-info crop")
+
+    image_format = img.format or "PNG"
     cropped = img.crop((0, TOP_CROP_PX, width, height))
     buf = io.BytesIO()
-    cropped.save(buf, format=img.format or "PNG")
+    cropped.save(buf, format=image_format)
     return buf.getvalue()
 
 

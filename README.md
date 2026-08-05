@@ -15,7 +15,7 @@ This alpha release is independently buildable from this repository. It includes 
 - Accepts EDF, PDF, and image artifacts after signature validation, and strips identifying EDF header fields before signal processing.
 - Produces signal-quality metrics, candidate windows, and a compact evidence package.
 - Streams a multi-stage evidence extraction and report-drafting workflow over SSE, preserving claim-to-evidence links and a reviewer audit trail.
-- Requires authentication for reference reads and administrator authorization for reference mutations.
+- Runs with no accounts: no sign-up, no invitation key, no sign-in screen. An optional shared access token is the only guard, for operators who expose the port.
 - Starts normally without a reference pack, and says so rather than hiding that deterministic reference validation is off.
 - Ships synthetic unit, integration, and three-service browser tests that make no live model call.
 
@@ -55,17 +55,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and data flow, and [SAFETY
 
 ## Try it without a study or an API key
 
-Evaluating this normally needs three things most people do not have to hand: an account, a sleep study, and a model provider. None is required.
+Evaluating this normally needs three things most people do not have to hand: an account, a sleep study, and a model provider. None is required, and nothing has to be switched on to skip them.
 
-Set `SOMNOSCRIBE_DEMO_MODE=true` in the API environment and restart. In the Docker
-quick start below, add it to `api/.env`. That one switch turns on all three of the
-following.
-
-**A demo user.** The sign-in screen grows a **Continue as demo user** button that takes you straight in — no invitation key to mint, no emailed code to wait for, no SMTP to configure.
-
-![Sign-in screen offering "Continue as demo user" above the license key and email options](docs/images/sign-in.png)
-
-The UI displays `demo@example.test` for a temporary, isolated internal demo principal. It has no administrator rights and expires with automatic cleanup. Sign-in is deliberately tied to the same switch that routes analysis to the offline model, so opening this door can never spend a real provider credential on an anonymous visitor.
+**No account.** There is no sign-up, no invitation key, and no sign-in screen. Starting the stack puts you on the case list. Somnoscribe is a single-operator workspace that binds the loopback interface; see [SAFETY.md](SAFETY.md) for what that does and does not protect.
 
 **A demo study.** The upload page offers to generate one. It is a two-hour synthetic recording — flow, effort, SpO2, pulse, and body position — built from a fixed seed with roughly 25 respiratory events written into the waveform, most of them in the supine segment. It is not a recording of a person, and it takes no shortcut: it goes through the same upload, validation, de-identification, and preprocessing path as a real file.
 
@@ -73,11 +65,9 @@ The UI displays `demo@example.test` for a temporary, isolated internal demo prin
 
 The panel states what the generator put in. The detector recovers those events from the waveform by its own route, so the two sets of numbers will be close rather than equal — and where they differ is worth reading, because that is the preprocessing stage showing its working. Events without a coupled desaturation, for instance, are deliberately dropped from the headline count.
 
-**A demo model.** Every analysis pass returns fixed, plainly non-clinical text instead of calling a provider. The workflow is otherwise real — the same SSE stream, persistence, citation validation, adjudication, and sign-off. The interface shows a banner for as long as it is on, because the one thing that must never be ambiguous is where a report's words came from.
+**No model key.** With no `OPENAI_API_KEY` set, every analysis pass is answered by an offline generator that returns fixed, plainly non-clinical text. The workflow is otherwise real — the same SSE stream, persistence, citation validation, adjudication, and sign-off. An amber banner stays on screen for as long as that mode is in use, because the one thing that must never be ambiguous is where a report's words came from.
 
-Do not leave demo mode on anywhere it could be mistaken for a working deployment.
-
-**Without any of it.** The API still starts. Sign-in, upload, preprocessing, signal quality, event detection, and the evidence package all work with no `OPENAI_API_KEY` at all. Analysis is the only thing that stops, and it says which variable to set rather than failing obscurely.
+Set `OPENAI_API_KEY` and the same workflow calls a real provider instead. There is no third state and no switch to remember: the presence of a credential is the whole configuration.
 
 ## Run with Docker
 
@@ -85,16 +75,12 @@ The fastest way to evaluate the application. Needs only Docker, not a local Node
 Python, or C/C++ toolchain.
 
 ```bash
-cp api/.env.example api/.env
-# In api/.env, set JWT_SECRET to the output of: openssl rand -base64 32
-# Add SOMNOSCRIBE_DEMO_MODE=true there to evaluate without a model key or study.
 docker compose up --build --wait
-
-# Only if you did not set demo mode above: mint an invitation to sign in with.
-docker compose run --rm tools scripts/generateLicenses.ts 1 starter
 ```
 
-Open `http://localhost:5173`. Only the web interface is published; it proxies `/api` to the internal API container, so the browser sees a single origin. The API and preprocessor have no host ports in this stack, which keeps browser traffic behind the API's authorization and upload checks. The API refuses to start, and names the variable, if `JWT_SECRET` is absent or too short.
+Open `http://localhost:5173`. That is the whole setup: no configuration file to copy, no secret to generate, no account to create. Only the web interface is published; it proxies `/api` to the internal API container, so the browser sees a single origin. The API and preprocessor have no host ports in this stack, which keeps browser traffic behind the API's upload and validation checks.
+
+To analyse with a real model instead of the offline one, put `OPENAI_API_KEY` in `api/.env` (`cp api/.env.example api/.env` for the annotated template) and restart.
 
 Case data, the SQLite database, and generated evidence live in the `evidence` volume; `docker compose down -v` deletes them.
 
@@ -106,37 +92,32 @@ To run the services directly on the host instead. Needs Node.js 22, Python 3.12,
 and a C/C++ toolchain supported by `better-sqlite3`.
 
 ```bash
-./scripts/setup.sh                                    # installs deps, writes api/.env
-npm --prefix api run license:generate -- 1 starter    # mint an invitation
-./scripts/dev.sh                                      # all three services on loopback
+./scripts/setup.sh    # installs deps, writes api/.env
+./scripts/dev.sh      # all three services on loopback
 ```
 
-Use the generated invitation with `/api/auth/activate` or the activation form. A model API key is needed only for analysis against a real model; everything else runs without one, and `SOMNOSCRIBE_DEMO_MODE=true` covers analysis too.
-
-The `license` naming here is historical and unrelated to the software's own licence. These keys are seats you mint against your own database: nothing contacts a licensing service, there is no paid tier, and the `tier` column is inert because no feature reads it. The `licenseKey` field and `licenses` table keep their names for deployment compatibility.
+A model API key is needed only for analysis against a real model; everything else runs without one, and analysis itself falls back to the offline generator rather than failing.
 
 ## Configuration
 
 Important API environment variables:
 
-| Variable                                 | Default                 | Meaning                                                                                         |
-| ---------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `HOST`                                   | `127.0.0.1`             | API bind address. Set a wider address explicitly for containers.                                |
-| `TRUST_PROXY`                            | `false`                 | `false`, `loopback`, or a positive proxy hop count.                                             |
-| `CORS_ORIGINS`                           | empty                   | Comma-separated allowed browser origins. Authenticated mutations enforce this policy.           |
-| `JWT_SECRET`                             | development fallback    | Required in production and must be at least 32 bytes.                                           |
-| `DB_PATH`                                | `api/data/cases.sqlite` | SQLite database path.                                                                           |
-| `PREPROCESSOR_URL`                       | `http://localhost:8001` | Preprocessor base URL.                                                                          |
-| `OPENAI_API_KEY`                         | unset                   | Needed for analysis against a real model. An empty value counts as unset.                       |
-| `SOMNOSCRIBE_DEMO_MODE`                  | `false`                 | Answer every analysis pass from the offline demo model. Takes precedence over `OPENAI_API_KEY`. |
-| `SOMNOSCRIBE_DEMO_MAX_ACTIVE_PRINCIPALS` | `24`                    | Caps simultaneous anonymous demo sessions across source IPs.                                    |
-| `REFERENCE_DIR`                          | unset                   | Optional external directory of validated Markdown rules.                                        |
+| Variable                   | Default                 | Meaning                                                                                 |
+| -------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
+| `HOST`                     | `127.0.0.1`             | API bind address. Set a wider address explicitly for containers.                        |
+| `TRUST_PROXY`              | `false`                 | `false`, `loopback`, or a positive proxy hop count.                                     |
+| `CORS_ORIGINS`             | empty                   | Comma-separated allowed browser origins. Mutations enforce this policy.                 |
+| `DB_PATH`                  | `api/data/cases.sqlite` | SQLite database path.                                                                   |
+| `PREPROCESSOR_URL`         | `http://localhost:8001` | Preprocessor base URL.                                                                  |
+| `OPENAI_API_KEY`           | unset                   | Analyse with a real model. Unset or empty means the offline generator.                  |
+| `SOMNOSCRIBE_ACCESS_TOKEN` | unset                   | When set, every `/api` request must present it as a bearer token. Unset means no guard. |
+| `REFERENCE_DIR`            | unset                   | Optional external directory of validated Markdown rules.                                |
 
-For reverse-proxy deployments, explicitly configure `HOST`, `TRUST_PROXY`, TLS, and `CORS_ORIGINS`. Production cookies are HTTP-only, SameSite=Lax, and Secure.
+For reverse-proxy deployments, explicitly configure `HOST`, `TRUST_PROXY`, TLS, `CORS_ORIGINS`, and `SOMNOSCRIBE_ACCESS_TOKEN`.
 
 ### Optional reference packs
 
-Reference packs must stay outside the repository. When `REFERENCE_DIR` is unset, the app reports `{ enabled: false, filesLoaded: 0, rulesLoaded: 0 }` from authenticated `GET /api/references/status` and displays a warning during analysis.
+Reference packs must stay outside the repository. When `REFERENCE_DIR` is unset, the app reports `{ enabled: false, filesLoaded: 0, rulesLoaded: 0 }` from `GET /api/references/status` and displays a warning during analysis.
 
 The accepted file format and validation rules are documented in [docs/reference-pack-schema.md](docs/reference-pack-schema.md). A non-clinical example is available in [examples/reference-pack/synthetic-rules.md](examples/reference-pack/synthetic-rules.md).
 

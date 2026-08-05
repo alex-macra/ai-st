@@ -9,17 +9,20 @@ import { createRateLimiter, type RateLimitOptions } from '../middleware/rateLimi
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');
 
-function testApp(options: RateLimitOptions, trustProxy: false | 'loopback' = false): Express {
+/** A bare app carrying only the limiter under test — not the real API. */
+function limiterApp(options: RateLimitOptions, trustProxy?: string): Express {
   const app = express();
-  app.set('trust proxy', trustProxy);
+  if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
   app.use(createRateLimiter(options));
-  app.get('/', (_req, res) => res.json({ ok: true }));
+  app.get('/', (_req: unknown, res: { json: (body: unknown) => void }) => {
+    res.json({ ok: true });
+  });
   return app;
 }
 
 describe('createRateLimiter', () => {
   it('preserves legacy limit and remaining headers', async () => {
-    const app = testApp({ windowMs: 60_000, maxRequests: 3 });
+    const app = limiterApp({ windowMs: 60_000, maxRequests: 3 });
     const first = await supertest(app).get('/');
     const second = await supertest(app).get('/');
     const third = await supertest(app).get('/');
@@ -32,7 +35,7 @@ describe('createRateLimiter', () => {
   });
 
   it('returns the compatible 429 body and Retry-After header', async () => {
-    const app = testApp({ windowMs: 60_000, maxRequests: 1 });
+    const app = limiterApp({ windowMs: 60_000, maxRequests: 1 });
     await supertest(app).get('/');
     const blocked = await supertest(app).get('/');
 
@@ -43,7 +46,7 @@ describe('createRateLimiter', () => {
   });
 
   it('isolates counters by trusted client IP', async () => {
-    const app = testApp({ windowMs: 60_000, maxRequests: 1 }, 'loopback');
+    const app = limiterApp({ windowMs: 60_000, maxRequests: 1 }, 'loopback');
     const first = await supertest(app).get('/').set('X-Forwarded-For', '198.51.100.1');
     const other = await supertest(app).get('/').set('X-Forwarded-For', '198.51.100.2');
     const repeated = await supertest(app).get('/').set('X-Forwarded-For', '198.51.100.1');
@@ -54,7 +57,7 @@ describe('createRateLimiter', () => {
   });
 
   it('resets after the configured window', async () => {
-    const app = testApp({ windowMs: 20, maxRequests: 1 });
+    const app = limiterApp({ windowMs: 20, maxRequests: 1 });
     expect((await supertest(app).get('/')).status).toBe(200);
     expect((await supertest(app).get('/')).status).toBe(429);
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -62,7 +65,7 @@ describe('createRateLimiter', () => {
   });
 
   it('bypasses loopback addresses when configured', async () => {
-    const app = testApp({ windowMs: 60_000, maxRequests: 1, skipLoopback: true });
+    const app = limiterApp({ windowMs: 60_000, maxRequests: 1, skipLoopback: true });
     for (let index = 0; index < 4; index += 1) {
       const response = await supertest(app).get('/');
       expect(response.status).toBe(200);
@@ -71,7 +74,7 @@ describe('createRateLimiter', () => {
   });
 
   it('recognizes trusted IPv6 loopback forms', async () => {
-    const app = testApp({ windowMs: 60_000, maxRequests: 1, skipLoopback: true }, 'loopback');
+    const app = limiterApp({ windowMs: 60_000, maxRequests: 1, skipLoopback: true }, 'loopback');
     for (const ip of ['::1', '::ffff:127.0.0.1']) {
       expect((await supertest(app).get('/').set('X-Forwarded-For', ip)).status).toBe(200);
       expect((await supertest(app).get('/').set('X-Forwarded-For', ip)).status).toBe(200);

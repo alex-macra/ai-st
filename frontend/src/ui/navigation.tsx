@@ -1,7 +1,6 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useRef, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cx } from './utils';
 
 export interface Tab {
@@ -83,106 +82,6 @@ export function Tabs({ tabs, active, onChange, children, className }: TabsProps)
         </div>
       )}
     </div>
-  );
-}
-
-export interface PaginationProps {
-  page: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  showEdges?: boolean;
-  className?: string;
-}
-
-function pageWindow(page: number, total: number): Array<number | '…'> {
-  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
-  const visible = new Set([1, total, Math.max(1, page - 1), page, Math.min(total, page + 1)]);
-  const sorted = [...visible].sort((left, right) => left - right);
-  const result: Array<number | '…'> = [];
-  for (const value of sorted) {
-    const previous = result.at(-1);
-    if (typeof previous === 'number' && value - previous > 1) result.push('…');
-    result.push(value);
-  }
-  return result;
-}
-
-export function Pagination({
-  page,
-  totalPages,
-  onPageChange,
-  showEdges = false,
-  className,
-}: PaginationProps) {
-  const total = Math.max(1, totalPages);
-  const base =
-    'focus-ring inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40';
-  return (
-    <nav aria-label="Pagination" className={cx('flex items-center gap-1', className)}>
-      {showEdges && (
-        <button
-          type="button"
-          aria-label="First page"
-          className={base}
-          disabled={page <= 1}
-          onClick={() => onPageChange(1)}
-        >
-          <ChevronsLeft aria-hidden="true" size={15} />
-        </button>
-      )}
-      <button
-        type="button"
-        aria-label="Previous page"
-        className={base}
-        disabled={page <= 1}
-        onClick={() => onPageChange(page - 1)}
-      >
-        <ChevronLeft aria-hidden="true" size={15} />
-      </button>
-      {pageWindow(page, total).map((entry, index) =>
-        entry === '…' ? (
-          <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ui-text-subtle">
-            …
-          </span>
-        ) : (
-          <button
-            key={entry}
-            type="button"
-            aria-label={`Page ${entry}`}
-            aria-current={entry === page ? 'page' : undefined}
-            className={cx(
-              base,
-              entry === page
-                ? 'bg-ui-accent-solid text-ui-accent-fg'
-                : 'text-ui-text-muted hover:bg-ui-bg-muted',
-            )}
-            onClick={() => onPageChange(entry)}
-          >
-            {entry}
-          </button>
-        ),
-      )}
-      <button
-        type="button"
-        aria-label="Next page"
-        className={base}
-        disabled={page >= total}
-        onClick={() => onPageChange(page + 1)}
-      >
-        <ChevronRight aria-hidden="true" size={15} />
-      </button>
-      {showEdges && (
-        <button
-          type="button"
-          aria-label="Last page"
-          className={base}
-          disabled={page >= total}
-          onClick={() => onPageChange(total)}
-        >
-          <ChevronsRight aria-hidden="true" size={15} />
-        </button>
-      )}
-    </nav>
   );
 }
 

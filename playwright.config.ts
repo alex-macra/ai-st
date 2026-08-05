@@ -26,7 +26,6 @@ const baseEnvironment = Object.fromEntries(
 
 export default defineConfig({
   testDir: './e2e',
-  globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
@@ -65,10 +64,7 @@ export default defineConfig({
         PREPROCESSOR_URL: 'http://127.0.0.1:8001',
         CORS_ORIGINS: 'http://localhost:5173',
         SOMNOSCRIBE_SYNTHETIC_LLM: 'true',
-        SOMNOSCRIBE_DEMO_MODE: 'true',
         OPENAI_API_KEY: 'not-used-in-synthetic-test-mode',
-        JWT_SECRET: 'synthetic-e2e-secret-not-for-production',
-        AUTH_RATE_LIMIT_MAX: '1000',
         RATE_LIMIT_MAX: '1000',
         UPLOAD_RATE_LIMIT_MAX: '1000',
         UPLOAD_TMP_DIR: uploadPath,

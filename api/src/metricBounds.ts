@@ -84,6 +84,12 @@ const BOUNDS: Record<string, MetricBounds> = {
 // Maps evidence source strings → metric key in BOUNDS.
 // Source strings are defined by Pass 1 prompt conventions.
 const SOURCE_TO_METRIC: Record<string, string> = {
+  // The EDF path reports a respiratory event index, not an AHI — `prompts.ts`
+  // asks Pass 1 for `provisional_rei_per_hour` and its artifact-adjusted twin.
+  // These two keys were missing, so the headline index of every EDF case went
+  // unchecked while the SpO2 keys below were validated.
+  'study_metrics.provisional_rei_per_hour': 'rei',
+  'study_metrics.provisional_rei_artifact_adjusted_per_hour': 'rei',
   'study_metrics.provisional_ahi_per_hour': 'ahi',
   'study_metrics.provisional_odi_per_hour': 'odi3',
   'study_metrics.spo2.mean_pct': 'meanSpO2',

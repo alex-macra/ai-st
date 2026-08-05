@@ -1,18 +1,15 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import supertest from 'supertest';
-import { createApp } from '../app.js';
 import { enforceUploadContentLength } from '../upload.js';
-import { MAX_CASE_PACKAGE_BYTES, MAX_TOTAL_UPLOAD_BYTES } from '../constants.js';
+import { MAX_CASE_PACKAGE_BYTES, MAX_TOTAL_UPLOAD_BYTES, SCREENSHOTS_DIR } from '../constants.js';
 import type { Request, Response } from 'express';
 import { getCaseById, getAuditLog } from '../db.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
+import { testApp } from './factories.js';
 
 function syntheticEdf(seed = 'synthetic'): Buffer {
   const buffer = Buffer.alloc(256, 0x20);
@@ -25,6 +22,11 @@ function syntheticPng(seed: number): Buffer {
   return Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, seed]);
 }
 
+// What the stubbed de-identification endpoint hands back. Deliberately different
+// from every `syntheticPng`, so a test can tell a cropped screenshot from an
+// original by its bytes alone.
+const DEIDENTIFIED_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xde, 0xad]);
+
 interface FetchCall {
   url: string;
   init: RequestInit | undefined;
@@ -34,12 +36,22 @@ interface FetchCall {
 function stubPreprocessor(
   payload: Record<string, unknown>,
   status = 200,
+  deidentifyStatus = 200,
 ): { calls: FetchCall[]; restore: () => void } {
   const calls: FetchCall[] = [];
   const original = globalThis.fetch;
   const stub = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
     const form = (init?.body instanceof FormData ? init.body : new FormData()) as FormData;
     calls.push({ url: String(url), init, formData: form });
+    // Screenshot de-identification answers with image bytes, not a case package.
+    if (String(url).endsWith('/deidentify/screenshot')) {
+      return deidentifyStatus === 200
+        ? new Response(DEIDENTIFIED_PNG, {
+            status: 200,
+            headers: { 'content-type': 'image/png' },
+          })
+        : new Response('', { status: deidentifyStatus });
+    }
     return new Response(JSON.stringify(payload), {
       status,
       headers: { 'content-type': 'application/json' },
@@ -122,9 +134,7 @@ describe('POST /api/upload', () => {
   let restore: () => void = () => {};
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   afterEach(() => {
@@ -277,6 +287,51 @@ describe('POST /api/upload', () => {
     const pkg = JSON.parse(stored?.casePackage ?? '{}') as Record<string, unknown>;
     expect(pkg['edf_available']).toBe(false);
     expect(pkg['screenshot_count']).toBe(2);
+  });
+
+  it('stores the de-identified screenshot rather than the uploaded bytes', async () => {
+    const stub = stubPreprocessor(SCREENSHOT_PACKAGE);
+    restore = stub.restore;
+
+    const res = await request
+      .post('/api/upload')
+      .attach('screenshots', syntheticPng(1), 'a.png')
+      .attach('screenshots', syntheticPng(2), 'b.png');
+
+    expect(res.status).toBe(201);
+    const { caseId } = res.body as { caseId: string };
+
+    expect(stub.calls.filter((c) => c.url.endsWith('/deidentify/screenshot'))).toHaveLength(2);
+
+    // On disk: what the reviewer sees and what analyze.ts sends to the model.
+    const directory = path.join(SCREENSHOTS_DIR, caseId);
+    const stored = readdirSync(directory);
+    expect(stored).toHaveLength(2);
+    for (const name of stored) {
+      const bytes = readFileSync(path.join(directory, name));
+      expect(bytes.equals(DEIDENTIFIED_PNG)).toBe(true);
+    }
+
+    // And nothing uncropped is forwarded to /ingest either.
+    const ingest = stub.calls.find((c) => c.url.endsWith('/ingest'));
+    const forwarded = ingest?.formData.getAll('screenshots') ?? [];
+    expect(forwarded).toHaveLength(2);
+    for (const blob of forwarded) {
+      const bytes = Buffer.from(await (blob as Blob).arrayBuffer());
+      expect(bytes.equals(DEIDENTIFIED_PNG)).toBe(true);
+    }
+  });
+
+  it('rejects the upload when a screenshot cannot be de-identified', async () => {
+    const stub = stubPreprocessor(SCREENSHOT_PACKAGE, 200, 422);
+    restore = stub.restore;
+
+    const res = await request.post('/api/upload').attach('screenshots', syntheticPng(3), 'a.png');
+
+    expect(res.status).toBe(502);
+    expect(res.body.code).toBe('SCREENSHOT_DEIDENTIFY_FAILED');
+    // Failing closed: the original never reaches ingestion or the case store.
+    expect(stub.calls.some((c) => c.url.endsWith('/ingest'))).toBe(false);
   });
 
   it('produces a deterministic studyHash for the same EDF bytes', async () => {

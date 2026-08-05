@@ -2,19 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { expect, test } from '@playwright/test';
 
-test.use({ storageState: undefined });
-
 /**
- * The demo exists so someone with no sleep study and no provider account can
- * still see the application work. That claim is only true if the generated
- * recording survives the real upload and preprocessing path, so this drives it
- * from the button rather than posting the file directly.
+ * The demo study exists so someone with no sleep study to hand can still see the
+ * application work. That claim is only true if the generated recording survives
+ * the real upload and preprocessing path, so this drives it from the button
+ * rather than posting the file directly.
  */
 test('generated demo study uploads and preprocesses through the ordinary path', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Continue as demo user' }).click();
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
   await page.getByRole('button', { name: 'Upload study' }).click();
 

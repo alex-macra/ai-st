@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { expect, test } from '@playwright/test';
 
-test.use({ storageState: 'e2e/.auth/user.json' });
-
-test('activation → three-service upload → synthetic analysis → review → sign-off', async ({
-  page,
-}) => {
+test('three-service upload → synthetic analysis → review → sign-off', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
 

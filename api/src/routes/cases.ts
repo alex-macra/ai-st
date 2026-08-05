@@ -1,15 +1,14 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import { z } from 'zod';
-import type { Request, Response, Router } from 'express';
+import type { NextFunction, Request, Response, Router } from 'express';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath, rm, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  getCaseByIdScoped,
+  getCaseById,
   getCases,
-  getCasesScoped,
   updateCaseStatusWithAudit,
   getAuditLog,
   updateFindingDecisionWithAudit,
@@ -22,7 +21,7 @@ import {
   signOffCaseWithAudit,
   nextCaseUpdatedAt,
 } from '../db.js';
-import type { CaseScope } from '../db.js';
+import type { Case } from '../shared/types.js';
 import {
   CASE_STATUSES,
   ALLOWED_MODELS,
@@ -31,14 +30,14 @@ import {
   SLICES_DIR,
   SCREENSHOTS_DIR,
   MAX_SIGNAL_SLICES_BYTES,
+  OPERATOR,
 } from '../constants.js';
 import { REPORT_SECTION_KEYS } from '../shared/types.js';
 import type { ReportSectionKey } from '../shared/types.js';
 import { logger, hashIp, errorLogFields } from '../logger.js';
 import { runAnalysis, runActionPlan } from '../analyze.js';
-import { requireAdmin, requireAuth } from '../middleware/auth.js';
+import { pathWithin } from '../paths.js';
 import { reviewedFindingsForActionPlan, unreviewedSectionKeys } from '../shared/review.js';
-import { DEMO_MAX_CONCURRENT_ANALYSES } from '../demo.js';
 
 const require = createRequire(import.meta.url);
 const express = require('express') as typeof import('express');
@@ -59,9 +58,15 @@ const sectionReviewSchema = z.object({
   editedValue: z.string().min(1).optional(),
 });
 
+/**
+ * Sign-off is the one action that names a person. There are no accounts, so the
+ * reviewer types their own name and it is recorded verbatim in the audit entry
+ * and on the printed report. It is an attestation, not an authenticated
+ * identity, and the documentation says so.
+ */
 const signOffSchema = z
   .object({
-    actorId: z.string().trim().min(1).max(100).optional(),
+    reviewerName: z.string().trim().min(1).max(100),
   })
   .strict();
 
@@ -70,29 +75,63 @@ const analyzeBodySchema = z.object({
 });
 
 export const activeAnalyses = new Set<string>();
-let activeDemoAnalyses = 0;
 
-function scopeOf(req: Request): CaseScope {
-  const user = req.user!;
-  return {
-    userId: user.id,
-    organizationId: user.isDemo ? null : user.organizationId,
-    ...(user.isDemo ? { demoOnly: true } : {}),
-  };
+/**
+ * Loads `:id` once for every route that takes one, so no handler can forget the
+ * lookup. `requireEditableCase` adds the signed-off guard for the mutating
+ * routes; read routes deliberately stay readable after sign-off.
+ */
+function loadCase(req: Request, res: Response, next: NextFunction, rawId: unknown): void {
+  const found = getCaseById(typeof rawId === 'string' ? rawId : '');
+  if (!found) {
+    res.status(404).json({ error: 'Case not found' });
+    return;
+  }
+  res.locals['case'] = found;
+  next();
 }
 
-function pathWithin(rootPath: string, childName: string): string | null {
-  const root = path.resolve(rootPath);
-  const child = path.resolve(root, childName);
-  const relative = path.relative(root, child);
-  if (
-    !relative ||
-    relative === '..' ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative)
-  )
-    return null;
-  return child;
+function currentCase(res: Response): Case {
+  return res.locals['case'] as Case;
+}
+
+function requireEditableCase(_req: Request, res: Response, next: NextFunction): void {
+  if (currentCase(res).status === 'signed_off') {
+    res.status(409).json({ error: 'Case is signed off' });
+    return;
+  }
+  next();
+}
+
+/**
+ * Both model passes stream over SSE and both must hold the single-operator lock
+ * for their whole run, including the abort path — a client that closes the tab
+ * mid-analysis must release it, or the workspace deadlocks until restart.
+ */
+function startStreamingJob(
+  _req: Request,
+  res: Response,
+  run: (signal: AbortSignal) => Promise<unknown>,
+): void {
+  if (activeAnalyses.has(OPERATOR)) {
+    res.status(429).json({ code: 'analysis_in_flight', retryAfterSeconds: 60 });
+    return;
+  }
+  activeAnalyses.add(OPERATOR);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const ac = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) ac.abort();
+  });
+
+  void run(ac.signal).finally(() => {
+    activeAnalyses.delete(OPERATOR);
+  });
 }
 
 async function cleanupCaseArtifacts(caseId: string, studyHash: string): Promise<void> {
@@ -119,7 +158,7 @@ async function cleanupCaseArtifacts(caseId: string, studyHash: string): Promise<
 export function casesRouter(): Router {
   const router = express.Router();
 
-  router.use(requireAuth);
+  router.param('id', loadCase);
 
   router.get('/', (req: Request, res: Response): void => {
     const status = typeof req.query['status'] === 'string' ? req.query['status'] : undefined;
@@ -127,38 +166,20 @@ export function casesRouter(): Router {
       res.status(400).json({ error: 'Invalid status filter' });
       return;
     }
-    const cases = getCasesScoped(scopeOf(req), status);
-    res.json({ cases });
+    res.json({ cases: getCases(status) });
   });
 
-  router.get('/:id', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const c = getCaseByIdScoped(typeof rawId === 'string' ? rawId : '', scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    res.json({ case: c });
+  router.get('/:id', (_req: Request, res: Response): void => {
+    res.json({ case: currentCase(res) });
   });
 
-  router.get('/:id/audit', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const c = getCaseByIdScoped(typeof rawId === 'string' ? rawId : '', scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    const log = getAuditLog(c.id);
-    res.json({ auditLog: log, tokenStats: c.tokenStats ?? null });
+  router.get('/:id/audit', (_req: Request, res: Response): void => {
+    const c = currentCase(res);
+    res.json({ auditLog: getAuditLog(c.id), tokenStats: c.tokenStats ?? null });
   });
 
-  router.get('/:id/signal-slices', async (req: Request, res: Response): Promise<void> => {
-    const rawId = req.params['id'];
-    const c = getCaseByIdScoped(typeof rawId === 'string' ? rawId : '', scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
+  router.get('/:id/signal-slices', async (_req: Request, res: Response): Promise<void> => {
+    const c = currentCase(res);
     try {
       if (!/^[a-f0-9]{64}$/.test(c.studyHash)) throw new Error('Invalid study hash');
       const slicePath = pathWithin(SLICES_DIR, `${c.studyHash}.json`);
@@ -209,74 +230,25 @@ export function casesRouter(): Router {
     }
   });
 
-  router.post('/:id/analyze', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
-
-    const jobKey = req.user!.id;
-    const isDemoJob = req.user!.isDemo;
-    const ipHash = hashIp(req.ip);
-    if (activeAnalyses.has(jobKey)) {
-      res.status(429).json({ code: 'analysis_in_flight', retryAfterSeconds: 60 });
-      return;
-    }
-    if (isDemoJob && activeDemoAnalyses >= DEMO_MAX_CONCURRENT_ANALYSES) {
-      res.status(429).json({ code: 'demo_analysis_capacity', retryAfterSeconds: 60 });
-      return;
-    }
-
+  router.post('/:id/analyze', requireEditableCase, (req: Request, res: Response): void => {
+    const id = currentCase(res).id;
     const bodyParsed = analyzeBodySchema.safeParse(req.body);
     if (!bodyParsed.success) {
       res.status(400).json({ error: 'Invalid request body', issues: bodyParsed.error.issues });
       return;
     }
-
-    activeAnalyses.add(jobKey);
-    if (isDemoJob) activeDemoAnalyses += 1;
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    const ac = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) ac.abort();
-    });
-
-    const modelId = bodyParsed.data.modelId;
-    logger.info({ caseId: id, modelId, ipHash }, 'analysis_started');
-    runAnalysis(id, res, ac.signal, modelId, isDemoJob ? 'demo' : undefined)
-      .catch((err: unknown) => {
+    startStreamingJob(req, res, (signal) => {
+      const modelId = bodyParsed.data.modelId;
+      logger.info({ caseId: id, modelId, ipHash: hashIp(req.ip) }, 'analysis_started');
+      return runAnalysis(id, res, signal, modelId).catch((err: unknown) => {
         logger.error({ ...errorLogFields(err), caseId: id }, 'analyze_route_error');
-      })
-      .finally(() => {
-        activeAnalyses.delete(jobKey);
-        if (isDemoJob) activeDemoAnalyses = Math.max(0, activeDemoAnalyses - 1);
       });
+    });
   });
 
-  router.post('/:id/action-plan', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
+  router.post('/:id/action-plan', requireEditableCase, (req: Request, res: Response): void => {
+    const c = currentCase(res);
+    const id = c.id;
 
     if (!c.findings?.length || !c.structuredReport) {
       res
@@ -304,60 +276,23 @@ export function casesRouter(): Router {
       return;
     }
 
-    const jobKey = req.user!.id;
-    const isDemoJob = req.user!.isDemo;
-    if (activeAnalyses.has(jobKey)) {
-      res.status(429).json({ code: 'analysis_in_flight', retryAfterSeconds: 60 });
-      return;
-    }
-    if (isDemoJob && activeDemoAnalyses >= DEMO_MAX_CONCURRENT_ANALYSES) {
-      res.status(429).json({ code: 'demo_analysis_capacity', retryAfterSeconds: 60 });
-      return;
-    }
     const bodyParsed = analyzeBodySchema.safeParse(req.body);
     if (!bodyParsed.success) {
       res.status(400).json({ error: 'Invalid request body', issues: bodyParsed.error.issues });
       return;
     }
-    activeAnalyses.add(jobKey);
-    if (isDemoJob) activeDemoAnalyses += 1;
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    const ac = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) ac.abort();
-    });
-
-    const modelId = bodyParsed.data.modelId;
-    const ipHash = hashIp(req.ip);
-    logger.info({ caseId: id, modelId, ipHash }, 'action_plan_started');
-    runActionPlan(id, res, ac.signal, modelId, isDemoJob ? 'demo' : undefined)
-      .catch((err: unknown) => {
+    startStreamingJob(req, res, (signal) => {
+      const modelId = bodyParsed.data.modelId;
+      logger.info({ caseId: id, modelId, ipHash: hashIp(req.ip) }, 'action_plan_started');
+      return runActionPlan(id, res, signal, modelId).catch((err: unknown) => {
         logger.error({ ...errorLogFields(err), caseId: id }, 'action_plan_route_error');
-      })
-      .finally(() => {
-        activeAnalyses.delete(jobKey);
-        if (isDemoJob) activeDemoAnalyses = Math.max(0, activeDemoAnalyses - 1);
       });
+    });
   });
 
-  router.patch('/:id/status', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
-
+  router.patch('/:id/status', requireEditableCase, (req: Request, res: Response): void => {
+    const c = currentCase(res);
+    const id = c.id;
     const parsed = statusPatchSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
@@ -378,7 +313,7 @@ export function casesRouter(): Router {
       id: randomUUID(),
       caseId: id,
       action: `status_changed_to_${status}`,
-      actorId: req.user!.id,
+      actorId: OPERATOR,
       metadata: { previousStatus: c.status },
       createdAt: now,
     });
@@ -388,119 +323,119 @@ export function casesRouter(): Router {
     }
 
     logger.info(
-      { caseId: id, status, actorId: req.user!.id, ipHash: hashIp(req.ip) },
+      { caseId: id, status, actorId: OPERATOR, ipHash: hashIp(req.ip) },
       'case_status_updated',
     );
     res.json({ ok: true, status });
   });
 
-  router.patch('/:id/findings/:findingId', (req: Request, res: Response): void => {
-    const caseId = typeof req.params['id'] === 'string' ? req.params['id'] : '';
-    const findingId = typeof req.params['findingId'] === 'string' ? req.params['findingId'] : '';
-    const c = getCaseByIdScoped(caseId, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
+  router.patch(
+    '/:id/findings/:findingId',
+    requireEditableCase,
+    (req: Request, res: Response): void => {
+      const c = currentCase(res);
+      const caseId = c.id;
+      const findingId = typeof req.params['findingId'] === 'string' ? req.params['findingId'] : '';
 
-    const parsed = findingDecisionSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
-      return;
-    }
+      const parsed = findingDecisionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
+        return;
+      }
 
-    const { decision, editedClaim } = parsed.data;
-    if (decision === 'edit' && !editedClaim) {
-      res.status(400).json({ error: 'editedClaim required when decision is edit' });
-      return;
-    }
+      const { decision, editedClaim } = parsed.data;
+      if (decision === 'edit' && !editedClaim) {
+        res.status(400).json({ error: 'editedClaim required when decision is edit' });
+        return;
+      }
 
-    const now = nextCaseUpdatedAt(c.updatedAt);
-    const updated = updateFindingDecisionWithAudit(caseId, findingId, decision, editedClaim, now, {
-      id: randomUUID(),
-      caseId,
-      action: `finding_${decision}`,
-      actorId: req.user!.id,
-      metadata: { findingId, ...(editedClaim ? { editedClaim } : {}) },
-      createdAt: now,
-    });
-    if (!updated) {
-      res.status(404).json({ error: 'Finding not found' });
-      return;
-    }
-
-    logger.info(
-      { caseId, decision, actorId: req.user!.id, ipHash: hashIp(req.ip) },
-      'finding_decision',
-    );
-    res.json({ ok: true, decision });
-  });
-
-  router.patch('/:id/sections/:sectionKey', (req: Request, res: Response): void => {
-    const caseId = typeof req.params['id'] === 'string' ? req.params['id'] : '';
-    const sectionKey = typeof req.params['sectionKey'] === 'string' ? req.params['sectionKey'] : '';
-    if (!REPORT_SECTION_KEYS.includes(sectionKey as ReportSectionKey)) {
-      res.status(400).json({ error: 'Unknown section key' });
-      return;
-    }
-    const c = getCaseByIdScoped(caseId, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
-    if (!c.structuredReport) {
-      res.status(409).json({ error: 'Case has no structured report - run analysis first' });
-      return;
-    }
-
-    const parsed = sectionReviewSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
-      return;
-    }
-
-    const { decision, editedValue } = parsed.data;
-    if (decision === 'edit' && !editedValue) {
-      res.status(400).json({ error: 'editedValue required when decision is edit' });
-      return;
-    }
-
-    const now = nextCaseUpdatedAt(c.updatedAt);
-    const ok = updateSectionReviewWithAudit(
-      caseId,
-      sectionKey as ReportSectionKey,
-      { decision, ...(editedValue ? { editedValue } : {}), reviewedAt: now },
-      now,
-      {
-        id: randomUUID(),
+      const now = nextCaseUpdatedAt(c.updatedAt);
+      const updated = updateFindingDecisionWithAudit(
         caseId,
-        action: `section_${decision}`,
-        actorId: req.user!.id,
-        metadata: { sectionKey, ...(editedValue ? { editedValue } : {}) },
-        createdAt: now,
-      },
-    );
-    if (!ok) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
+        findingId,
+        decision,
+        editedClaim,
+        now,
+        {
+          id: randomUUID(),
+          caseId,
+          action: `finding_${decision}`,
+          actorId: OPERATOR,
+          metadata: { findingId, ...(editedClaim ? { editedClaim } : {}) },
+          createdAt: now,
+        },
+      );
+      if (!updated) {
+        res.status(404).json({ error: 'Finding not found' });
+        return;
+      }
 
-    logger.info(
-      { caseId, sectionKey, decision, actorId: req.user!.id, ipHash: hashIp(req.ip) },
-      'section_decision',
-    );
-    res.json({ ok: true, decision });
-  });
+      logger.info(
+        { caseId, decision, actorId: OPERATOR, ipHash: hashIp(req.ip) },
+        'finding_decision',
+      );
+      res.json({ ok: true, decision });
+    },
+  );
 
-  router.delete('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  router.patch(
+    '/:id/sections/:sectionKey',
+    requireEditableCase,
+    (req: Request, res: Response): void => {
+      const c = currentCase(res);
+      const caseId = c.id;
+      const sectionKey =
+        typeof req.params['sectionKey'] === 'string' ? req.params['sectionKey'] : '';
+      if (!REPORT_SECTION_KEYS.includes(sectionKey as ReportSectionKey)) {
+        res.status(400).json({ error: 'Unknown section key' });
+        return;
+      }
+      if (!c.structuredReport) {
+        res.status(409).json({ error: 'Case has no structured report - run analysis first' });
+        return;
+      }
+
+      const parsed = sectionReviewSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid request', issues: parsed.error.issues });
+        return;
+      }
+
+      const { decision, editedValue } = parsed.data;
+      if (decision === 'edit' && !editedValue) {
+        res.status(400).json({ error: 'editedValue required when decision is edit' });
+        return;
+      }
+
+      const now = nextCaseUpdatedAt(c.updatedAt);
+      const ok = updateSectionReviewWithAudit(
+        caseId,
+        sectionKey as ReportSectionKey,
+        { decision, ...(editedValue ? { editedValue } : {}), reviewedAt: now },
+        now,
+        {
+          id: randomUUID(),
+          caseId,
+          action: `section_${decision}`,
+          actorId: OPERATOR,
+          metadata: { sectionKey, ...(editedValue ? { editedValue } : {}) },
+          createdAt: now,
+        },
+      );
+      if (!ok) {
+        res.status(404).json({ error: 'Case not found' });
+        return;
+      }
+
+      logger.info(
+        { caseId, sectionKey, decision, actorId: OPERATOR, ipHash: hashIp(req.ip) },
+        'section_decision',
+      );
+      res.json({ ok: true, decision });
+    },
+  );
+
+  router.delete('/', async (req: Request, res: Response): Promise<void> => {
     if (!ENABLE_BULK_CASE_DELETE) {
       res.status(403).json({ error: 'Bulk delete is disabled' });
       return;
@@ -518,7 +453,7 @@ export function casesRouter(): Router {
     res.json({ ok: true, deleted });
   });
 
-  router.post('/clear-all', requireAdmin, (req: Request, res: Response): void => {
+  router.post('/clear-all', (req: Request, res: Response): void => {
     if (!ENABLE_BULK_CASE_DELETE) {
       res.status(403).json({ error: 'Bulk clear is disabled' });
       return;
@@ -530,19 +465,12 @@ export function casesRouter(): Router {
 
   router.delete(
     '/:id/screenshots/:screenshotId',
+    requireEditableCase,
     async (req: Request, res: Response): Promise<void> => {
-      const id = typeof req.params['id'] === 'string' ? req.params['id'] : '';
+      const c = currentCase(res);
+      const id = c.id;
       const screenshotId =
         typeof req.params['screenshotId'] === 'string' ? req.params['screenshotId'] : '';
-      const c = getCaseByIdScoped(id, scopeOf(req));
-      if (!c) {
-        res.status(404).json({ error: 'Case not found' });
-        return;
-      }
-      if (c.status === 'signed_off') {
-        res.status(409).json({ error: 'Case is signed off' });
-        return;
-      }
       if (!c.casePackage) {
         res.status(404).json({ error: 'Screenshot not found' });
         return;
@@ -601,17 +529,10 @@ export function casesRouter(): Router {
   );
 
   router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
+    const c = currentCase(res);
+    const id = c.id;
     if (c.status === 'signed_off') {
-      res
-        .status(409)
-        .json({ error: 'Signed-off cases cannot be deleted via the API. Use the admin CLI.' });
+      res.status(409).json({ error: 'Signed-off cases cannot be deleted via the API.' });
       return;
     }
 
@@ -631,25 +552,15 @@ export function casesRouter(): Router {
     res.json({ ok: true });
   });
 
-  router.post('/:id/clear-analysis', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
-    if (c.status === 'signed_off') {
-      res.status(409).json({ error: 'Case is signed off' });
-      return;
-    }
-
+  router.post('/:id/clear-analysis', requireEditableCase, (req: Request, res: Response): void => {
+    const c = currentCase(res);
+    const id = c.id;
     const now = nextCaseUpdatedAt(c.updatedAt);
     const ok = clearCaseAnalysisWithAudit(id, {
       id: randomUUID(),
       caseId: id,
       action: 'analysis_cleared',
-      actorId: req.user!.id,
+      actorId: OPERATOR,
       metadata: { previousFindingCount: c.findings.length },
       createdAt: now,
     });
@@ -658,18 +569,13 @@ export function casesRouter(): Router {
       return;
     }
 
-    logger.info({ caseId: id, actorId: req.user!.id, ipHash: hashIp(req.ip) }, 'analysis_cleared');
+    logger.info({ caseId: id, actorId: OPERATOR, ipHash: hashIp(req.ip) }, 'analysis_cleared');
     res.json({ ok: true });
   });
 
   router.post('/:id/sign-off', (req: Request, res: Response): void => {
-    const rawId = req.params['id'];
-    const id = typeof rawId === 'string' ? rawId : '';
-    const c = getCaseByIdScoped(id, scopeOf(req));
-    if (!c) {
-      res.status(404).json({ error: 'Case not found' });
-      return;
-    }
+    const c = currentCase(res);
+    const id = c.id;
     if (c.status === 'signed_off') {
       res.status(409).json({ error: 'Already signed off' });
       return;
@@ -706,15 +612,15 @@ export function casesRouter(): Router {
       }
     }
 
-    const actorId = req.user!.id;
+    const reviewerName = signOffBody.data.reviewerName;
     const now = nextCaseUpdatedAt(c.updatedAt);
     const signedOff = signOffCaseWithAudit(id, now, {
       id: randomUUID(),
       caseId: id,
       action: 'signed_off',
-      actorId,
+      actorId: OPERATOR,
       metadata: {
-        reviewerName: signOffBody.data.actorId ?? req.user!.name ?? `User ${actorId.slice(0, 8)}`,
+        reviewerName,
         findingCount: c.findings.length,
         modelVersion: c.modelVersion,
         promptVersion: c.promptVersion,
@@ -727,7 +633,7 @@ export function casesRouter(): Router {
       return;
     }
 
-    logger.info({ caseId: id, actorId, ipHash: hashIp(req.ip) }, 'case_signed_off');
+    logger.info({ caseId: id, actorId: OPERATOR, ipHash: hashIp(req.ip) }, 'case_signed_off');
     res.json({ ok: true });
   });
 

@@ -23,10 +23,12 @@ The maintainers will acknowledge a complete report when practical, investigate, 
 
 The source defaults to loopback binding and no trusted proxy. Self-hosters own everything above that line: TLS, network controls, secure secret storage, access review and least privilege, encryption at rest, backup protection, retention and deletion controls, incident response, dependency updates, monitoring, regional privacy requirements, vendor agreements, and model-provider data controls.
 
+**Somnoscribe does not authenticate anyone.** It has no accounts, sessions, or roles: whoever reaches the port has every case and every control. That is a single-operator local design, and exposing it to a network without your own authentication layer in front means publishing the clinical artifacts it holds. `SOMNOSCRIBE_ACCESS_TOKEN` adds a single shared bearer secret, which is a speed bump, not an identity system.
+
 Before exposing a deployment:
 
 - Keep the loopback binding unless a deliberate network boundary is configured.
-- Set a production-grade `JWT_SECRET` and terminate TLS. The API rejects a secret that is short or is an example value published in this repository.
+- Put a real authenticating reverse proxy in front, or accept that every reachable client is an administrator. Set `SOMNOSCRIBE_ACCESS_TOKEN` at minimum, and terminate TLS.
 - Configure exact `CORS_ORIGINS` and the real reverse-proxy hop count.
 - Keep reference packs and clinical artifacts outside source control.
 - Restrict filesystem permissions on the database, temporary uploads, and screenshots.

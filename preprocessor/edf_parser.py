@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pyedflib
 
 
@@ -22,7 +23,6 @@ class ChannelInfo:
     physical_max: float
     unit: str
     duration_sec: float
-    present: bool = True
     n_samples: int = 0
 
 
@@ -37,9 +37,6 @@ class ChannelInventory:
             if ch.label.lower() == label_lower:
                 return ch
         return None
-
-    def labels(self) -> list[str]:
-        return [ch.label for ch in self.channels]
 
 
 @dataclass
@@ -138,3 +135,26 @@ def parse_edf(edf_path: Path) -> ChannelInventory:
             )
 
     return ChannelInventory(duration_sec=duration_sec, channels=channels)
+
+
+def read_window(
+    reader: pyedflib.EdfReader,
+    ch_index: int,
+    sample_rate: float,
+    start_sec: float,
+    end_sec: float,
+    dtype: type = np.float64,
+) -> np.ndarray:
+    """
+    Read one clamped time window from an open reader.
+
+    The slicer and the chart renderer each carried their own copy of this,
+    differing only in dtype and in how they obtained the sample count. An empty
+    array means the requested window fell outside the recording.
+    """
+    total = reader.getNSamples()[ch_index]
+    start = max(0, int(start_sec * sample_rate))
+    end = min(total, int(end_sec * sample_rate))
+    if end <= start:
+        return np.array([], dtype=dtype)
+    return reader.readSignal(ch_index, start=start, n=end - start).astype(dtype)

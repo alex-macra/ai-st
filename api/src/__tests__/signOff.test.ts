@@ -2,92 +2,48 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
-import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
 import {
   insertCase,
   updateCaseFindings,
   updateSectionReview,
   updateFindingDecision,
 } from '../db.js';
-import type { Case, Finding, StructuredReport } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
-
-function hex64(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
-function makeCase(overrides: Partial<Case> = {}): Case {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    studyHash: hex64(),
-    name: `signoff-${randomUUID().slice(0, 8)}`,
-    status: 'pending_review',
-    cohort: 'adult',
-    findings: [],
-    createdBy: auth.userId,
-    preprocessorVersion: '0.1.0',
-    promptVersion: '1.2.0',
-    modelVersion: 'gpt-5.4-mini',
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
-
-function makeFinding(overrides: Partial<Finding> = {}): Finding {
-  return {
-    id: `F-${randomUUID()}`,
-    claim: 'AHI elevated at 22.4/h consistent with moderate OSA',
-    evidence: [{ type: 'edf_metric', source: 'ahi', value: 22.4 }],
-    confidence: 'high',
-    ...overrides,
-  };
-}
-
-function emptyStructuredReport(overrides: Partial<StructuredReport> = {}): StructuredReport {
-  return {
-    summary: '',
-    studyQuality: { channelIssues: [] },
-    respiratoryIndices: {},
-    oxygenation: {},
-    positional: {},
-    impression: '',
-    citations: {},
-    ...overrides,
-  };
-}
+import { emptyStructuredReport, makeCase, makeFinding, testApp } from './factories.js';
 
 describe('POST /api/cases/:id/sign-off', () => {
   let request: ReturnType<typeof supertest>;
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   it('returns 404 for unknown case', async () => {
-    const res = await request.post('/api/cases/ghost/sign-off').send({});
+    const res = await request
+      .post('/api/cases/ghost/sign-off')
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(404);
   });
 
-  it('returns 401 without an auth cookie', async () => {
+  it('rejects sign-off that carries no reviewer name', async () => {
     const c = makeCase();
     insertCase(c);
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    const noAuth = supertest(app);
-    const res = await noAuth.post(`/api/cases/${c.id}/sign-off`).send({});
-    expect(res.status).toBe(401);
+    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a blank reviewer name', async () => {
+    const c = makeCase();
+    insertCase(c);
+    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({ reviewerName: '   ' });
+    expect(res.status).toBe(400);
   });
 
   it('rejects with 422 when case has no findings', async () => {
     const c = makeCase({ findings: [] });
     insertCase(c);
-    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const res = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(422);
     expect(res.body.error).toMatch(/no findings/i);
   });
@@ -101,7 +57,9 @@ describe('POST /api/cases/:id/sign-off', () => {
     updateCaseFindings(c.id, [a, b], null, c.modelVersion, now);
     updateFindingDecision(c.id, a.id, 'confirm', undefined, now);
 
-    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const res = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(422);
     expect(res.body.unreviewedCount).toBe(1);
   });
@@ -119,7 +77,9 @@ describe('POST /api/cases/:id/sign-off', () => {
     updateCaseFindings(c.id, [f], 'narr', c.modelVersion, now, report);
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
 
-    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const res = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(422);
     expect(res.body.error).toMatch(/sections must be reviewed/i);
     expect(res.body.unreviewedSections).toEqual(
@@ -142,7 +102,9 @@ describe('POST /api/cases/:id/sign-off', () => {
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
     updateSectionReview(c.id, 'impression', { decision: 'confirm', reviewedAt: now }, now);
 
-    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const res = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(200);
   });
 
@@ -162,7 +124,9 @@ describe('POST /api/cases/:id/sign-off', () => {
       updateSectionReview(c.id, k, { decision: 'confirm', reviewedAt: now }, now);
     }
 
-    const res = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const res = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true });
 
@@ -183,10 +147,14 @@ describe('POST /api/cases/:id/sign-off', () => {
     updateCaseFindings(c.id, [f], null, c.modelVersion, now);
     updateFindingDecision(c.id, f.id, 'confirm', undefined, now);
 
-    const ok = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const ok = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(ok.status).toBe(200);
 
-    const dup = await request.post(`/api/cases/${c.id}/sign-off`).send({});
+    const dup = await request
+      .post(`/api/cases/${c.id}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(dup.status).toBe(409);
   });
 });

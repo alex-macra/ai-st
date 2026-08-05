@@ -2,18 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { test, expect } from '@playwright/test';
 
-test.use({ storageState: 'e2e/.auth/user.json' });
-
-const MOCK_USER = JSON.stringify({
-  user: { id: 'test-id', email: 'reviewer@example.test', organizationId: null },
-});
 const EMPTY_CASES = JSON.stringify({ cases: [] });
 
 test.describe('navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('/api/auth/me', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: MOCK_USER });
-    });
     await page.route('/api/cases*', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: EMPTY_CASES });
     });
@@ -50,15 +42,5 @@ test.describe('navigation', () => {
     await page.getByRole('button', { name: 'Somnoscribe' }).click();
     await expect(page.getByText('No cases yet')).toBeVisible();
     await expect(page.getByText(/Upload a study to get started/)).toBeVisible();
-  });
-
-  test('sign out redirects to auth screen', async ({ page }) => {
-    await page.route('/api/auth/logout', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
-    });
-
-    await page.getByRole('button', { name: 'Account menu' }).click();
-    await page.getByRole('menuitem', { name: 'Sign out' }).click();
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible({ timeout: 5_000 });
   });
 });

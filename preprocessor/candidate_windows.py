@@ -389,7 +389,6 @@ def _post_process_flow_events(
         "tagged_uncoupled_hypopnea": uncoupled_tagged,
         "tagged_position_artifact": position_tagged,
         "headline_count": headline_count,
-        "total_after_merge": len(merged),
         "coupling_applied": 1 if coupling_applied else 0,
     }
     return merged, stats

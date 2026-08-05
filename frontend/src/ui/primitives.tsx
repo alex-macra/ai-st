@@ -351,7 +351,7 @@ export function RadioGroup({
           >
             <input
               type="radio"
-              className="h-4 w-4 accent-teal-600 focus:ring-teal-500"
+              className="h-6 w-6 accent-teal-600 focus:ring-teal-500"
               name={name}
               value={option.value}
               checked={option.value === value}
@@ -379,12 +379,6 @@ export interface ProgressProps {
   label?: string;
   className?: string;
   tone?: ProgressTone;
-}
-
-export function progressToneFromPercent(percent: number): ProgressTone {
-  if (percent >= 95) return 'danger';
-  if (percent >= 80) return 'warning';
-  return 'default';
 }
 
 export function Progress({

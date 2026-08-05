@@ -6,12 +6,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
 import { updateCaseFindings } from '../db.js';
 import type { Finding, StructuredReport } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
+import { testApp } from './factories.js';
 
 function syntheticEdf(): Buffer {
   const buffer = Buffer.alloc(256, 0x20);
@@ -82,9 +79,7 @@ describe('full case lifecycle (smoke)', () => {
   let restore: () => void = () => {};
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   afterEach(() => {
@@ -113,7 +108,9 @@ describe('full case lifecycle (smoke)', () => {
     );
 
     // Sign-off is blocked while findings are unreviewed.
-    const earlySignoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
+    const earlySignoff = await request
+      .post(`/api/cases/${caseId}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(earlySignoff.status).toBe(422);
     expect(earlySignoff.body.unreviewedCount).toBe(2);
 
@@ -125,7 +122,9 @@ describe('full case lifecycle (smoke)', () => {
     }
 
     // Still blocked: populated sections are unreviewed.
-    const midSignoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
+    const midSignoff = await request
+      .post(`/api/cases/${caseId}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(midSignoff.status).toBe(422);
     expect(midSignoff.body.unreviewedSections).toEqual(
       expect.arrayContaining([
@@ -144,7 +143,9 @@ describe('full case lifecycle (smoke)', () => {
       expect(r.status).toBe(200);
     }
 
-    const signoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
+    const signoff = await request
+      .post(`/api/cases/${caseId}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(signoff.status).toBe(200);
 
     const fetched = await request.get(`/api/cases/${caseId}`);
@@ -169,7 +170,9 @@ describe('full case lifecycle (smoke)', () => {
       .send({ decision: 'reject' });
     expect(postSignSection.status).toBe(409);
 
-    const dupSignoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
+    const dupSignoff = await request
+      .post(`/api/cases/${caseId}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(dupSignoff.status).toBe(409);
 
     // Signed-off cases can't be deleted via the API (admin CLI only).
@@ -197,7 +200,9 @@ describe('full case lifecycle (smoke)', () => {
     }
 
     // No structured report — sign-off gates on findings only.
-    const signoff = await request.post(`/api/cases/${caseId}/sign-off`).send({});
+    const signoff = await request
+      .post(`/api/cases/${caseId}/sign-off`)
+      .send({ reviewerName: 'Dr Synthetic' });
     expect(signoff.status).toBe(200);
 
     const del = await request.delete(`/api/cases/${caseId}`);

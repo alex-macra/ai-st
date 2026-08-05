@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import supertest from 'supertest';
-import { randomUUID } from 'node:crypto';
 
 // Filesystem calls are stubbed so tests don't need a real SLICES_DIR on disk.
 // The Python integration tests cover actual file writing end-to-end.
@@ -21,35 +20,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 });
 
 import { lstat, readFile, realpath } from 'node:fs/promises';
-import { createApp } from '../app.js';
 import { insertCase } from '../db.js';
-import type { Case } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
-
-function createHash64(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
-function makeCase(overrides: Partial<Case> = {}): Case {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    studyHash: createHash64(),
-    name: `test-${randomUUID().slice(0, 8)}`,
-    status: 'draft',
-    cohort: 'adult',
-    findings: [],
-    createdBy: auth.userId,
-    preprocessorVersion: '0.3.1',
-    promptVersion: 'none',
-    modelVersion: 'none',
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
+import { makeCase, testApp } from './factories.js';
 
 const SNAKE_SLICES = [
   {
@@ -80,9 +52,7 @@ describe('GET /api/cases/:id/signal-slices', () => {
   let request: ReturnType<typeof supertest>;
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
     vi.mocked(realpath).mockImplementation(async (filePath) => String(filePath));
     vi.mocked(lstat).mockResolvedValue({
       isSymbolicLink: () => false,
@@ -138,20 +108,6 @@ describe('GET /api/cases/:id/signal-slices', () => {
     expect(signals[0]!['samples']).toEqual([0.12, 0.09, null, 0.05]);
     expect(signals[1]!['channel']).toBe('SpO2');
     expect(signals[1]!['samples']).toEqual([96.0, 95.5, 94.0]);
-  });
-
-  it('is scoped to the authenticated user — returns 404 for another users case', async () => {
-    const c = makeCase();
-    insertCase(c);
-    vi.mocked(readFile).mockResolvedValue(JSON.stringify(SNAKE_SLICES));
-
-    const otherAuth = mintAuthCookie();
-    const otherRequest = authedSupertest(
-      createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 }),
-      otherAuth,
-    );
-    const res = await otherRequest.get(`/api/cases/${c.id}/signal-slices`);
-    expect(res.status).toBe(404);
   });
 
   it('rejects oversized and symbolic-link sidecars', async () => {

@@ -1,10 +1,13 @@
 # Evaluation stack for Somnoscribe. Three services on a private network, with only
 # the web interface published to loopback on the host. The API and
-# preprocessor stay on the Compose network so browser traffic cannot bypass
-# authentication, demo upload checks, or the proxy's trusted-client boundary.
+# preprocessor stay on the Compose network so browser traffic cannot bypass the
+# API's upload checks or the proxy's trusted-client boundary.
 #
-#   cp api/.env.example api/.env   # then set a real JWT_SECRET
 #   docker compose up --build
+#
+# Nothing needs configuring first: with no OPENAI_API_KEY the stack runs the
+# offline model, and there are no accounts to create. Copy api/.env.example to
+# api/.env to analyse with a real provider.
 #
 # This mirrors the loopback-by-default posture described in SECURITY.md. It is
 # an evaluation aid, not a hardened production deployment: there is no TLS, no
@@ -28,9 +31,9 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
-    # Operator configuration: OPENAI_API_KEY, JWT_SECRET, SMTP, rate limits.
-    # Absent on a fresh clone, in which case the API refuses to start and says
-    # which variable is missing.
+    # Operator configuration: OPENAI_API_KEY, SOMNOSCRIBE_ACCESS_TOKEN, rate
+    # limits. Absent on a fresh clone, which is a supported state — the API
+    # starts and runs the offline model.
     env_file:
       - path: api/.env
         required: false
@@ -59,9 +62,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # One-off operator commands (invitations, admin promotion, reference seeding).
-  # Not started by `docker compose up`; run it explicitly:
-  #   docker compose run --rm tools scripts/generateLicenses.ts 1 starter
+  # One-off operator commands. Not started by `docker compose up`; run it
+  # explicitly, e.g. to load an external reference pack:
+  #   docker compose run --rm tools scripts/seedReferenceRules.ts
   tools:
     profiles: ['tools']
     build:
@@ -80,7 +83,7 @@ services:
     # preprocessor (both use UID 1000 on the shared evidence volume).
     user: '1000:1000'
     entrypoint: ['npx', 'tsx']
-    command: ['scripts/generateLicenses.ts', '1', 'starter']
+    command: ['scripts/seedReferenceRules.ts']
 
   web:
     build:
