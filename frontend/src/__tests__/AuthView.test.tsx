@@ -60,20 +60,23 @@ describe('<AuthView />', () => {
     await user.type(screen.getByLabelText('Email'), 'reviewer@example.test');
     const licenseKey = screen.getByLabelText('License key');
 
-    await user.type(licenseKey, 'somnoabcd1234efab5678cdef');
-    expect(licenseKey).toHaveValue('SOMNO-ABCD-1234-EFAB-5678-CDEF');
+    // Each group is a repeated character so a mis-grouping is visible at a
+    // glance, and so the string stays under the secret scanner's entropy
+    // threshold. A realistic-looking key here fails the Secret scan job.
+    await user.type(licenseKey, 'somnoaaaabbbbccccddddeeee');
+    expect(licenseKey).toHaveValue('SOMNO-AAAA-BBBB-CCCC-DDDD-EEEE');
 
     await user.click(screen.getByRole('button', { name: 'Activate' }));
     await waitFor(() =>
       expect(activateMock).toHaveBeenCalledWith(
         'reviewer@example.test',
-        'SOMNO-ABCD-1234-EFAB-5678-CDEF',
+        'SOMNO-AAAA-BBBB-CCCC-DDDD-EEEE',
       ),
     );
 
     await user.clear(licenseKey);
-    await user.type(licenseKey, 'aist1234abcd5678efab9999');
-    expect(licenseKey).toHaveValue('AIST-1234-ABCD-5678-EFAB-9999');
+    await user.type(licenseKey, 'aist11112222333344445555');
+    expect(licenseKey).toHaveValue('AIST-1111-2222-3333-4444-5555');
   });
 
   it('announces a demo sign-in failure from the choice screen', async () => {
