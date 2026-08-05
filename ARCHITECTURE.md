@@ -97,9 +97,21 @@ Case and reference reads require authentication; account and reference mutations
 
 The API and development preprocessor bind to loopback. `TRUST_PROXY` defaults to `false`; deployments must opt into `loopback` or a positive hop count after matching the actual proxy chain. A container deployment must explicitly widen `HOST`.
 
-## Test-only model adapter
+## Offline model adapter
 
-The browser smoke journey sets `SOMNOSCRIBE_SYNTHETIC_LLM=true` with `NODE_ENV=test`. The adapter returns deterministic, non-clinical JSON for every analysis pass. Enabling it in any other environment throws during initialization. This path proves activation, upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
+One adapter returns deterministic, non-clinical JSON for every analysis pass, reached by two switches with different reach. `SOMNOSCRIBE_SYNTHETIC_LLM=true` is the browser smoke journey's, and still throws during initialization outside `NODE_ENV=test`. `SOMNOSCRIBE_DEMO_MODE=true` is the operator's, and runs anywhere — a deployment whose whole purpose is demonstration should not have to lie about its environment to be one. What replaces the old environment restriction is disclosure: `GET /api/config` reports the mode, and the interface carries a banner while it is set.
+
+Either way the path proves activation, upload, preprocessing, SSE, persistence, review, and sign-off without a network model call.
+
+The provider client is constructed only when an analysis or action-plan job begins, never at import. That job holds one client and one mode for all of its passes, so a demo job cannot fall through to a provider if an environment flag changes mid-stream. An absent, empty, or whitespace-only `OPENAI_API_KEY` all count as no key. An API with no model configured therefore starts and serves everything up to the analysis passes; analysis alone fails, naming the variable to set.
+
+## Demo sign-in
+
+`POST /api/auth/demo` returns 404 unless demo mode is on. When it is, each sign-in creates a fresh, isolated internal demo principal with a four-hour expiry; the UI presents the fixed display identity `demo@example.test`. It has no administrator or organization rights, is rate-limited separately from normal sign-in, accepts only the deterministic demo study, and is removed with its artifacts when expired or demo mode is disabled. It reuses the same `signJwt` / `setAuthCookie` session mechanics as every other route; only the constrained way in is different.
+
+## Demo study
+
+`GET /demo/study.edf` on the preprocessor generates a synthetic recording from a fixed seed — the API passes it through at `/api/demo/study.edf`, and the browser uploads it through the ordinary `/api/upload` route. Nothing about the demo bypasses validation, de-identification, or preprocessing. `GET /demo/summary` returns what the generator wrote in, which is what lets the interface distinguish the events placed in the waveform from the events the detector recovers from it.
 
 ## Persistence limits
 

@@ -46,11 +46,10 @@ has a different owner or name:
 - `README.md` — the CI badge.
 - `CITATION.cff` — `repository-code`.
 - `CHANGELOG.md` — the compare and release links at the foot.
-- `LICENSE-COMMERCIAL.md` — the commercial-enquiry issue link.
-- `.github/ISSUE_TEMPLATE/config.yml` — the security-advisory and SAFETY links.
 
-The boundary check rejects non-example email addresses, so keep the commercial
-contact a GitHub route rather than a mailbox.
+The commercial-enquiry and issue-template links are repository-relative, so they
+follow a copied tree automatically. The commercial contact remains a GitHub route
+rather than a mailbox because the boundary check rejects non-example addresses.
 
 ## What to do with the old repository
 

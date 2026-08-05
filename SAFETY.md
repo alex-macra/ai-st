@@ -42,9 +42,15 @@ Never use real patient artifacts in public issues, pull requests, fixtures, demo
 
 What a self-hoster owns, and the safeguards to configure before exposing a deployment, are in [SECURITY.md](SECURITY.md#deployment-responsibility).
 
-## Test mode
+## Demo and test modes
 
-Synthetic model mode exists only to exercise software plumbing. Its output is explicitly non-clinical and the API refuses to enable it outside the test environment. It must never be presented as model or clinical validation.
+The offline model adapter exists only to exercise software plumbing. Its output is fixed text that states its own nature, and it must never be presented as model or clinical validation.
+
+`SOMNOSCRIBE_SYNTHETIC_LLM` is the test suite's switch and the API refuses it outside the test environment. `SOMNOSCRIBE_DEMO_MODE` is the operator's and runs anywhere, so that a demonstration deployment can be one honestly. Wherever it is on, the interface says so on every screen and `GET /api/config` reports it. Do not enable it on a deployment anyone might mistake for a working one.
+
+`SOMNOSCRIBE_DEMO_MODE` also opens keyless sign-in to a short-lived, isolated demo principal displayed as `demo@example.test`. That is deliberate coupling in both directions: the account cannot exist without the offline model, so no anonymous visitor can spend a real provider credential, and no deployment can offer keyless access while drafting text a reader might take as clinical. Turning demo mode off closes both and cleanup removes demo artifacts.
+
+The generated demo study is a waveform drawn from a fixed seed. It is not a recording of a person, contains no identifiers, and the indices derived from it describe the generator, not a patient.
 
 ## Reporting a safety issue
 

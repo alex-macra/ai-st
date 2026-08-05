@@ -24,10 +24,9 @@ rights under the AGPL.
 
 ## Contact
 
-Open an issue at https://github.com/alex-macra/somnoscribe/issues titled
-"Commercial licence enquiry", or reach the copyright holder through the GitHub
-profile at https://github.com/alex-macra. Do not include confidential terms in a
-public issue; ask for a private channel first.
+Open a [repository issue](../../issues/new) titled "Commercial licence enquiry".
+Do not include confidential terms in a public issue; ask for a private channel
+first.
 
 ## Why this is possible
 

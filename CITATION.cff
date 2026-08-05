@@ -10,8 +10,8 @@ authors:
     given-names: Alex
 repository-code: https://github.com/alex-macra/somnoscribe
 license: AGPL-3.0-only
-version: 0.1.0-alpha.1
-date-released: '2026-08-03'
+version: 0.1.0-alpha.2
+date-released: '2026-08-05'
 keywords:
   - sleep medicine
   - polysomnography

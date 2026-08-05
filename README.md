@@ -42,11 +42,42 @@ Regenerate them with `npm run screenshots`.
 
 | Service       | Stack                       | Default address         |
 | ------------- | --------------------------- | ----------------------- |
-| Web interface | React, TypeScript, Vite     | `http://127.0.0.1:5173` |
+| Web interface | React, TypeScript, Vite     | `http://localhost:5173` |
 | API           | Express, TypeScript, SQLite | `http://127.0.0.1:3001` |
 | Preprocessor  | FastAPI, MNE, pyEDFlib      | `http://127.0.0.1:8001` |
 
+The web interface is `localhost` rather than a literal address because the two ways
+of running it listen differently: the Vite dev server takes the IPv6 loopback and
+the Docker stack publishes the IPv4 one. `localhost` reaches both. The API and
+preprocessor bind `127.0.0.1` directly and are only reachable that way.
+
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and data flow, and [SAFETY.md](SAFETY.md) before evaluating the application.
+
+## Try it without a study or an API key
+
+Evaluating this normally needs three things most people do not have to hand: an account, a sleep study, and a model provider. None is required.
+
+Set `SOMNOSCRIBE_DEMO_MODE=true` in the API environment and restart. In the Docker
+quick start below, add it to `api/.env`. That one switch turns on all three of the
+following.
+
+**A demo user.** The sign-in screen grows a **Continue as demo user** button that takes you straight in — no invitation key to mint, no emailed code to wait for, no SMTP to configure.
+
+![Sign-in screen offering "Continue as demo user" above the license key and email options](docs/images/sign-in.png)
+
+The UI displays `demo@example.test` for a temporary, isolated internal demo principal. It has no administrator rights and expires with automatic cleanup. Sign-in is deliberately tied to the same switch that routes analysis to the offline model, so opening this door can never spend a real provider credential on an anonymous visitor.
+
+**A demo study.** The upload page offers to generate one. It is a two-hour synthetic recording — flow, effort, SpO2, pulse, and body position — built from a fixed seed with roughly 25 respiratory events written into the waveform, most of them in the supine segment. It is not a recording of a person, and it takes no shortcut: it goes through the same upload, validation, de-identification, and preprocessing path as a real file.
+
+![Demo panel describing the generated study: duration, channels, events written in, and expected event index](docs/images/demo-panel.png)
+
+The panel states what the generator put in. The detector recovers those events from the waveform by its own route, so the two sets of numbers will be close rather than equal — and where they differ is worth reading, because that is the preprocessing stage showing its working. Events without a coupled desaturation, for instance, are deliberately dropped from the headline count.
+
+**A demo model.** Every analysis pass returns fixed, plainly non-clinical text instead of calling a provider. The workflow is otherwise real — the same SSE stream, persistence, citation validation, adjudication, and sign-off. The interface shows a banner for as long as it is on, because the one thing that must never be ambiguous is where a report's words came from.
+
+Do not leave demo mode on anywhere it could be mistaken for a working deployment.
+
+**Without any of it.** The API still starts. Sign-in, upload, preprocessing, signal quality, event detection, and the evidence package all work with no `OPENAI_API_KEY` at all. Analysis is the only thing that stops, and it says which variable to set rather than failing obscurely.
 
 ## Run with Docker
 
@@ -54,12 +85,16 @@ The fastest way to evaluate the application. Needs only Docker, not a local Node
 Python, or C/C++ toolchain.
 
 ```bash
-cp api/.env.example api/.env    # then set JWT_SECRET to a real 32-byte value
-docker compose up --build
+cp api/.env.example api/.env
+# In api/.env, set JWT_SECRET to the output of: openssl rand -base64 32
+# Add SOMNOSCRIBE_DEMO_MODE=true there to evaluate without a model key or study.
+docker compose up --build --wait
+
+# Only if you did not set demo mode above: mint an invitation to sign in with.
 docker compose run --rm tools scripts/generateLicenses.ts 1 starter
 ```
 
-The web interface is published on `http://127.0.0.1:5173` and proxies `/api` to the API container, so the browser sees a single origin. The API refuses to start, and names the variable, if `JWT_SECRET` is absent or too short.
+Open `http://localhost:5173`. Only the web interface is published; it proxies `/api` to the internal API container, so the browser sees a single origin. The API and preprocessor have no host ports in this stack, which keeps browser traffic behind the API's authorization and upload checks. The API refuses to start, and names the variable, if `JWT_SECRET` is absent or too short.
 
 Case data, the SQLite database, and generated evidence live in the `evidence` volume; `docker compose down -v` deletes them.
 
@@ -76,7 +111,7 @@ npm --prefix api run license:generate -- 1 starter    # mint an invitation
 ./scripts/dev.sh                                      # all three services on loopback
 ```
 
-Use the generated invitation with `/api/auth/activate` or the activation form. A model API key is needed only for real analysis; the services boot and serve health checks without one.
+Use the generated invitation with `/api/auth/activate` or the activation form. A model API key is needed only for analysis against a real model; everything else runs without one, and `SOMNOSCRIBE_DEMO_MODE=true` covers analysis too.
 
 The `license` naming here is historical and unrelated to the software's own licence. These keys are seats you mint against your own database: nothing contacts a licensing service, there is no paid tier, and the `tier` column is inert because no feature reads it. The `licenseKey` field and `licenses` table keep their names for deployment compatibility.
 
@@ -84,16 +119,18 @@ The `license` naming here is historical and unrelated to the software's own lice
 
 Important API environment variables:
 
-| Variable           | Default                 | Meaning                                                                               |
-| ------------------ | ----------------------- | ------------------------------------------------------------------------------------- |
-| `HOST`             | `127.0.0.1`             | API bind address. Set a wider address explicitly for containers.                      |
-| `TRUST_PROXY`      | `false`                 | `false`, `loopback`, or a positive proxy hop count.                                   |
-| `CORS_ORIGINS`     | empty                   | Comma-separated allowed browser origins. Authenticated mutations enforce this policy. |
-| `JWT_SECRET`       | development fallback    | Required in production and must be at least 32 bytes.                                 |
-| `DB_PATH`          | `api/data/cases.sqlite` | SQLite database path.                                                                 |
-| `PREPROCESSOR_URL` | `http://localhost:8001` | Preprocessor base URL.                                                                |
-| `OPENAI_API_KEY`   | unset                   | Needed for real analysis calls.                                                       |
-| `REFERENCE_DIR`    | unset                   | Optional external directory of validated Markdown rules.                              |
+| Variable                                 | Default                 | Meaning                                                                                         |
+| ---------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `HOST`                                   | `127.0.0.1`             | API bind address. Set a wider address explicitly for containers.                                |
+| `TRUST_PROXY`                            | `false`                 | `false`, `loopback`, or a positive proxy hop count.                                             |
+| `CORS_ORIGINS`                           | empty                   | Comma-separated allowed browser origins. Authenticated mutations enforce this policy.           |
+| `JWT_SECRET`                             | development fallback    | Required in production and must be at least 32 bytes.                                           |
+| `DB_PATH`                                | `api/data/cases.sqlite` | SQLite database path.                                                                           |
+| `PREPROCESSOR_URL`                       | `http://localhost:8001` | Preprocessor base URL.                                                                          |
+| `OPENAI_API_KEY`                         | unset                   | Needed for analysis against a real model. An empty value counts as unset.                       |
+| `SOMNOSCRIBE_DEMO_MODE`                  | `false`                 | Answer every analysis pass from the offline demo model. Takes precedence over `OPENAI_API_KEY`. |
+| `SOMNOSCRIBE_DEMO_MAX_ACTIVE_PRINCIPALS` | `24`                    | Caps simultaneous anonymous demo sessions across source IPs.                                    |
+| `REFERENCE_DIR`                          | unset                   | Optional external directory of validated Markdown rules.                                        |
 
 For reverse-proxy deployments, explicitly configure `HOST`, `TRUST_PROXY`, TLS, and `CORS_ORIGINS`. Production cookies are HTTP-only, SameSite=Lax, and Secure.
 

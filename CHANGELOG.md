@@ -8,6 +8,8 @@ While the version stays below `1.0.0`, any release may change interfaces.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-08-05
+
 ### Added
 
 - Docker Compose stack running the web interface, API, and preprocessor, so the
@@ -22,6 +24,23 @@ While the version stays below `1.0.0`, any release may change interfaces.
 - Randomised tests comparing the shared run-length scan against a reference
   implementation written by a different method, plus the window and degenerate-
   input properties the three detectors built on it must hold.
+- A generated demo study, so the application can be evaluated without a sleep
+  study to hand. The upload page offers to build a two-hour synthetic recording
+  from a fixed seed and states what it wrote into the signal; it then goes
+  through the same upload, de-identification, and preprocessing path as a real
+  file. Served by the preprocessor at `/demo/study.edf`.
+- `SOMNOSCRIBE_DEMO_MODE`, which answers every analysis pass from the offline
+  adapter that until now only the browser suite could reach. The workflow is
+  otherwise unchanged, and the interface carries a banner while it is on.
+  `SOMNOSCRIBE_SYNTHETIC_LLM` keeps its narrower test-environment-only rule.
+- A demo user. While demo mode is on, the sign-in screen offers **Continue as
+  demo user**, which creates a fresh isolated principal while displaying
+  `demo@example.test`, with no invitation key, emailed code, or SMTP
+  configuration. It holds no administrator rights, expires with cleanup, and is
+  gated on the same switch that routes analysis to the offline model, so it
+  cannot expose a real provider credential to an anonymous visitor.
+- `GET /api/config`, reporting whether analysis is available and which model
+  backs it. It never returns the credential.
 
 ### Changed
 
@@ -56,14 +75,36 @@ While the version stays below `1.0.0`, any release may change interfaces.
   the case list keeps the current list visible until the new one arrives instead
   of flashing a spinner.
 
+- Newly minted invitation keys carry a `SOMNO-` prefix rather than the
+  pre-rename `AIST-`. Keys are looked up by exact value, so keys minted before
+  this change keep working.
+
 ### Fixed
 
+- An empty `OPENAI_API_KEY` crashed the API at import with a raw provider stack
+  trace, contradicting the documented behaviour that the services boot without
+  one. `api/.env.example` shipped the variable set to a placeholder, so blanking
+  it rather than deleting the line — the obvious move for anyone without a key —
+  was enough to trigger it. An empty or whitespace-only value now counts as
+  absent, and the provider client is constructed when an analysis job begins
+  rather than at import, so an unconfigured API starts and serves everything up
+  to the analysis passes.
+  Analysis alone fails, and names the variable to set.
 - Flow reduction detection raised a broadcast error, surfacing as a failed
   ingest, whenever a recording was longer than the minimum event duration but
   shorter than the two-minute rolling baseline. The baseline window is now
   capped at the length of the recording.
 - `QuotaCard` read the clock during render, so an unrelated re-render could jump
   the reset countdown. The clock is state, updated on its own interval.
+- The web image could not be built: the frontend resolves the wire contracts
+  through a `@contracts` alias into `api/src/shared`, which the build stage never
+  received.
+- Mutations issued through the Compose proxy were rejected as cross-origin. nginx
+  normalised the browser's port out of the `Host` header, so the API's
+  same-origin check compared `localhost` against `localhost:5173`.
+- The README gave the web interface as `http://127.0.0.1:5173`, which the Vite
+  dev server refuses — it listens on the IPv6 loopback, while the Compose stack
+  publishes the IPv4 one. Documented as `localhost`, which reaches both.
 
 ### Security
 
@@ -71,6 +112,10 @@ While the version stays below `1.0.0`, any release may change interfaces.
   this repository. The previous check only measured length, and the sample value
   in `api/.env.example` was long enough to pass it while being public knowledge.
   That sample is now empty.
+- The Compose stack no longer publishes the API and preprocessor on host ports.
+  Only the web interface is reachable from the host, so browser traffic cannot
+  route around the proxy and reach the API's upload and authorization checks
+  from an origin it does not expect.
 
 ### Removed
 
@@ -110,5 +155,6 @@ external validation dataset.
   machine-specific paths, private source markers, non-example email addresses,
   and secret-like values.
 
-[Unreleased]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.1...HEAD
+[Unreleased]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.2...HEAD
+[0.1.0-alpha.2]: https://github.com/alex-macra/somnoscribe/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/alex-macra/somnoscribe/releases/tag/v0.1.0-alpha.1
