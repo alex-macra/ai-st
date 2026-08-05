@@ -46,6 +46,13 @@ html {
   scroll-behavior: smooth;
 }
 
+html[data-theme-switching],
+html[data-theme-switching] *,
+html[data-theme-switching] *::before,
+html[data-theme-switching] *::after {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -79,7 +86,7 @@ html {
 
 @layer utilities {
   .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ui-bg;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ui-bg;
   }
 }
 

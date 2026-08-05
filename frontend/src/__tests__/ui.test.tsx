@@ -8,6 +8,7 @@ import { useDarkMode } from '../ui/theme';
 import { Tabs } from '../ui/navigation';
 import { AccountPanel, Popover } from '../ui/overlays';
 import { SignOffPanel } from '../components/SignOffPanel';
+import { ActionPlanView } from '../components/ActionPlanView';
 import type { Case } from '@contracts/types';
 
 afterEach(() => {
@@ -67,17 +68,27 @@ function reviewCase(complete: boolean): Case {
 }
 
 describe('local UI contracts', () => {
-  it('persists a manual theme choice and applies it to the document', async () => {
+  it('persists a manual theme choice and applies it atomically to the document', async () => {
     window.localStorage.setItem('dark-mode', 'true');
+    const root = document.documentElement;
+    const originalToggle = root.classList.toggle;
+    const switchingStates: string[] = [];
+    vi.spyOn(root.classList, 'toggle').mockImplementation((token, force) => {
+      switchingStates.push(root.dataset.themeSwitching ?? '');
+      return originalToggle.call(root.classList, token, force);
+    });
     const user = userEvent.setup();
     render(<ThemeProbe />);
 
     expect(screen.getByRole('button', { name: 'dark' })).toBeVisible();
-    await waitFor(() => expect(document.documentElement).toHaveClass('dark'));
+    await waitFor(() => expect(root).toHaveClass('dark'));
+    expect(switchingStates).toContain('true');
+    expect(root).not.toHaveAttribute('data-theme-switching');
 
     await user.click(screen.getByRole('button', { name: 'dark' }));
     expect(window.localStorage.getItem('dark-mode')).toBe('false');
-    await waitFor(() => expect(document.documentElement).not.toHaveClass('dark'));
+    await waitFor(() => expect(root).not.toHaveClass('dark'));
+    expect(root).not.toHaveAttribute('data-theme-switching');
   });
 
   it('supports tab arrow, Home, and End navigation while skipping disabled tabs', async () => {
@@ -167,5 +178,35 @@ describe('local UI contracts', () => {
     await user.click(screen.getByRole('button', { name: 'Sign off' }));
 
     expect(onSignOff).toHaveBeenCalledWith('Synthetic Reviewer');
+  });
+
+  it('exposes action-plan accordion state and its controlled region', async () => {
+    const user = userEvent.setup();
+    render(
+      <ActionPlanView
+        findings={[]}
+        plan={{
+          priorityActions: [],
+          verifyNext: [],
+          artifactCaveats: [],
+          clinicalContext: { commonPresentation: 'Synthetic context.', rareButRelevant: [] },
+          generatedAt: '2026-08-03T00:00:00Z',
+          modelVersion: 'synthetic',
+          promptVersion: 'synthetic',
+          tokensIn: 0,
+          tokensOut: 0,
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /priority actions/i });
+    const regionId = trigger.getAttribute('aria-controls');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(regionId).toBeTruthy();
+    expect(document.getElementById(regionId!)).toHaveAttribute('role', 'region');
+
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById(regionId!)).toHaveAttribute('hidden');
   });
 });

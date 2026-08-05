@@ -19,8 +19,13 @@ export function useDarkMode(): { dark: boolean; toggle: () => void } {
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    const root = document.documentElement;
+    root.dataset.themeSwitching = 'true';
+    root.classList.toggle('dark', dark);
+    root.style.colorScheme = dark ? 'dark' : 'light';
+    // Settle the theme while transitions are disabled so intermediate colours cannot lose contrast.
+    void root.offsetWidth;
+    delete root.dataset.themeSwitching;
   }, [dark]);
 
   useEffect(() => {

@@ -5,7 +5,28 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 
 const AUTH_STATE = 'e2e/.auth/user.json';
 
+const THEME_TEXT_MUTED = {
+  light: '71 85 105',
+  dark: '203 213 225',
+} as const;
+
+async function waitForSettledTheme(page: Page): Promise<void> {
+  const dark = await page.locator('html').evaluate((element) => element.classList.contains('dark'));
+  // This semantic colour token feeds the muted text that axe evaluates. It
+  // has no hover state, unlike the toggle, and its computed value proves the
+  // palette settled without relying on an empty animation list.
+  await expect
+    .poll(() =>
+      page.locator('html').evaluate((element) => {
+        return getComputedStyle(element).getPropertyValue('--ui-text-muted').trim();
+      }),
+    )
+    .toBe(dark ? THEME_TEXT_MUTED.dark : THEME_TEXT_MUTED.light);
+}
+
 async function expectWcagAa(page: Page): Promise<void> {
+  await waitForSettledTheme(page);
+
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
     .analyze();
@@ -25,6 +46,11 @@ test.describe('WCAG 2.2 AA automated checks', () => {
   test('authentication choices and forms have no axe violations', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    // The config request controls this choice and the persistent disclosure.
+    // Wait for both so axe audits the public demo UI rather than a pre-config
+    // render that happens to have fewer elements.
+    await expect(page.getByRole('button', { name: 'Continue as demo user' })).toBeVisible();
+    await expect(page.getByRole('status')).toContainText(/report text is generated offline/i);
     await expectWcagAa(page);
 
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -84,6 +110,7 @@ test.describe('WCAG 2.2 AA interaction checks', () => {
   test('authentication flow preserves keyboard focus and minimum target size', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
     await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Continue as demo user' })).toBeVisible();
 
     const headings = page.getByRole('heading', { level: 1 });
     await expect(headings).toHaveCount(1);
@@ -95,6 +122,11 @@ test.describe('WCAG 2.2 AA interaction checks', () => {
 
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: /dark mode/i })).toBeFocused();
+    await page.keyboard.press('Tab');
+    // This suite runs with the offline model configured, so the demo user is
+    // offered — and it is deliberately the first choice, being the only one
+    // that needs nothing arranged in advance.
+    await expect(page.getByRole('button', { name: /Continue as demo user/ })).toBeFocused();
     await page.keyboard.press('Tab');
     const activate = page.getByRole('button', { name: 'Activate with license key' });
     await expect(activate).toBeFocused();
