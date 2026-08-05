@@ -27,18 +27,18 @@ matplotlib.use("Agg")
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 
-from edf_parser import ChannelInventory
+from channels import FLOW_LABELS, SPO2_LABELS, find_channel
+from edf_parser import ChannelInventory, read_window
 
 CHART_RENDERER_VERSION = "0.1.0"
 
 _CHARTS_DIR = Path(os.environ.get("CHARTS_DIR", "data/charts"))
 
+# thorax and abdomen are split deliberately: EFFORT_LABELS is one bag, but the
+# chart wants a separate trace per belt.
 _CHANNEL_GROUPS = {
-    "spo2": {"labels": {"spo2", "saturation", "oximetry", "o2 sat"}, "color": "#4ade80"},
-    "airflow": {
-        "labels": {"flow", "nasal flow", "airflow", "oronasal", "ptaf", "nasal pressure"},
-        "color": "#60a5fa",
-    },
+    "spo2": {"labels": SPO2_LABELS, "color": "#4ade80"},
+    "airflow": {"labels": FLOW_LABELS, "color": "#60a5fa"},
     "thorax": {"labels": {"thorax", "chest", "resp effort", "thoracic"}, "color": "#f97316"},
     "abdomen": {"labels": {"abdomen", "abdominal"}, "color": "#facc15"},
 }
@@ -46,30 +46,6 @@ _CHANNEL_GROUPS = {
 _BG_COLOR = "#0f0f1a"
 _GRID_COLOR = "#1e1e30"
 _WINDOW_SEC = 30.0
-
-
-def _find_channel(inventory: ChannelInventory, label_set: set[str]) -> str | None:
-    for ch in inventory.channels:
-        if ch.label.lower() in label_set:
-            return ch.label
-    return None
-
-
-def _read_window(
-    reader: pyedflib.EdfReader,
-    ch_index: int,
-    sample_rate: float,
-    start_sec: float,
-    end_sec: float,
-) -> np.ndarray:
-    n_total = reader.getNSamples()[ch_index]
-    i_start = max(0, int(start_sec * sample_rate))
-    i_end = min(n_total, int(end_sec * sample_rate))
-    if i_start >= i_end:
-        return np.array([])
-    n = i_end - i_start
-    signal = reader.readSignal(ch_index, start=i_start, n=n)
-    return signal.astype(np.float64)
 
 
 def render_window(
@@ -96,7 +72,7 @@ def render_window(
     # Discover which panels to render (in display order)
     panels: list[tuple[str, str, str]] = []  # (group_name, channel_label, color)
     for group_name, info in _CHANNEL_GROUPS.items():
-        label = _find_channel(inventory, info["labels"])
+        label = find_channel(inventory, info["labels"])
         if label is not None:
             panels.append((group_name, label, info["color"]))
 
@@ -120,7 +96,7 @@ def render_window(
             ch = inventory.by_label(ch_label)
             if ch is None:
                 continue
-            signal = _read_window(reader, ch.index, ch.sample_rate, win_start, win_end)
+            signal = read_window(reader, ch.index, ch.sample_rate, win_start, win_end)
             if signal.size == 0:
                 continue
 

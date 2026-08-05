@@ -14,23 +14,53 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from deidentify import deidentify_edf_header
+import deidentify
+from deidentify import TOP_CROP_PX, deidentify_edf_header, deidentify_screenshot
 
 
-def _make_image(width: int, height: int) -> bytes:
+def _make_image(width: int, height: int, fmt: str = "PNG", **save_kwargs: object) -> bytes:
     img = Image.new("RGB", (width, height), color=(200, 100, 50))
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, format=fmt, **save_kwargs)
     return buf.getvalue()
 
 
 def test_deidentify_screenshot_crops_top_strip():
-    from deidentify import TOP_CROP_PX, deidentify_screenshot
-
     original = _make_image(800, 600)
     result = deidentify_screenshot(original)
     out_img = Image.open(io.BytesIO(result))
     assert out_img.size == (800, 600 - TOP_CROP_PX)
+
+
+def test_deidentify_screenshot_preserves_format():
+    result = deidentify_screenshot(_make_image(800, 600, fmt="JPEG"))
+    assert Image.open(io.BytesIO(result)).format == "JPEG"
+
+
+def test_deidentify_screenshot_drops_exif():
+    exif = Image.Exif()
+    exif[0x010E] = "PATIENT NAME"  # ImageDescription
+    original = _make_image(800, 600, fmt="JPEG", exif=exif.tobytes())
+    assert b"PATIENT NAME" in original
+
+    result = deidentify_screenshot(original)
+
+    assert b"PATIENT NAME" not in result
+    assert not Image.open(io.BytesIO(result)).getexif()
+
+
+def test_deidentify_screenshot_rejects_image_shorter_than_the_crop():
+    with pytest.raises(ValueError, match="shorter than"):
+        deidentify_screenshot(_make_image(800, TOP_CROP_PX))
+
+
+def test_deidentify_screenshot_rejects_a_decompression_bomb(monkeypatch):
+    # A PNG of one flat colour compresses to a few KB at any size, so the guard
+    # reads the header instead of the byte count. The threshold is lowered rather
+    # than materialising a real 64-megapixel image in the test process.
+    monkeypatch.setattr(deidentify, "MAX_SCREENSHOT_PIXELS", 100)
+    with pytest.raises(ValueError, match="too large"):
+        deidentify_screenshot(_make_image(800, 600))
 
 
 def _make_fake_edf(path: Path, patient_id: bytes, recording_id: bytes, tail: bytes = b"") -> None:

@@ -11,13 +11,10 @@
  */
 import { expect, test } from '@playwright/test';
 
-test.use({ storageState: undefined });
-
 const OUT = 'docs/images';
 
 test('capture the README images from the synthetic journey', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Continue as demo user' }).click();
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Upload study' }).click();
@@ -72,12 +69,4 @@ test('capture the README images from the synthetic journey', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 340 });
   await page.screenshot({ path: `${OUT}/case-list.png` });
-
-  // Signing out lands on the choice screen, which is where the demo user is
-  // offered. Captured last so the journey above does not have to start there.
-  await page.getByRole('button', { name: 'Account menu' }).click();
-  await page.getByRole('menuitem', { name: 'Sign out' }).click();
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-  await page.setViewportSize({ width: 1440, height: 480 });
-  await page.screenshot({ path: `${OUT}/sign-in.png` });
 });

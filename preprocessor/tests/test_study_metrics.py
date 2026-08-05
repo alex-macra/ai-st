@@ -8,7 +8,7 @@ behavior when SpO2 metrics cannot be computed.
 
 from candidate_windows import CandidateSet, CandidateWindow
 from edf_parser import ChannelInventory
-from evidence_packager import _candidate_counts_by_dedupe_key, _compute_study_metrics
+from evidence_packager import _compute_study_metrics
 
 
 def _empty_inventory(duration_sec: float = 28800.0) -> ChannelInventory:
@@ -126,7 +126,6 @@ def test_flow_stats_coupled_uncoupled_hypopnea_counts():
             "tagged_artifact": 0,
             "tagged_uncoupled_hypopnea": 1,
             "headline_count": 2,
-            "total_after_merge": 3,
             "coupling_applied": 1,
         },
     )
@@ -218,19 +217,6 @@ def test_positional_rei_uses_headline_not_raw_candidates():
     # headline has 1 event at t=100-120s, which falls in left (code=2) region
     assert result["nonsupine_flow_event_count"] == 1
     assert result["supine_flow_event_count"] == 0
-
-
-def test_dedupe_key_counter_skips_empty_keys():
-    candidates = CandidateSet(
-        windows=[
-            CandidateWindow(0, 5, "x", "ch", 1.0, dedupe_key="a"),
-            CandidateWindow(10, 15, "x", "ch", 1.0, dedupe_key=""),
-            CandidateWindow(20, 25, "x", "ch", 1.0, dedupe_key="a"),
-        ],
-        channels_used=[],
-        channels_missing=[],
-    )
-    assert _candidate_counts_by_dedupe_key(candidates) == {"a": 2}
 
 
 def test_positional_supine_is_code_zero():

@@ -3,9 +3,6 @@
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const authStatePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '.auth', 'user.json');
 
 function assertTemporaryPath(target: string): void {
   const relative = path.relative(tmpdir(), target);
@@ -19,7 +16,6 @@ function assertTemporaryPath(target: string): void {
 }
 
 export default async function globalTeardown(): Promise<void> {
-  await rm(authStatePath, { force: true });
   const root = process.env['SOMNOSCRIBE_E2E_ROOT'];
   if (!root) return;
   assertTemporaryPath(root);

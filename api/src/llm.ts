@@ -6,24 +6,9 @@ import { OFFLINE_DEMO_MODEL_VERSION } from './shared/types.js';
 
 export { OFFLINE_DEMO_MODEL_VERSION } from './shared/types.js';
 
-let client: { mode: Exclude<LlmMode, 'unconfigured'>; apiKey?: string; value: OpenAI } | undefined;
+let client: { mode: LlmMode; apiKey?: string; value: OpenAI } | undefined;
 
 type Environment = Record<string, string | undefined>;
-
-/**
- * Raised instead of calling a provider when no model is configured. The API
- * still boots, serves health checks, accepts uploads, and preprocesses studies
- * in that state; only the analysis passes are unavailable.
- */
-export class LlmNotConfiguredError extends Error {
-  constructor() {
-    super(
-      'No model provider is configured. Set OPENAI_API_KEY to analyse with a real model, ' +
-        'or set SOMNOSCRIBE_DEMO_MODE=true to run the offline demo model.',
-    );
-    this.name = 'LlmNotConfiguredError';
-  }
-}
 
 export function syntheticLlmEnabled(environment: Environment = process.env): boolean {
   if (environment['SOMNOSCRIBE_SYNTHETIC_LLM'] !== 'true') return false;
@@ -31,20 +16,6 @@ export function syntheticLlmEnabled(environment: Environment = process.env): boo
     throw new Error('SOMNOSCRIBE_SYNTHETIC_LLM may only be enabled when NODE_ENV=test');
   }
   return true;
-}
-
-export function publicDemoModeEnabled(environment: Environment = process.env): boolean {
-  return environment['SOMNOSCRIBE_DEMO_MODE'] === 'true';
-}
-
-/**
- * The offline model. `SOMNOSCRIBE_DEMO_MODE` is the operator-facing switch;
- * `SOMNOSCRIBE_SYNTHETIC_LLM` is the narrower one the browser suite uses, and it
- * still refuses to run outside `NODE_ENV=test`.
- */
-export function demoModeEnabled(environment: Environment = process.env): boolean {
-  if (syntheticLlmEnabled(environment)) return true;
-  return publicDemoModeEnabled(environment);
 }
 
 /**
@@ -57,11 +28,19 @@ export function configuredApiKey(environment: Environment = process.env): string
   return key === undefined || key === '' ? undefined : key;
 }
 
-export type LlmMode = 'demo' | 'openai' | 'unconfigured';
+export type LlmMode = 'demo' | 'openai';
 
+/**
+ * There is no unconfigured state: an install with no provider credential runs
+ * the offline model rather than refusing to analyse. That is what makes the
+ * workspace usable straight after `docker compose up`, and every artifact it
+ * produces is labelled offline so a reviewer cannot mistake it for a real read.
+ * `SOMNOSCRIBE_SYNTHETIC_LLM` is the narrower switch the browser suite uses; it
+ * still refuses to run outside `NODE_ENV=test`.
+ */
 export function llmMode(environment: Environment = process.env): LlmMode {
-  if (demoModeEnabled(environment)) return 'demo';
-  return configuredApiKey(environment) === undefined ? 'unconfigured' : 'openai';
+  if (syntheticLlmEnabled(environment)) return 'demo';
+  return configuredApiKey(environment) === undefined ? 'demo' : 'openai';
 }
 
 function systemPromptFrom(params: unknown): string {
@@ -175,20 +154,13 @@ function createSyntheticClient(): OpenAI {
  * a demo job into a provider request between passes.
  */
 export function getOpenAIClient(mode: LlmMode = llmMode()): OpenAI {
-  if (mode === 'unconfigured') throw new LlmNotConfiguredError();
   const apiKey = mode === 'openai' ? configuredApiKey() : undefined;
-  if (mode === 'openai' && !apiKey) throw new LlmNotConfiguredError();
   if (client?.mode === mode && client.apiKey === apiKey) return client.value;
 
   // Never reuse an OpenAI client for a demo-mode request (or vice versa).
   const value = mode === 'demo' ? createSyntheticClient() : new OpenAI({ apiKey });
   client = { mode, ...(apiKey ? { apiKey } : {}), value };
   return value;
-}
-
-/** Test seam: the client is cached, and each suite configures its own mode. */
-export function resetOpenAIClient(): void {
-  client = undefined;
 }
 
 export function writeSSE(res: Response, data: unknown, requestId?: string): void {

@@ -1,9 +1,7 @@
 // Copyright 2026 Alex Macra
 // SPDX-License-Identifier: AGPL-3.0-only
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Browser, type Page } from '@playwright/test';
-
-const AUTH_STATE = 'e2e/.auth/user.json';
+import { expect, test, type Page } from '@playwright/test';
 
 const THEME_TEXT_MUTED = {
   light: '71 85 105',
@@ -24,6 +22,27 @@ async function waitForSettledTheme(page: Page): Promise<void> {
     .toBe(dark ? THEME_TEXT_MUTED.dark : THEME_TEXT_MUTED.light);
 }
 
+/**
+ * WCAG 2.2 AA 2.5.8 wants a 24×24 CSS px target.
+ *
+ * Visually-hidden inputs are excluded deliberately: an `.sr-only` file input
+ * paired with a visible drop zone is not itself a target — the drop zone is, and
+ * it is measured like any other control.
+ */
+async function expectMinimumTargetSize(page: Page): Promise<void> {
+  const controls = page.locator(
+    'button:not(.sr-only), input:not(.sr-only), select, textarea, [role="button"]',
+  );
+  for (let index = 0; index < (await controls.count()); index += 1) {
+    const box = await controls.nth(index).boundingBox();
+    if (box) {
+      const description = await controls.nth(index).evaluate((el) => el.outerHTML.slice(0, 80));
+      expect(box.width, `width of ${description}`).toBeGreaterThanOrEqual(24);
+      expect(box.height, `height of ${description}`).toBeGreaterThanOrEqual(24);
+    }
+  }
+}
+
 async function expectWcagAa(page: Page): Promise<void> {
   await waitForSettledTheme(page);
 
@@ -34,32 +53,13 @@ async function expectWcagAa(page: Page): Promise<void> {
   expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual([]);
 }
 
-async function authenticatedPage(
-  browser: Browser,
-): Promise<{ page: Page; close: () => Promise<void> }> {
-  const context = await browser.newContext({ storageState: AUTH_STATE });
-  const page = await context.newPage();
-  return { page, close: () => context.close() };
-}
-
 test.describe('WCAG 2.2 AA automated checks', () => {
-  test('authentication choices and forms have no axe violations', async ({ page }) => {
+  test('case list has no axe violations', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-    // The config request controls this choice and the persistent disclosure.
-    // Wait for both so axe audits the public demo UI rather than a pre-config
-    // render that happens to have fewer elements.
-    await expect(page.getByRole('button', { name: 'Continue as demo user' })).toBeVisible();
-    await expect(page.getByRole('status')).toContainText(/report text is generated offline/i);
-    await expectWcagAa(page);
-
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.locator('#login-email')).toBeVisible();
-    await expectWcagAa(page);
-
-    await page.getByText('← Back').click();
-    await page.getByRole('button', { name: 'Activate with license key' }).click();
-    await expect(page.locator('#act-key')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
+    // This suite runs the offline model, so the persistent disclosure is part of
+    // the page axe audits.
+    await expect(page.getByRole('status')).toContainText(/report text is generated/i);
     await expectWcagAa(page);
 
     await page.getByRole('button', { name: /dark mode/i }).click();
@@ -67,123 +67,53 @@ test.describe('WCAG 2.2 AA automated checks', () => {
     await expectWcagAa(page);
   });
 
-  test('case list and account menu have no axe violations', async ({ browser }) => {
-    const authenticated = await authenticatedPage(browser);
-    try {
-      await authenticated.page.goto('/');
-      await expect(authenticated.page.getByRole('button', { name: 'Upload study' })).toBeVisible();
-      await expectWcagAa(authenticated.page);
+  test('upload form has no axe violations', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Upload study' }).click();
+    await expect(page.getByRole('heading', { name: 'Upload Sleep Study' })).toBeVisible();
+    await expectWcagAa(page);
 
-      await authenticated.page.getByRole('button', { name: 'Account menu' }).click();
-      await expect(authenticated.page.getByRole('menu')).toBeVisible();
-      await expectWcagAa(authenticated.page);
-
-      await authenticated.page.keyboard.press('Escape');
-      await authenticated.page.getByRole('button', { name: /dark mode/i }).click();
-      await expect(authenticated.page.locator('html')).toHaveClass(/dark/);
-      await expectWcagAa(authenticated.page);
-    } finally {
-      await authenticated.close();
-    }
-  });
-
-  test('upload form has no axe violations', async ({ browser }) => {
-    const authenticated = await authenticatedPage(browser);
-    try {
-      await authenticated.page.goto('/');
-      await authenticated.page.getByRole('button', { name: 'Upload study' }).click();
-      await expect(
-        authenticated.page.getByRole('heading', { name: 'Upload Sleep Study' }),
-      ).toBeVisible();
-      await expectWcagAa(authenticated.page);
-
-      await authenticated.page.getByRole('button', { name: /dark mode/i }).click();
-      await expect(authenticated.page.locator('html')).toHaveClass(/dark/);
-      await expectWcagAa(authenticated.page);
-    } finally {
-      await authenticated.close();
-    }
+    await page.getByRole('button', { name: /dark mode/i }).click();
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expectWcagAa(page);
   });
 });
 
 test.describe('WCAG 2.2 AA interaction checks', () => {
-  test('authentication flow preserves keyboard focus and minimum target size', async ({ page }) => {
+  test('landing view preserves keyboard focus and minimum target size', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Continue as demo user' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeVisible();
 
-    const headings = page.getByRole('heading', { level: 1 });
-    await expect(headings).toHaveCount(1);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       ),
     ).toBe(true);
 
+    // With no sign-in screen the header is the first stop: the brand button,
+    // then upload, then the theme toggle. Upload must be reachable and operable
+    // by keyboard alone.
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: /dark mode/i })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Somnoscribe' })).toBeFocused();
     await page.keyboard.press('Tab');
-    // This suite runs with the offline model configured, so the demo user is
-    // offered — and it is deliberately the first choice, being the only one
-    // that needs nothing arranged in advance.
-    await expect(page.getByRole('button', { name: /Continue as demo user/ })).toBeFocused();
-    await page.keyboard.press('Tab');
-    const activate = page.getByRole('button', { name: 'Activate with license key' });
-    await expect(activate).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Upload study' })).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#act-email')).toBeFocused();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Activate account');
+    await expect(page.getByRole('heading', { level: 1, name: 'Upload Sleep Study' })).toBeVisible();
 
-    await page.keyboard.press('Shift+Tab');
-    const back = page.getByRole('button', { name: '← Back' });
-    await expect(back).toBeFocused();
-    await page.keyboard.press('Enter');
-    await expect(activate).toBeFocused();
-
-    const controls = page.locator('button, input, select, textarea, [role="button"]');
-    for (let index = 0; index < (await controls.count()); index += 1) {
-      const box = await controls.nth(index).boundingBox();
-      if (box) {
-        expect(box.width, `control ${index} width`).toBeGreaterThanOrEqual(24);
-        expect(box.height, `control ${index} height`).toBeGreaterThanOrEqual(24);
-      }
-    }
+    await expectMinimumTargetSize(page);
   });
 
-  test('account menu closes with Escape and restores trigger focus', async ({ browser }) => {
-    const authenticated = await authenticatedPage(browser);
-    try {
-      await authenticated.page.goto('/');
-      const trigger = authenticated.page.getByRole('button', { name: 'Account menu' });
-      await trigger.click();
-      await expect(authenticated.page.getByRole('menu')).toBeVisible();
-      await authenticated.page.keyboard.press('Escape');
-      await expect(authenticated.page.getByRole('menu')).toBeHidden();
-      await expect(trigger).toBeFocused();
-    } finally {
-      await authenticated.close();
-    }
-  });
-
-  test('upload form reflows without horizontal scrolling at 320px', async ({ browser }) => {
-    const context = await browser.newContext({
-      storageState: AUTH_STATE,
-      viewport: { width: 320, height: 800 },
-    });
-    const page = await context.newPage();
-    try {
-      await page.goto('/');
-      await page.getByRole('button', { name: 'Upload study' }).click();
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'Upload Sleep Study' }),
-      ).toBeVisible();
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-        ),
-      ).toBe(true);
-    } finally {
-      await context.close();
-    }
+  test('upload form reflows without horizontal scrolling at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Upload study' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Upload Sleep Study' })).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await expectMinimumTargetSize(page);
   });
 });

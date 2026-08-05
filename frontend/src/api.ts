@@ -8,30 +8,14 @@ import type {
   ReviewerDecision,
   TokenStats,
   ReportSectionKey,
-  AuthenticatedUser as User,
   EventSlice,
 } from '@contracts/types';
 import { streamSSE, parseHttpError, errorMessage } from './apiClient';
 
 const BASE = '/api';
 
-let _unauthorizedHandler: (() => void) | null = null;
-
-export function setUnauthorizedHandler(fn: () => void): void {
-  _unauthorizedHandler = fn;
-}
-
 async function parseError(res: Response): Promise<string> {
   return errorMessage(await parseHttpError(res));
-}
-
-async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
-  if (res.status === 401) {
-    _unauthorizedHandler?.();
-    throw new Error('Unauthorized');
-  }
-  return res;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -40,100 +24,55 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
-// --- Auth ---
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  /** Serialised as JSON with the matching content type. */
+  body?: unknown;
+  /** FormData is sent as-is so the browser sets the multipart boundary. */
+  form?: FormData;
+}
 
-export async function getMe(): Promise<User | null> {
-  const res = await fetch(`${BASE}/auth/me`);
-  if (res.status === 401) return null;
+/**
+ * Every endpoint below shares one shape: send, throw the server's message on a
+ * non-2xx, then unwrap a single named key from the JSON envelope. `unwrap` names
+ * that key; omit it to get the whole body.
+ */
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { method = 'GET', body, form } = options;
+  const init: RequestInit = { method };
+  if (form) {
+    init.body = form;
+  } else if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${BASE}${path}`, init);
   if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { user: User };
-  return data.user;
+  return (await res.json()) as T;
 }
 
-/** Starts a temporary demo session. Only available while demo mode is on. */
-export async function demoSignIn(): Promise<User> {
-  const res = await fetch(`${BASE}/auth/demo`, { method: 'POST' });
-  if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { user: User };
-  return data.user;
+async function send(path: string, options: RequestOptions = {}): Promise<void> {
+  await request<unknown>(path, options);
 }
 
-export async function activate(email: string, licenseKey: string): Promise<User> {
-  const res = await fetch(`${BASE}/auth/activate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, licenseKey }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { user: User };
-  return data.user;
-}
+const caseUrl = (caseId: string, suffix = ''): string =>
+  `/cases/${encodeURIComponent(caseId)}${suffix}`;
 
-export async function requestOtp(email: string): Promise<void> {
-  const res = await fetch(`${BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export async function verifyOtp(email: string, code: string): Promise<User> {
-  const res = await fetch(`${BASE}/auth/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, code }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { user: User };
-  return data.user;
-}
-
-export async function logout(): Promise<void> {
-  await fetch(`${BASE}/auth/logout`, { method: 'POST' });
-}
-
-export async function updateDisplayName(name: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/auth/me/name`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-// --- Cases ---
-
-export async function uploadCase(
-  edf: File | null,
-  pdf?: File,
-  screenshots?: File[],
-  cohort?: 'adult' | 'pediatric',
-): Promise<{ caseId: string; studyHash: string; name: string }> {
-  const form = new FormData();
-  if (edf) form.append('edf', edf);
-  if (pdf) form.append('pdf', pdf);
-  if (screenshots) screenshots.forEach((f) => form.append('screenshots', f));
-  if (cohort) form.append('cohort', cohort);
-
-  const res = await apiFetch(`${BASE}/upload`, { method: 'POST', body: form });
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<{ caseId: string; studyHash: string; name: string }>;
-}
-
-// --- Deployment capabilities and the demo study ---
+// --- Deployment capabilities ---
 
 export interface DeploymentConfig {
-  llmMode: 'demo' | 'openai' | 'unconfigured';
-  analysisAvailable: boolean;
-  demoMode: boolean;
+  llmMode: 'demo' | 'openai';
 }
 
-export async function getConfig(): Promise<DeploymentConfig> {
-  const res = await fetch(`${BASE}/config`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<DeploymentConfig>;
+export function getConfig(): Promise<DeploymentConfig> {
+  return request<DeploymentConfig>('/config');
 }
+
+export function getModels(): Promise<{ models: string[]; default: string }> {
+  return request<{ models: string[]; default: string }>('/models');
+}
+
+// --- The generated demo study ---
 
 export interface DemoStudySummary {
   durationSec: number;
@@ -146,148 +85,119 @@ export interface DemoStudySummary {
   expectedEventIndexPerHour: number;
 }
 
-export async function getDemoStudySummary(): Promise<DemoStudySummary> {
-  const res = await apiFetch(`${BASE}/demo/summary`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<DemoStudySummary>;
+export function getDemoStudySummary(): Promise<DemoStudySummary> {
+  return request<DemoStudySummary>('/demo/summary');
 }
 
 /** The demo recording as a `File`, ready for the ordinary upload form. */
 export async function getDemoStudyFile(): Promise<File> {
-  const res = await apiFetch(`${BASE}/demo/study.edf`);
+  const res = await fetch(`${BASE}/demo/study.edf`);
   if (!res.ok) throw new Error(await parseError(res));
   const blob = await res.blob();
   return new File([blob], 'somnoscribe-demo-study.edf', { type: 'application/octet-stream' });
 }
 
+// --- Cases ---
+
+export function uploadCase(
+  edf: File | null,
+  pdf?: File,
+  screenshots?: File[],
+  cohort?: 'adult' | 'pediatric',
+): Promise<{ caseId: string; studyHash: string; name: string }> {
+  const form = new FormData();
+  if (edf) form.append('edf', edf);
+  if (pdf) form.append('pdf', pdf);
+  if (screenshots) screenshots.forEach((f) => form.append('screenshots', f));
+  if (cohort) form.append('cohort', cohort);
+  return request<{ caseId: string; studyHash: string; name: string }>('/upload', {
+    method: 'POST',
+    form,
+  });
+}
+
 export async function getCases(status?: string): Promise<Case[]> {
-  const url = status ? `${BASE}/cases?status=${encodeURIComponent(status)}` : `${BASE}/cases`;
-  const res = await apiFetch(url);
-  if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { cases: Case[] };
-  return data.cases;
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  return (await request<{ cases: Case[] }>(`/cases${query}`)).cases;
 }
 
 export async function getCase(id: string): Promise<Case> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error(await parseError(res));
-  const data = (await res.json()) as { case: Case };
-  return data.case;
+  return (await request<{ case: Case }>(caseUrl(id))).case;
 }
 
-export async function getAuditLog(
+export function getAuditLog(
   caseId: string,
 ): Promise<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/audit`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }>;
+  return request<{ auditLog: AuditRecord[]; tokenStats: TokenStats | null }>(
+    caseUrl(caseId, '/audit'),
+  );
 }
 
-export async function getModels(): Promise<{ models: string[]; default: string }> {
-  const res = await fetch(`${BASE}/models`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<{ models: string[]; default: string }>;
+export function patchCaseStatus(caseId: string, status: string): Promise<void> {
+  return send(caseUrl(caseId, '/status'), { method: 'PATCH', body: { status } });
 }
 
-export async function patchCaseStatus(
-  caseId: string,
-  status: string,
-  actorId?: string,
-): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, ...(actorId ? { actorId } : {}) }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export async function patchFindingDecision(
+export function patchFindingDecision(
   caseId: string,
   findingId: string,
   decision: ReviewerDecision,
   editedClaim?: string,
-  actorId?: string,
 ): Promise<void> {
-  const res = await apiFetch(
-    `${BASE}/cases/${encodeURIComponent(caseId)}/findings/${encodeURIComponent(findingId)}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        decision,
-        ...(editedClaim ? { editedClaim } : {}),
-        ...(actorId ? { actorId } : {}),
-      }),
-    },
-  );
-  if (!res.ok) throw new Error(await parseError(res));
+  return send(caseUrl(caseId, `/findings/${encodeURIComponent(findingId)}`), {
+    method: 'PATCH',
+    body: { decision, ...(editedClaim ? { editedClaim } : {}) },
+  });
 }
 
-export async function patchSectionReview(
+export function patchSectionReview(
   caseId: string,
   sectionKey: ReportSectionKey,
   decision: ReviewerDecision,
   editedValue?: string,
-  actorId?: string,
 ): Promise<void> {
-  const res = await apiFetch(
-    `${BASE}/cases/${encodeURIComponent(caseId)}/sections/${encodeURIComponent(sectionKey)}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        decision,
-        ...(editedValue ? { editedValue } : {}),
-        ...(actorId ? { actorId } : {}),
-      }),
-    },
-  );
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export async function deleteCase(caseId: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export async function clearCaseAnalysis(caseId: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/clear-analysis`, {
-    method: 'POST',
+  return send(caseUrl(caseId, `/sections/${encodeURIComponent(sectionKey)}`), {
+    method: 'PATCH',
+    body: { decision, ...(editedValue ? { editedValue } : {}) },
   });
-  if (!res.ok) throw new Error(await parseError(res));
 }
 
+export function deleteCase(caseId: string): Promise<void> {
+  return send(caseUrl(caseId), { method: 'DELETE' });
+}
+
+export function clearCaseAnalysis(caseId: string): Promise<void> {
+  return send(caseUrl(caseId, '/clear-analysis'), { method: 'POST' });
+}
+
+export function deleteScreenshot(caseId: string, screenshotId: string): Promise<void> {
+  return send(caseUrl(caseId, `/screenshots/${encodeURIComponent(screenshotId)}`), {
+    method: 'DELETE',
+  });
+}
+
+/** `reviewerName` is the reviewer's own attestation and the server requires it. */
+export function signOffCase(caseId: string, reviewerName: string): Promise<void> {
+  return send(caseUrl(caseId, '/sign-off'), { method: 'POST', body: { reviewerName } });
+}
+
+/** Absent or unreadable slices are not an error — the waveform panel just stays empty. */
 export async function fetchSignalSlices(caseId: string): Promise<EventSlice[]> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/signal-slices`);
-  if (!res.ok) return [];
-  const data = (await res.json()) as { slices: EventSlice[] };
-  return data.slices ?? [];
+  try {
+    return (
+      (await request<{ slices: EventSlice[] }>(caseUrl(caseId, '/signal-slices'))).slices ?? []
+    );
+  } catch {
+    return [];
+  }
 }
 
-export async function deleteScreenshot(caseId: string, screenshotId: string): Promise<void> {
-  const res = await apiFetch(
-    `${BASE}/cases/${encodeURIComponent(caseId)}/screenshots/${encodeURIComponent(screenshotId)}`,
-    { method: 'DELETE' },
-  );
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export async function signOffCase(caseId: string, actorId: string): Promise<void> {
-  const res = await apiFetch(`${BASE}/cases/${encodeURIComponent(caseId)}/sign-off`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actorId }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-}
+// --- Streaming passes ---
 
 async function streamCaseEndpoint<TEvent>(
   path: string,
   onEvent: (event: TEvent) => void,
   signal: AbortSignal | undefined,
   modelId: string | undefined,
-  sessionExpiredEvent: TEvent,
 ): Promise<void> {
   let res: Response;
   try {
@@ -302,11 +212,6 @@ async function streamCaseEndpoint<TEvent>(
     throw err;
   }
 
-  if (res.status === 401) {
-    _unauthorizedHandler?.();
-    onEvent(sessionExpiredEvent);
-    return;
-  }
   if (!res.ok) {
     onEvent({ type: 'error', message: await parseError(res) } as TEvent);
     return;
@@ -320,6 +225,15 @@ async function streamCaseEndpoint<TEvent>(
   }
 }
 
+export function streamAnalysis(
+  caseId: string,
+  onEvent: (event: AnalysisEvent) => void,
+  signal?: AbortSignal,
+  modelId?: string,
+): Promise<void> {
+  return streamCaseEndpoint<AnalysisEvent>(caseUrl(caseId, '/analyze'), onEvent, signal, modelId);
+}
+
 export function streamActionPlan(
   caseId: string,
   onEvent: (event: ActionPlanEvent) => void,
@@ -327,83 +241,9 @@ export function streamActionPlan(
   modelId?: string,
 ): Promise<void> {
   return streamCaseEndpoint<ActionPlanEvent>(
-    `/cases/${encodeURIComponent(caseId)}/action-plan`,
+    caseUrl(caseId, '/action-plan'),
     onEvent,
     signal,
     modelId,
-    { type: 'error', message: 'Session expired. Please sign in again.' },
   );
-}
-
-export function streamAnalysis(
-  caseId: string,
-  onEvent: (event: AnalysisEvent) => void,
-  signal?: AbortSignal,
-  modelId?: string,
-): Promise<void> {
-  return streamCaseEndpoint<AnalysisEvent>(
-    `/cases/${encodeURIComponent(caseId)}/analyze`,
-    onEvent,
-    signal,
-    modelId,
-    { type: 'error', message: 'Session expired. Please sign in again.' },
-  );
-}
-
-// --- Admin ---
-
-export interface AdminDashboardCounts {
-  users: number;
-  cases: number;
-  signedOff: number;
-  pending: number;
-  tokensTotal: number;
-  casesToday: number;
-}
-
-export interface AdminUserRow {
-  id: string;
-  email: string;
-  displayName: string | null;
-  isAdmin: boolean;
-  createdAt: string;
-  lastSeen: string | null;
-  tier: string;
-  tokensTotal: number;
-}
-
-export interface AdminUsersPage {
-  users: AdminUserRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export async function adminDashboard(): Promise<AdminDashboardCounts> {
-  const res = await apiFetch(`${BASE}/admin/dashboard`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<AdminDashboardCounts>;
-}
-
-export async function adminUsers(page: number, pageSize = 50): Promise<AdminUsersPage> {
-  const res = await apiFetch(`${BASE}/admin/users?page=${page}&pageSize=${pageSize}`);
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json() as Promise<AdminUsersPage>;
-}
-
-export async function setUserAdmin(userId: string, isAdmin: boolean): Promise<void> {
-  const res = await apiFetch(`${BASE}/admin/users/${encodeURIComponent(userId)}/admin`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ isAdmin }),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-}
-
-export function adminExportUsageCsvUrl(): string {
-  return `${BASE}/admin/export/usage.csv`;
-}
-
-export function adminExportCasesJsonUrl(): string {
-  return `${BASE}/admin/export/cases.json`;
 }

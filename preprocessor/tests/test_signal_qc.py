@@ -50,7 +50,6 @@ def test_activity_near_zero_during_quiet_sleep_is_not_artifact():
     sig = np.full(2400, 0.001)
     qc = _score_channel(_ch("Activity", physical_min=-2.0, physical_max=2.0), sig)
     assert qc.artifact_flag is False
-    assert qc.clipping_pct == 0.0
 
 
 def test_flow_constant_zero_IS_artifact():

@@ -3,43 +3,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
 import { insertCase } from '../db.js';
 import type { Case, Finding, StructuredReport } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
-
-function makeCase(overrides: Partial<Case> = {}): Case {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    studyHash: createHash32(),
-    name: `test-${randomUUID().slice(0, 8)}`,
-    status: 'draft',
-    cohort: 'adult',
-    findings: [],
-    createdBy: auth.userId,
-    preprocessorVersion: '0.1.0',
-    promptVersion: 'none',
-    modelVersion: 'none',
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
-
-function createHash32(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
+import { makeCase, testApp } from './factories.js';
 
 describe('cases API', () => {
   let request: ReturnType<typeof supertest>;
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   describe('GET /api/cases', () => {

@@ -2,36 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, it, expect, beforeEach } from 'vitest';
 import supertest from 'supertest';
-import { randomUUID } from 'node:crypto';
-import { createApp } from '../app.js';
 import { insertCase, updateCaseFindings } from '../db.js';
-import type { Case, StructuredReport } from '../shared/types.js';
-import { mintAuthCookie, authedSupertest, type TestAuth } from './authHelper.js';
-
-let auth: TestAuth = undefined as unknown as TestAuth;
-
-function hex64(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
-
-function makeCase(overrides: Partial<Case> = {}): Case {
-  const now = new Date().toISOString();
-  return {
-    id: randomUUID(),
-    studyHash: hex64(),
-    name: `sr-${randomUUID().slice(0, 8)}`,
-    status: 'pending_review',
-    cohort: 'adult',
-    findings: [],
-    createdBy: auth.userId,
-    preprocessorVersion: '0.1.0',
-    promptVersion: '1.2.0',
-    modelVersion: 'gpt-5.4-mini',
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
+import type { StructuredReport } from '../shared/types.js';
+import { makeCase, testApp } from './factories.js';
 
 function reportWithSummary(): StructuredReport {
   return {
@@ -49,9 +22,7 @@ describe('PATCH /api/cases/:id/sections/:sectionKey', () => {
   let request: ReturnType<typeof supertest>;
 
   beforeEach(() => {
-    const app = createApp({ rateLimitMax: 1000, uploadRateLimitMax: 1000 });
-    auth = mintAuthCookie();
-    request = authedSupertest(app, auth);
+    request = testApp();
   });
 
   it('returns 400 for unknown section key', async () => {

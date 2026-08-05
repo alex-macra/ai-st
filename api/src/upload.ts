@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { createCaseWithAudit, DemoCreatorUnavailableError } from './db.js';
+import { createCaseWithAudit } from './db.js';
 import {
   PREPROCESSOR_URL,
   MAX_UPLOAD_BYTES,
@@ -19,12 +19,12 @@ import {
   PROMPT_VERSION,
   GPT_MODEL,
   SCREENSHOTS_DIR,
+  OPERATOR,
 } from './constants.js';
 import { logger, hashIp, errorLogFields } from './logger.js';
 import { sendError } from './errors.js';
 import type { AuditRecord } from './shared/types.js';
-import { fetchDemoStudyHash, DemoStudyUnavailableError } from './demoStudy.js';
-import { publicDemoModeEnabled } from './llm.js';
+import { fetchDemoStudyHash } from './demoStudy.js';
 
 const require = createRequire(import.meta.url);
 const multer = require('multer') as typeof import('multer');
@@ -78,6 +78,57 @@ const PreprocessorResponseSchema = z.object({
 
 class PreprocessorResponseLimitError extends Error {
   override name = 'PreprocessorResponseLimitError';
+}
+
+class ScreenshotDeidentifyError extends Error {
+  override name = 'ScreenshotDeidentifyError';
+}
+
+/**
+ * Crop the DOMINO patient banner off one screenshot, via the preprocessor.
+ *
+ * Unlike the EDF — scrubbed inside `/ingest`, never stored here — screenshots are
+ * written to disk and later read back by `analyze.ts` and sent to the model, so
+ * this has to happen before the first write. Every failure path throws: an upload
+ * that cannot be de-identified is rejected rather than stored in the clear.
+ */
+async function deidentifyScreenshot(
+  bytes: Buffer<ArrayBuffer>,
+  mimeType: string,
+  name: string,
+): Promise<Buffer<ArrayBuffer>> {
+  const form = new FormData();
+  form.append('screenshot', new Blob([bytes], { type: mimeType }), name);
+
+  const response = await fetch(`${PREPROCESSOR_URL}/deidentify/screenshot`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new ScreenshotDeidentifyError(`preprocessor returned ${response.status}`);
+  }
+
+  const declaredLength = response.headers.get('content-length');
+  if (
+    declaredLength &&
+    /^\d+$/.test(declaredLength) &&
+    Number(declaredLength) > MAX_SCREENSHOT_UPLOAD_BYTES
+  ) {
+    await response.body?.cancel();
+    throw new ScreenshotDeidentifyError('de-identified screenshot exceeds the size limit');
+  }
+
+  const cleaned = Buffer.from(await response.arrayBuffer());
+  if (cleaned.byteLength === 0 || cleaned.byteLength > MAX_SCREENSHOT_UPLOAD_BYTES) {
+    throw new ScreenshotDeidentifyError('de-identified screenshot has an implausible size');
+  }
+  // A cropped image must still be an image. This is what stops a wrong or
+  // misconfigured endpoint from quietly turning into a passthrough.
+  if (!detectImageFormat(cleaned)) {
+    throw new ScreenshotDeidentifyError('de-identified screenshot is not a recognised image');
+  }
+  return cleaned;
 }
 
 async function readBoundedJsonResponse(
@@ -235,45 +286,20 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
     return;
   }
 
+  // Provenance, not permission. The generated demo study is recognised by hash
+  // so every artifact derived from it stays labelled synthetic all the way to
+  // the printed report. A real study, or an unreachable generator, is simply an
+  // ordinary upload — this must never reject one.
   let sourceKind: 'upload' | 'demo_synthetic' = 'upload';
-  if (req.user!.isDemo) {
-    if (!publicDemoModeEnabled()) {
-      sendError(res, 401, 'DEMO_MODE_DISABLED', 'The demo session is no longer available.');
-      return;
-    }
-    if (!edfFile || pdfFile || screenshotFiles.length > 0) {
-      sendError(
-        res,
-        403,
-        'DEMO_STUDY_REQUIRED',
-        'The demo session accepts only the generated demo study.',
-      );
-      return;
-    }
+  if (edfFile && !pdfFile && screenshotFiles.length === 0) {
     try {
-      const demoStudyHash = await fetchDemoStudyHash();
-      if (studyHash !== demoStudyHash) {
-        sendError(
-          res,
-          403,
-          'DEMO_STUDY_REQUIRED',
-          'The demo session accepts only the generated demo study.',
-        );
-        return;
-      }
+      if (studyHash === (await fetchDemoStudyHash())) sourceKind = 'demo_synthetic';
     } catch (err) {
-      logger.warn(
+      logger.debug(
         { errorType: err instanceof Error ? err.name : 'UnknownError' },
-        'demo_study_validation_failed',
+        'demo_study_hash_unavailable',
       );
-      const code =
-        err instanceof DemoStudyUnavailableError
-          ? 'DEMO_STUDY_UNAVAILABLE'
-          : 'PREPROCESSOR_UNREACHABLE';
-      sendError(res, 503, code, 'The demo study could not be verified. Please try again.');
-      return;
     }
-    sourceKind = 'demo_synthetic';
   }
 
   const prelimCaseId = randomUUID();
@@ -305,7 +331,8 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       const image = detectImageFormat(ssBuf);
       if (!image) throw new Error('validated screenshot signature changed during processing');
       const safeName = `screenshot-${String(index + 1).padStart(3, '0')}.${image.extension}`;
-      form.append('screenshots', new Blob([ssBuf], { type: image.mimeType }), safeName);
+      const cleanBuf = await deidentifyScreenshot(ssBuf, image.mimeType, safeName);
+      form.append('screenshots', new Blob([cleanBuf], { type: image.mimeType }), safeName);
 
       const screenshotId = randomUUID();
       const screenshotPath = path.join(
@@ -313,7 +340,7 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
         prelimCaseId,
         `${screenshotId}-${safeName}`,
       );
-      await writeFile(screenshotPath, ssBuf);
+      await writeFile(screenshotPath, cleanBuf);
       screenshotMetadata.push({ id: screenshotId, originalName: safeName });
     }
 
@@ -374,6 +401,16 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       preprocessorVersion = casePackage['preprocessor_version'];
     }
   } catch (err) {
+    if (err instanceof ScreenshotDeidentifyError) {
+      logger.error(errorLogFields(err), 'screenshot_deidentify_failed');
+      sendError(
+        res,
+        502,
+        'SCREENSHOT_DEIDENTIFY_FAILED',
+        'A screenshot could not be de-identified, so the upload was rejected. Check the image and try again.',
+      );
+      return;
+    }
     logger.error(errorLogFields(err), 'preprocessor_request_failed');
     sendError(
       res,
@@ -388,14 +425,11 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
   const now = new Date().toISOString();
   const basename = 'study';
 
-  const userId = req.user!.id;
-  const orgId = req.user!.isDemo ? null : req.user!.organizationId;
-
   const audit: AuditRecord = {
     id: randomUUID(),
     caseId,
     action: 'case_created',
-    actorId: userId,
+    actorId: OPERATOR,
     metadata: {
       studyHash,
       hashedArtifact,
@@ -427,8 +461,6 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
         findings: [],
         cohort: uploadCohort,
         casePackage: JSON.stringify(casePackage),
-        createdBy: userId,
-        ...(orgId ? { organizationId: orgId } : {}),
         sourceKind,
         preprocessorVersion,
         promptVersion: PROMPT_VERSION,
@@ -440,15 +472,6 @@ async function processUpload(req: Request, res: Response, state: UploadState): P
       basename,
     );
   } catch (err) {
-    if (err instanceof DemoCreatorUnavailableError) {
-      sendError(
-        res,
-        401,
-        'DEMO_SESSION_EXPIRED',
-        'The temporary demo session expired before the study could be saved. Please sign in again.',
-      );
-      return;
-    }
     logger.error(errorLogFields(err), 'case_create_failed');
     sendError(res, 500, 'CASE_CREATE_FAILED', 'Could not save the study record. Please try again.');
     return;

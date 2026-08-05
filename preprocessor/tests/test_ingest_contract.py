@@ -1,16 +1,26 @@
 # Copyright 2026 Alex Macra
 # SPDX-License-Identifier: AGPL-3.0-only
+import io
+
 import httpx
 import pytest
+from PIL import Image
 
 import main as service
 from const import SCHEMA_VERSION
+from deidentify import TOP_CROP_PX
 from main import app
 
 
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+def _png_bytes(width: int, height: int) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color=(10, 120, 200)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 async def request(
@@ -140,6 +150,32 @@ async def test_response_carries_preprocessor_version_and_schema() -> None:
     assert "preprocessor_version" in body
     assert body["schema_version"] == SCHEMA_VERSION
     assert "pdf_metrics" in body
+
+
+@pytest.mark.anyio
+async def test_deidentify_screenshot_returns_a_cropped_image() -> None:
+    original = _png_bytes(800, 600)
+    response = await request(
+        "POST",
+        "/deidentify/screenshot",
+        files={"screenshot": ("screenshot-001.png", original, "image/png")},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content != original
+    assert Image.open(io.BytesIO(response.content)).size == (800, 600 - TOP_CROP_PX)
+
+
+@pytest.mark.anyio
+async def test_deidentify_screenshot_rejects_an_undecodable_image() -> None:
+    # 422 is the API's signal to reject the upload outright. It must never get
+    # the original back with a 200.
+    response = await request(
+        "POST",
+        "/deidentify/screenshot",
+        files={"screenshot": ("screenshot-001.png", b"not an image", "image/png")},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.anyio

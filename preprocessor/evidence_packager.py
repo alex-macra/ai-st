@@ -33,6 +33,7 @@ from channels import (
     SPO2_PHYSIOLOGICAL_MAX,
     SPO2_PHYSIOLOGICAL_MIN,
     find_channel,
+    mask_outside,
 )
 from const import SCHEMA_VERSION
 from edf_parser import ChannelInventory
@@ -43,25 +44,45 @@ _T90_THRESHOLD = 90.0
 _T80_THRESHOLD = 80.0
 
 
+def _load_channel(
+    edf_path: Path,
+    inventory: ChannelInventory,
+    qc: QCResults,
+    labels: set[str],
+) -> tuple[str, Any, np.ndarray] | None:
+    """
+    Resolve one channel by label, check it clears the quality floor, and read it.
+
+    Four summaries needed exactly this preamble and each opened the EDF
+    separately, so a single study was opened four times and the quality gate was
+    written out four times. Returns None when the channel is absent or below
+    QUALITY_FLOOR — the caller then omits that section from the package.
+    """
+    label = find_channel(inventory, labels)
+    if label is None:
+        return None
+    qc_ch = qc.for_label(label)
+    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
+        return None
+    ch = inventory.by_label(label)
+    assert ch is not None
+
+    with pyedflib.EdfReader(str(edf_path)) as reader:
+        sig = reader.readSignal(ch.index).astype(np.float64)
+    return label, ch, sig
+
+
 def _spo2_summary(
     edf_path: Path,
     inventory: ChannelInventory,
     qc: QCResults,
     desat_candidates: list[CandidateWindow],
 ) -> dict[str, Any] | None:
-    spo2_label = find_channel(inventory, SPO2_LABELS)
-    if spo2_label is None:
+    loaded = _load_channel(edf_path, inventory, qc, SPO2_LABELS)
+    if loaded is None:
         return None
-    qc_ch = qc.for_label(spo2_label)
-    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
-        return None
-    ch = inventory.by_label(spo2_label)
-    assert ch is not None
-
-    with pyedflib.EdfReader(str(edf_path)) as reader:
-        sig = reader.readSignal(ch.index).astype(np.float64)
-
-    sig[(sig < SPO2_PHYSIOLOGICAL_MIN) | (sig > SPO2_PHYSIOLOGICAL_MAX)] = np.nan
+    spo2_label, ch, raw = loaded
+    sig = mask_outside(raw, SPO2_PHYSIOLOGICAL_MIN, SPO2_PHYSIOLOGICAL_MAX)
     valid = sig[~np.isnan(sig)]
     if valid.size == 0:
         return None
@@ -102,20 +123,12 @@ def _spo2_summary(
 
 
 def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> dict[str, Any] | None:
-    hr_label = find_channel(inventory, HR_LABELS)
-    if hr_label is None:
+    loaded = _load_channel(edf_path, inventory, qc, HR_LABELS)
+    if loaded is None:
         return None
-    qc_ch = qc.for_label(hr_label)
-    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
-        return None
-    ch = inventory.by_label(hr_label)
-    assert ch is not None
-
-    with pyedflib.EdfReader(str(edf_path)) as reader:
-        sig = reader.readSignal(ch.index).astype(np.float64)
-
+    hr_label, _ch, raw = loaded
     # Physiological HR range 20–220 bpm
-    sig[(sig < 20.0) | (sig > 220.0)] = np.nan
+    sig = mask_outside(raw, 20.0, 220.0)
     valid = sig[~np.isnan(sig)]
     if valid.size < 10:
         return None
@@ -131,17 +144,10 @@ def _hr_summary(edf_path: Path, inventory: ChannelInventory, qc: QCResults) -> d
 def _snore_summary(
     edf_path: Path, inventory: ChannelInventory, qc: QCResults, duration_hours: float
 ) -> dict[str, Any] | None:
-    snore_label = find_channel(inventory, SNORE_LABELS)
-    if snore_label is None:
+    loaded = _load_channel(edf_path, inventory, qc, SNORE_LABELS)
+    if loaded is None:
         return None
-    qc_ch = qc.for_label(snore_label)
-    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
-        return None
-    ch = inventory.by_label(snore_label)
-    assert ch is not None
-
-    with pyedflib.EdfReader(str(edf_path)) as reader:
-        sig = reader.readSignal(ch.index).astype(np.float64)
+    snore_label, ch, sig = loaded
 
     # Detect binary (firmware-scored 0/1) vs. continuous amplitude channel.
     # For amplitude channels, SomnoTouch stores the raw microphone envelope; any
@@ -174,17 +180,12 @@ def _positional_rei(
     flow_candidates: list[CandidateWindow],
     duration_hours: float,
 ) -> dict[str, Any] | None:
-    pos_label = find_channel(inventory, POSITION_LABELS)
-    if pos_label is None or not flow_candidates:
+    if not flow_candidates:
         return None
-    qc_ch = qc.for_label(pos_label)
-    if qc_ch is None or qc_ch.quality_score < QUALITY_FLOOR:
+    loaded = _load_channel(edf_path, inventory, qc, POSITION_LABELS)
+    if loaded is None:
         return None
-    ch = inventory.by_label(pos_label)
-    assert ch is not None
-
-    with pyedflib.EdfReader(str(edf_path)) as reader:
-        sig = reader.readSignal(ch.index).astype(np.float64)
+    pos_label, ch, sig = loaded
 
     # SOMNOtouch RESP position codes (verified against DOMINO output):
     # 0=supine, 1=upright, 2=left, 3=right, 4=prone
@@ -227,11 +228,6 @@ def _positional_rei(
         if nonsupine_hours > 0
         else None,
     }
-
-
-def _candidate_counts_by_dedupe_key(candidates: CandidateSet) -> dict[str, int]:
-    counts = Counter(w.dedupe_key for w in candidates.windows if w.dedupe_key)
-    return dict(sorted(counts.items()))
 
 
 def _compute_study_metrics(
@@ -303,7 +299,6 @@ def _compute_study_metrics(
         if bool(funnel.get("coupling_applied", 0))
         else None,
         "uncoupled_hypopnea_count": funnel.get("tagged_uncoupled_hypopnea", 0),
-        "raw_count_pre_filter": len(flow_candidates),
         "severity_breakdown": dict(Counter(w.dedupe_key for w in headline_candidates if w.dedupe_key)),
     }
     if headline_candidates:
